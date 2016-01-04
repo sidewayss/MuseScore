@@ -19,7 +19,7 @@
 #define __SEGMENT_H__
 
 #include "element.h"
-
+#include "shape.h"
 class QPainter;
 
 namespace Ms {
@@ -97,8 +97,8 @@ public:
       QList<qreal>   _dotPosX;            ///< size = staves
 
       std::vector<Element*> _annotations;
-
-      QList<Element*> _elist;      ///< Element storage, size = staves * VOICES.
+      QList<Element*> _elist;             ///< Element storage, size = staves * VOICES.
+      QList<Shape>    _shapes;            // size = staves
 
       void init();
       void checkEmpty() const;
