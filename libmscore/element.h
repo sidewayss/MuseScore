@@ -57,7 +57,7 @@ enum class Grip : signed char {
 //   ElementFlag
 //---------------------------------------------------------
 
-enum class ElementFlag : char {
+1enum class ElementFlag : char {
       DROP_TARGET  = 0x2,
       SELECTABLE   = 0x4,
       MOVABLE      = 0x8,

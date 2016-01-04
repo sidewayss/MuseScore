@@ -1,0 +1,13 @@
+This is the "newlayout" branch.
+
+The purpose of this branch is to implement a more sphisticated layout by replacing
+"Space" by something which describes the bounding box of an Segment in a threedimensional
+way. This allows to calculate the minimal horizontal and vertical space needed without
+any collisions.
+
+
+First Milestone:
+Construct the bounding box for every Staff/Segment. Paint the bounding box in
+debug mode.
+
+

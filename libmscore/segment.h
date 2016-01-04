@@ -84,17 +84,17 @@ public:
          };
 
    private:
-      Segment* _next;               // linked list of segments inside a measure
+      Segment* _next;                     // linked list of segments inside a measure
       Segment* _prev;
 
-      mutable bool empty;           // cached value
-      mutable bool _written { false };        // used for write()
+      mutable bool empty;                 // cached value
+      mutable bool _written { false };    // used for write()
 
       Type _segmentType { Type::Invalid };
       int _tick;
       Spatium _extraLeadingSpace;
       Spatium _extraTrailingSpace;
-      QList<qreal>   _dotPosX;     ///< size = staves
+      QList<qreal>   _dotPosX;            ///< size = staves
 
       std::vector<Element*> _annotations;
       QList<Element*> _qmlAnnotations;
