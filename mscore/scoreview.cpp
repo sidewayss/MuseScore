@@ -85,6 +85,9 @@
 #include "libmscore/utils.h"
 #include "libmscore/volta.h"
 #include "libmscore/xml.h"
+#ifdef SHAPES
+#include "libmscore/shape.h"
+#endif
 
 namespace Ms {
 
@@ -1897,6 +1900,27 @@ void ScoreView::paint(const QRect& r, QPainter& p)
                   QPointF pos(page->pos());
                   p.translate(pos);
                   drawElements(p, ell);
+
+
+#ifdef DEBUG_SHAPES
+                  for (const System* system : *page->systems()) {
+                        for (const MeasureBase* mb : system->measures()) {
+                              if (mb->type() == Element::Type::MEASURE) {
+                                    const Measure* m = static_cast<const Measure*>(mb);
+                                    for (const Segment* s = m->first(); s; s = s->next()) {
+                                          for (int i = 0; i < score()->nstaves(); ++i) {
+                                                QPointF pt(s->pos().x() + m->pos().x() + system->pos().x(),
+                                                   system->staffYpage(i));
+                                                p.translate(pt);
+                                                s->shapes().at(i).draw(&p);
+                                                p.translate(-pt);
+                                                }
+                                          }
+                                    }
+                              }
+                        }
+#endif
+
                   p.translate(-pos);
                   r1 -= _matrix.mapRect(pr).toAlignedRect();
                   }

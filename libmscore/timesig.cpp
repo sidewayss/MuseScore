@@ -252,6 +252,8 @@ void TimeSig::read(XmlReader& e)
 
 void TimeSig::layout1()
       {
+      printf("timesig::layout1()\n");
+
       qreal _spatium = spatium();
 
       setbbox(QRectF());                  // prepare for an empty time signature

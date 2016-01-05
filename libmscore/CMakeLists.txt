@@ -29,6 +29,10 @@ else (APPLE)
         set(INCS "")
 endif (APPLE)
 
+if (SHAPES)
+      set (SHAPE_SRC shape.cpp)
+endif (SHAPES)
+
 add_library (
       libmscore STATIC
       ${PROJECT_BINARY_DIR}/all.h
@@ -66,7 +70,7 @@ add_library (
       synthesizerstate.cpp mcursor.cpp groups.cpp mscoreview.cpp
       noteline.cpp spannermap.cpp
       bagpembell.cpp ambitus.cpp keylist.cpp scoreElement.cpp
-      shape.cpp
+      ${SHAPE_SRC}
       )
 
 set_target_properties (

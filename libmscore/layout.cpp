@@ -1393,7 +1393,7 @@ void Score::layoutStage3()
 
 void Score::doLayout()
       {
-// printf("doLayout %p cmd %d undo empty %d\n", this, undo()->active(), undo()->isEmpty());
+printf("====================doLayout %p cmd %d undo empty %d\n", this, undo()->active(), undo()->isEmpty());
 
       if (!undo()->active() && !undo()->isEmpty() && !undoRedo()) {
             qDebug("layout outside cmd and dirty undo");
@@ -1472,6 +1472,7 @@ void Score::doLayout()
             layoutLinear();
       else
             layoutSystems();  // create list of systems
+
 
       //---------------------------------------------------
       //   place Spanner & beams
@@ -1563,6 +1564,7 @@ void Score::doLayout()
                   sp->layout();
                   }
             }
+
 
       rebuildBspTree();
 
@@ -1680,6 +1682,7 @@ void Score::addSystemHeader(Measure* m, bool isFirstSystem)
                   Segment* seg = m->undoGetSegment(Segment::Type::KeySig, tick);
                   keysig->setParent(seg);
                   keysig->layout();
+                  seg->createShapes();
                   undo(new AddElement(keysig));
                   }
             else if (!needKeysig && keysig && keysig->generated())
@@ -1722,6 +1725,7 @@ void Score::addSystemHeader(Measure* m, bool isFirstSystem)
                         clef->layout();
                         clef->setClefType(clefType);  // set before add !
                         undo(new AddElement(clef));
+                        s->createShapes();
                         }
                   else if (clef->generated()) {
                         ClefTypeList cl = staff->clefType(tick);
@@ -3773,6 +3777,7 @@ qreal sff(qreal x, qreal xMin, const SpringMap& springs)
 
 void Score::respace(QList<ChordRest*>* elements)
       {
+#if 0       // TODO
       ChordRest* cr1 = elements->front();
       ChordRest* cr2 = elements->back();
       int n          = elements->size();
@@ -3828,6 +3833,7 @@ void Score::respace(QList<ChordRest*>* elements)
             qreal dx = x - cr->segment()->pos().x();
             cr->rxpos() += dx;
             }
+#endif
       }
 
 //---------------------------------------------------------
@@ -3836,6 +3842,72 @@ void Score::respace(QList<ChordRest*>* elements)
 ///    segment list fs
 //---------------------------------------------------------
 
+qreal Score::computeMinWidth(Segment* fs, bool /*firstMeasureInSystem*/)
+      {
+      for (Segment* s = fs; s; s = s->next())
+            s->createShapes();
+
+      qreal w = 0;
+      for (const Shape& s : fs->shapes())
+            w = qMax(-s.left(), w);
+
+      qreal _spatium         = spatium();
+      qreal nhw              = noteHeadWidth();
+      qreal minNoteDistance  = styleS(StyleIdx::minNoteDistance).val() * _spatium;
+      qreal bnd              = styleS(StyleIdx::barNoteDistance).val() * _spatium;
+      qreal nbd              = styleS(StyleIdx::noteBarDistance).val() * _spatium;
+      qreal clefLeftMargin   = styleS(StyleIdx::clefLeftMargin).val() * _spatium;
+      qreal clefKeyMargin    = styleS(StyleIdx::clefKeyRightMargin).val() * _spatium;
+
+      if (fs->segmentType() == Segment::Type::ChordRest)
+            w = qMax(w, bnd);
+      else if (fs->segmentType() == Segment::Type::Clef)
+            w = qMax(w, clefLeftMargin);
+
+      printf("computeMinWidth left %f\n", w);
+
+      while (fs) {
+            w          += fs->extraLeadingSpace().val() * _spatium;
+            fs->rxpos() = w;
+            Segment* ns = fs->next();
+            if (!ns) {
+                  qreal ww = 0.0;
+                  for (const Shape& s : fs->shapes())
+                        ww = qMax(ww, s.right());
+                  fs->rxpos() = w;
+                  fs->setWidth(ww);
+                  w += ww;
+                  break;
+                  }
+            qreal ww = 0;
+            for (int staffIdx = 0; staffIdx < nstaves(); ++staffIdx)
+                  ww = qMax(ww, fs->shape(staffIdx).minHorizontalDistance(ns->shape(staffIdx)));
+            if (fs->segmentType() == Segment::Type::ChordRest) {
+                  if (ns->segmentType() == Segment::Type::EndBarLine)
+                        ww += nbd;
+                  else if (ns->segmentType() == Segment::Type::Clef)
+                        ww = qMax(ww, clefLeftMargin);
+                  else
+                        ww = qMax(ww, minNoteDistance + nhw);
+                  }
+            else if (fs->segmentType() & (Segment::Type::KeySig | Segment::Type::TimeSig))
+                  ww += clefKeyMargin;
+            else if ((fs->segmentType() == Segment::Type::Clef) && fs->rtick() == 0)
+                  ww += clefKeyMargin;
+            else if ((fs->segmentType() == Segment::Type::Clef))
+                  ww += clefKeyMargin;
+
+            printf("   %s --- %s = %f\n", fs->subTypeName(), ns->subTypeName(), ww);
+            ww += fs->extraTrailingSpace().val() * _spatium;
+            fs->setWidth(ww);
+            w += ww;
+            fs = ns;
+            }
+      printf("   =%f\n", w);
+      return w;
+      }
+
+#if 0
 qreal Score::computeMinWidth(Segment* fs, bool firstMeasureInSystem)
       {
       int _nstaves = nstaves();
@@ -4173,6 +4245,8 @@ qreal Score::computeMinWidth(Segment* fs, bool firstMeasureInSystem)
       x += segmentWidth;
       return x;
       }
+#endif
+
 
 //---------------------------------------------------------
 //   updateBarLineSpans

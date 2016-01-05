@@ -92,10 +92,11 @@ public:
 
       Type _segmentType { Type::Invalid };
       int _tick;
+      int _ticks;
       Spatium _extraLeadingSpace;
       Spatium _extraTrailingSpace;
-      QList<qreal>   _dotPosX;            ///< size = staves
 
+      QList<qreal>   _dotPosX;            ///< size = staves
       std::vector<Element*> _annotations;
       QList<Element*> _elist;             ///< Element storage, size = staves * VOICES.
       QList<Shape>    _shapes;            // size = staves
@@ -179,6 +180,8 @@ public:
       int tick() const;
       int rtick() const                          { return _tick; } // tickposition relative to measure start
       void setRtick(int val)                     { _tick = val; }
+      int ticks() const                          { return _ticks; }
+      void setTicks(int val)                     { _ticks = val; }
 
       bool splitsTuplet() const;
 
@@ -213,6 +216,13 @@ public:
       Element* lastInPrevSegments(int activeStaff);   //<
       Element* firstElement(int staff);              //<  These methods are used for navigation
       Element* lastElement(int staff);               //<  for next-element and prev-element
+#ifdef SHAPES
+      QList<Shape> shapes()              { return _shapes; }
+      const QList<Shape>& shapes() const { return _shapes; }
+      const Shape& shape(int i) const    { return _shapes[i]; }
+      void createShapes();
+#endif
+
 protected:                                           //
       Element* getElement(int staff);                //<
       };

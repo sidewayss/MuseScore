@@ -98,7 +98,7 @@ class BarLine : public Element {
       virtual void scanElements(void* data, void (*func)(void*, Element*), bool all=true) override;
       virtual void add(Element*) override;
       virtual void remove(Element*) override;
-      virtual QPainterPath shape() const override;
+      virtual QPainterPath outline() const override;
 
       virtual bool acceptDrop(const DropData&) const override;
       virtual Element* drop(const DropData&) override;

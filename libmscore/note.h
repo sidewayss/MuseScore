@@ -449,6 +449,8 @@ class Note : public Element {
       virtual QString accessibleInfo() override;
       virtual QString screenReaderInfo() override;
       virtual QString accessibleExtraInfo() override;
+
+      virtual Shape shape() const override;
       };
 
 // extern const SymId noteHeads[2][int(NoteHead::Group::HEAD_GROUPS)][int(NoteHead::Type::HEAD_TYPES)];

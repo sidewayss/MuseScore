@@ -101,7 +101,9 @@ class Chord : public ChordRest {
       virtual qreal centerX() const;
       void createLedgerLines(int track, std::vector<LedgerLineData> &vecLines, bool visible);
       void addLedgerLines(int move);
-      void processSiblings(std::function<void(Element*)> func);
+//      void processSiblings(std::function<void(Element*)> func);
+      void processSiblings(std::function<void(Element*)> func) const;
+
       void layoutPitched();
       void layoutTablature();
 
@@ -233,6 +235,8 @@ class Chord : public ChordRest {
       virtual Element* nextElement() override;
       virtual Element* prevElement() override;
       virtual QString accessibleExtraInfo() override;
+
+      virtual Shape shape() const override;
       };
 
 

@@ -18,6 +18,10 @@
 #include "fraction.h"
 #include "scoreElement.h"
 
+#ifdef SHAPES
+#include "shape.h"
+#endif
+
 class QPainter;
 
 namespace Ms {
@@ -393,7 +397,10 @@ class Element : public QObject, public ScoreElement {
       virtual void addbbox(const QRectF& r) const { _bbox |= r;          }
       virtual bool contains(const QPointF& p) const;
       bool intersects(const QRectF& r) const;
-      virtual QPainterPath shape() const;
+      virtual QPainterPath outline() const;
+#ifdef SHAPES
+      virtual Shape shape() const;
+#endif
       virtual qreal baseLine() const          { return -height();       }
 
       virtual Element::Type type() const = 0;

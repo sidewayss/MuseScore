@@ -507,10 +507,10 @@ void Beam::layout()
       }
 
 //---------------------------------------------------------
-//   shape
+//   outline
 //---------------------------------------------------------
 
-QPainterPath Beam::shape() const
+QPainterPath Beam::outline() const
       {
       QPainterPath pp;
       qreal lw2 = point(score()->styleS(StyleIdx::beamWidth)) * .5 * mag();
@@ -532,7 +532,7 @@ QPainterPath Beam::shape() const
 
 bool Beam::contains(const QPointF& p) const
       {
-      return shape().contains(p - pagePos());
+      return outline().contains(p - pagePos());
       }
 
 //---------------------------------------------------------

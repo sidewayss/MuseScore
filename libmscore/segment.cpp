@@ -133,6 +133,7 @@ Segment::Segment(Measure* m, Type st, int t)
 Segment::Segment(const Segment& s)
    : Element(s)
       {
+      printf("==========clone segment\n");
       _next = 0;
       _prev = 0;
 
@@ -157,6 +158,7 @@ Segment::Segment(const Segment& s)
             _elist.append(ne);
             }
       _dotPosX = s._dotPosX;
+      _shapes  = s._shapes;
       }
 
 void Segment::setSegmentType(Type t)
@@ -203,8 +205,11 @@ void Segment::init()
       for (int i = 0; i < tracks; ++i)
             _elist.push_back(0);
       _dotPosX.reserve(staves);
-      for (int i = 0; i < staves; ++i)
+      _shapes.reserve(staves);
+      for (int i = 0; i < staves; ++i) {
             _dotPosX.push_back(0.0);
+            _shapes.push_back(Shape());
+            }
       _prev = 0;
       _next = 0;
       }
@@ -381,6 +386,7 @@ void Segment::insertStaff(int staff)
       for (int voice = 0; voice < VOICES; ++voice)
             _elist.insert(track, 0);
       _dotPosX.insert(staff, 0.0);
+      _shapes.insert(staff, Shape());
 
       foreach(Element* e, _annotations) {
             int staffIdx = e->staffIdx();
@@ -399,6 +405,7 @@ void Segment::removeStaff(int staff)
       int track = staff * VOICES;
       _elist.erase(_elist.begin() + track, _elist.begin() + track + VOICES);
       _dotPosX.removeAt(staff);
+      _shapes.removeAt(staff);
 
       foreach(Element* e, _annotations) {
             int staffIdx = e->staffIdx();
@@ -1275,4 +1282,16 @@ QQmlListProperty<Ms::Element> Segment::qmlAnnotations()
       return QQmlListProperty<Ms::Element>(this, qmlAnnotations);
       }
 
+#ifdef SHAPES
+//---------------------------------------------------------
+//   createShapes
+//---------------------------------------------------------
+
+void Segment::createShapes()
+      {
+      for (int staffIdx = 0; staffIdx < score()->nstaves(); ++staffIdx)
+            _shapes[staffIdx].create(staffIdx, this);
+      }
+
+#endif
 }           // namespace Ms

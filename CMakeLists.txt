@@ -62,6 +62,7 @@ set(MSCORE_UNSTABLE  TRUE)          # mark as unstable
 
 set(USE_SSE           TRUE)
 set(SCRIPT_INTERFACE  TRUE)
+set(SHAPES            TRUE)
 
 option(AEOLUS        "enable pipe organ synthesizer"      OFF)
 option(ZERBERUS      "enable experimental sfz sampler"    ON)

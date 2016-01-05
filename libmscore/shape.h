@@ -15,16 +15,37 @@
 
 namespace Ms {
 
+#define DEBUG_SHAPES
+
+class Segment;
+
 //---------------------------------------------------------
 //   Shape
 //---------------------------------------------------------
 
-class Shape : public QList<QRectF> {
+class Shape : QList<QRectF> {
    public:
       Shape() {}
-      void draw(QPainter*);
+      void draw(QPainter*) const;
+      void create(int staffIdx, Segment*);
+
+      void add(const Shape& s)            { append(s); }
+      void add(const QRectF& r)           { append(r); }
+      void translate(const QPointF&);
+      qreal minHorizontalDistance(const Shape&) const;
+      qreal minVerticalDistance(const Shape&) const;
+      qreal left() const;
+      qreal right() const;
+      int size() const { return QList<QRectF>::size(); }
+
+#ifdef DEBUG_SHAPES
+      void dump(const char*) const;
+#endif
       };
 
+#ifdef DEBUG_SHAPES
+extern void testShapes();
+#endif
 
 } // namespace Ms
 

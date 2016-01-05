@@ -2759,5 +2759,22 @@ void Note::setAccidentalType(AccidentalType type)
       	_score->changeAccidental(this, type);
       }
 
+//---------------------------------------------------------
+//   shape
+//---------------------------------------------------------
+
+Shape Note::shape() const
+      {
+      Shape shape;
+      shape.add(bbox().translated(pos()));
+      for (int i = 0; i < chord()->dots(); ++i) {
+            NoteDot* dot = _dots[i];
+            if (dot)
+                  shape.add(dot->bbox().translated(dot->pos()+pos()));
+            }
+      if (_accidental)
+            shape.add(_accidental->bbox().translated(_accidental->pos() + pos()));
+      return shape;
+      }
 
 }

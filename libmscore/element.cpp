@@ -607,7 +607,7 @@ qreal Element::canvasX() const
 
 bool Element::contains(const QPointF& p) const
       {
-      return shape().contains(p - pagePos());
+      return outline().contains(p - pagePos());
       }
 
 //---------------------------------------------------------
@@ -624,12 +624,25 @@ bool Element::contains(const QPointF& p) const
   accurate shape for non-rectangular elements.
 */
 
-QPainterPath Element::shape() const
+QPainterPath Element::outline() const
       {
       QPainterPath pp;
       pp.addRect(bbox());
       return pp;
       }
+
+#ifdef SHAPES
+//---------------------------------------------------------
+//   shape
+//---------------------------------------------------------
+
+Shape Element::shape() const
+      {
+      Shape shape;
+      shape.add(bbox().translated(pos()));
+      return shape;
+      }
+#endif
 
 //---------------------------------------------------------
 //  intersects
@@ -643,7 +656,7 @@ QPainterPath Element::shape() const
 
 bool Element::intersects(const QRectF& rr) const
       {
-      return shape().intersects(rr.translated(-pagePos()));
+      return outline().intersects(rr.translated(-pagePos()));
       }
 
 //---------------------------------------------------------

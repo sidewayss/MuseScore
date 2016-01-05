@@ -155,7 +155,9 @@ class System : public Element {
       int snap(int tick, const QPointF p) const;
       int snapNote(int tick, const QPointF p, int staff) const;
 
-      QList<MeasureBase*>& measures()        { return ml; }
+      QList<MeasureBase*>& measures() { return ml; }
+      const QList<MeasureBase*>& measures() const { return ml; }
+
       MeasureBase* measure(int idx)          { return ml[idx]; }
       Measure* firstMeasure() const;
       Measure* lastMeasure() const;

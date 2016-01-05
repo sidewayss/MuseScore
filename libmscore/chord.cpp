@@ -1187,7 +1187,7 @@ void Chord::scanElements(void* data, void (*func)(void*, Element*), bool all)
 //   processSiblings
 //---------------------------------------------------------
 
-void Chord::processSiblings(std::function<void(Element*)> func)
+void Chord::processSiblings(std::function<void(Element*)> func) const
       {
       if (_hook)
             func(_hook);
@@ -3244,6 +3244,10 @@ Element* Chord::prevElement()
       return ChordRest::prevElement();
       }
 
+//---------------------------------------------------------
+//   accessibleExtraInfo
+//---------------------------------------------------------
+
 QString Chord::accessibleExtraInfo()
       {
       QString rez = "";
@@ -3273,4 +3277,22 @@ QString Chord::accessibleExtraInfo()
 
       return QString("%1 %2").arg(rez).arg(ChordRest::accessibleExtraInfo());
       }
+
+//---------------------------------------------------------
+//   shape
+//---------------------------------------------------------
+
+Shape Chord::shape() const
+      {
+      Shape shape;
+      processSiblings([&shape] (Element* e) {
+            Shape s = e->shape();
+            if (e->type() == Element::Type::CHORD)
+                  s.translate(e->pos());
+            shape.add(s);
+            });
+      return shape;
+      }
+
 }
+

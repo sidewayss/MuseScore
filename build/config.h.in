@@ -29,6 +29,7 @@
 
 #cmakedefine HAS_MIDI
 #cmakedefine SCRIPT_INTERFACE
+#cmakedefine SHAPES
 #cmakedefine HAS_AUDIOFILE
 #cmakedefine USE_SSE
 

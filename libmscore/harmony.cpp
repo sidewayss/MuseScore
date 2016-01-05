@@ -1139,7 +1139,7 @@ void Harmony::calculateBoundingRect()
 //   shape
 //---------------------------------------------------------
 
-QPainterPath Harmony::shape() const
+QPainterPath Harmony::outline() const
       {
       QPainterPath pp;
       pp.addRect(bbox());

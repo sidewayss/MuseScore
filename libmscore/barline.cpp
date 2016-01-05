@@ -206,9 +206,9 @@ void BarLine::getY(qreal* y1, qreal* y2) const
                   qDebug("BarLine: bad _span %d", _span);
                   staffIdx2 = score()->nstaves() - 1;
                   }
-            Measure* measure;
+            Measure* measure = 0;
             System* system;
-            SysStaff* sysStaff0 = nullptr;      // top staff for barline in system
+            SysStaff* sysStaff0 = 0;      // top staff for barline in system
             bool systemBarLine;
             if (parent()->type() == Element::Type::SEGMENT) {
                   Segment* segment = static_cast<Segment*>(parent());
@@ -236,35 +236,38 @@ void BarLine::getY(qreal* y1, qreal* y2) const
                   int nstaves = score()->nstaves();
                   Staff* staff1 = score()->staff(staffIdx1);
                   Staff* staff2 = score()->staff(staffIdx2);
-                  SysStaff* sysStaff1 = system->staff(staffIdx1);
-                  SysStaff* sysStaff2 = system->staff(staffIdx2);
-                  SysStaff* sysStaff1a = nullptr;     // first staff that is shown, even if it has invisible measures
-                  Measure* nm = measure->nextMeasure();
-                  if (nm && nm->system() != measure->system())
-                        nm = nullptr;
-                  while (span > 0) {
-                        bool show1 = sysStaff1->show() && staff1->show();
-                        // if start staff not shown, reduce span and move one staff down
-                        if (!(show1 && (measure->visible(staffIdx1) || (nm && nm->visible(staffIdx1))))) {
-                              span--;
-                              if (show1 && !sysStaff1a)
-                                    sysStaff1a = sysStaff1;       // use for its y offset
-                              if (staffIdx1 >= nstaves-1)         // running out of staves?
+                  SysStaff* sysStaff1  = 0;
+                  SysStaff* sysStaff1a = 0;     // first staff that is shown, even if it has invisible measures
+                  if (system) {
+                        sysStaff1 = system->staff(staffIdx1);
+                        SysStaff* sysStaff2 = system->staff(staffIdx2);
+                        Measure* nm = measure->nextMeasure();
+                        if (nm && nm->system() != measure->system())
+                              nm = nullptr;
+                        while (span > 0) {
+                              bool show1 = sysStaff1->show() && staff1->show();
+                              // if start staff not shown, reduce span and move one staff down
+                              if (!(show1 && (measure->visible(staffIdx1) || (nm && nm->visible(staffIdx1))))) {
+                                    span--;
+                                    if (show1 && !sysStaff1a)
+                                          sysStaff1a = sysStaff1;       // use for its y offset
+                                    if (staffIdx1 >= nstaves-1)         // running out of staves?
+                                          break;
+                                    sysStaff1 = system->staff(++staffIdx1);
+                                    staff1    = score()->staff(staffIdx1);
+                                    }
+                              // if end staff not shown, reduce span and move one staff up
+                              else if (!(sysStaff2->show() && staff2->show() && (measure->visible(staffIdx2) || (nm && nm->visible(staffIdx2))))) {
+                                    span--;
+                                    if (staffIdx2 == 0)
+                                          break;
+                                    sysStaff2 = system->staff(--staffIdx2);
+                                    staff2    = score()->staff(staffIdx2);
+                                    }
+                              // if both staves shown, exit loop
+                              else
                                     break;
-                              sysStaff1 = system->staff(++staffIdx1);
-                              staff1    = score()->staff(staffIdx1);
                               }
-                        // if end staff not shown, reduce span and move one staff up
-                        else if (!(sysStaff2->show() && staff2->show() && (measure->visible(staffIdx2) || (nm && nm->visible(staffIdx2))))) {
-                              span--;
-                              if (staffIdx2 == 0)
-                                    break;
-                              sysStaff2 = system->staff(--staffIdx2);
-                              staff2    = score()->staff(staffIdx2);
-                              }
-                        // if both staves shown, exit loop
-                        else
-                              break;
                         }
                   // if no longer any span, set 0 length and exit
                   if (span <= 0) {
@@ -1126,7 +1129,7 @@ void BarLine::layout()
 //   shape
 //---------------------------------------------------------
 
-QPainterPath BarLine::shape() const
+QPainterPath BarLine::outline() const
       {
       QPainterPath p;
       qreal d = spatium() * .3;
