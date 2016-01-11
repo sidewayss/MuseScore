@@ -96,7 +96,8 @@ void TextProp::setScore(bool onlyStyle, Score* score)
 
 void TextProp::mmToggled(bool val)
       {
-      QString unit(val ? tr("mm", "millimeter unit") : tr("sp", "spatium unit"));
+      QString unit(val ? tr(unitSuffixes[(int)Units::MM], "millimeter unit")
+                       : tr(unitSuffixes[(int)Units::SP], "spatium unit"));
       xOffset->setSuffix(unit);
       yOffset->setSuffix(unit);
       curUnit = val ? 0 : 1;
@@ -156,8 +157,8 @@ void TextProp::setTextStyle(const TextStyle& s)
             alignTop->setChecked(true);
 
       if (s.offsetType() == OffsetType::ABS) {
-            xOffset->setValue(s.offset().x() * INCH);
-            yOffset->setValue(s.offset().y() * INCH);
+            xOffset->setValue(s.offset().x() * MMPI);
+            yOffset->setValue(s.offset().y() * MMPI);
             mmUnit->setChecked(true);
             curUnit = 0;
             }
@@ -201,8 +202,8 @@ TextStyle TextProp::textStyle() const
       ts.setSize(fontSize->value());
       QFont f = fontSelect->currentFont();
       ts.setFamily(f.family());
-      ts.setXoff(xOffset->value() / ((ts.offsetType() == OffsetType::ABS) ? INCH : 1.0));
-      ts.setYoff(yOffset->value() / ((ts.offsetType() == OffsetType::ABS) ? INCH : 1.0));
+      ts.setXoff(xOffset->value() / ((ts.offsetType() == OffsetType::ABS) ? MMPI : 1.0));
+      ts.setYoff(yOffset->value() / ((ts.offsetType() == OffsetType::ABS) ? MMPI : 1.0));
       ts.setFrameColor(frameColor->color());
       ts.setForegroundColor(color->color());
       ts.setBackgroundColor(bgColor->color());

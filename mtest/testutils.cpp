@@ -237,7 +237,7 @@ bool MTest::savePdf(Score* cs, const QString& saveName)
       {
       QPrinter printerDev(QPrinter::HighResolution);
       const PageFormat* pf = cs->pageFormat();
-      printerDev.setPaperSize(pf->size(), QPrinter::Inch);
+      printerDev.setPaperSize(pf->size(), QPrinter::Point);
 
       printerDev.setCreator("MuseScore Version: " VERSION);
       printerDev.setFullPage(true);

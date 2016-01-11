@@ -155,21 +155,21 @@ double MagBox::getMag(ScoreView* canvas) const
             case MagIdx::MAG_1600:    nmag = 16.0 * pmag; break;
 
             case MagIdx::MAG_PAGE_WIDTH:      // page width
-                  nmag = cw / (pf->width() * DPI);
+                  nmag = cw / (pf->width());
                   break;
 
             case MagIdx::MAG_PAGE:     // page
                   {
-                  double mag1 = cw / (pf->width() *  DPI);
-                  double mag2 = ch / (pf->height() * DPI);
+                  double mag1 = cw / (pf->width());
+                  double mag2 = ch / (pf->height());
                   nmag  = (mag1 > mag2) ? mag2 : mag1;
                   }
                   break;
 
             case MagIdx::MAG_DBL_PAGE:    // double page
                   {
-                  double mag1 = cw / (pf->width() * 2 * DPI + 50);
-                  double mag2 = ch / (pf->height() * DPI);
+                  double mag1 = cw / (pf->width() * 2 + 50);
+                  double mag2 = ch / (pf->height());
                   nmag  = (mag1 > mag2) ? mag2 : mag1;
                   }
                   break;

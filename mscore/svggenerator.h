@@ -50,6 +50,8 @@
 #include <QtCore/qscopedpointer.h>
 
 #include "libmscore/element.h" // for Element class
+#include "libmscore/barline.h" // for BarLine class
+#include "libmscore/mscore.h"  // for BarLineType enum
 
 class SvgGeneratorPrivate;
 
@@ -101,15 +103,17 @@ public:
 
     void setResolution(int dpi);
     int resolution() const;
-
-    void setElement(const Ms::Element* e);
-
 protected:
     QPaintEngine *paintEngine() const;
     int metric(QPaintDevice::PaintDeviceMetric metric) const;
 
 private:
     QScopedPointer<SvgGeneratorPrivate> d_ptr;
+
+public:
+    void setElement(const Ms::Element* e);
+    void setCueID(const QString& qs);
+
 };
 
 #endif // QSVGGENERATOR_H

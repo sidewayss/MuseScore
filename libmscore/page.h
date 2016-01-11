@@ -58,7 +58,7 @@ class PageFormat : public QObject {
       Q_OBJECT
       Q_PROPERTY(qreal  evenBottomMargin READ evenBottomMargin WRITE setEvenBottomMargin)
       Q_PROPERTY(qreal  evenLeftMargin   READ evenLeftMargin   WRITE setEvenLeftMargin  )
-      Q_PROPERTY(qreal  evenTopMargin    READ evenTopMargin    WRITE setEvenTopMargin  )
+      Q_PROPERTY(qreal  evenTopMargin    READ evenTopMargin    WRITE setEvenTopMargin   )
       Q_PROPERTY(qreal  oddBottomMargin  READ oddBottomMargin  WRITE setOddBottomMargin )
       Q_PROPERTY(qreal  oddLeftMargin    READ oddLeftMargin    WRITE setOddLeftMargin   )
       Q_PROPERTY(qreal  oddTopMargin     READ oddTopMargin     WRITE setOddTopMargin    )
@@ -80,6 +80,9 @@ class PageFormat {
       bool _twosided;
 
    public:
+      // file storage uses PPI/DPI * 2 as the units, 144PPI/DPI
+      static constexpr qreal SCALE_XML = 2;
+
       PageFormat();
 
       const QSizeF& size() const    { return _size;          }    // size in inch
@@ -172,6 +175,8 @@ class Page : public Element {
          Segment**, QPointF* offset) const;
       QList<const Element*> elements();         ///< list of visible elements
       QRectF tbbox();                           // tight bounding box, excluding white space
+
+      static const int SIZE_CUSTOM = 0;
       };
 
 extern const PaperSize paperSizes[];

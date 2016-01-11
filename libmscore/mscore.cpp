@@ -144,8 +144,6 @@ void MScore::init()
       qRegisterMetaType<Glissando::Type>("GlissandoType");
 #endif
 
-//      DPMM = DPI / INCH;       // dots/mm
-
 #ifdef Q_OS_WIN
       QDir dir(QCoreApplication::applicationDirPath() + QString("/../" INSTALL_NAME));
       _globalShare = dir.absolutePath() + "/";
