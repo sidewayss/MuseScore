@@ -872,6 +872,7 @@ QString MuseScore::getSaveScoreName(const QString& title,
             QString rv;
             QFileDialog dialog(this, title, myName.absolutePath(), filter);
             dialog.selectFile(myName.fileName());
+            dialog.setAcceptMode(QFileDialog::AcceptSave);
             QFileDialog::Options options = selectFolder
                                          ? QFileDialog::ShowDirsOnly
                                          : QFileDialog::Options(0);

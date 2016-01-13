@@ -570,7 +570,7 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       QList<LanguageItem>& languages() { return _languages; }
 
       QStringList getOpenScoreNames(const QString& filter, const QString& title);
-      QString getSaveScoreName(const QString& title, QString& name, const QString& filter, bool folder = false, QString* selectedFilter = 0);
+      QString getSaveScoreName(const QString& title, QString& name, const QString& filter, bool folder = false, QString *selectedFilter = 0);
       QString getStyleFilename(bool open, const QString& title = QString());
       QString getFotoFilename(QString& filter, QString *selectedFilter);
       QString getChordStyleFilename(bool open);
