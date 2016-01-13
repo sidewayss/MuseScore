@@ -85,11 +85,17 @@
 #include "libmscore/mscore.h"
 #include "thirdparty/qzip/qzipreader_p.h"
 
-// SMAWS includes
+// SMAWS includes and defines
 #include "libmscore/tempo.h"
 #include "libmscore/chord.h"
 #include "libmscore/notedot.h"
 #include "libmscore/accidental.h"
+
+// For QFileDialog. See MuseScore::exportFile() below
+#define EXT_SVG ".svg"
+#define EXT_VTT ".vtt"
+#define FILTER_SMAWS        "SMAWS SVG+VTT"
+#define FILTER_SMAWS_RULERS "SMAWS Rulers"
 // SMAWS end
 
 extern Ms::Score::FileError importOve(Ms::Score*, const QString& name);
@@ -855,7 +861,7 @@ QStringList MuseScore::getOpenScoreNames(const QString& filter, const QString& t
 //---------------------------------------------------------
 
 QString MuseScore::getSaveScoreName(const QString& title,
-   QString& name, const QString& filter, bool selectFolder)
+   QString& name, const QString& filter, bool selectFolder, QString* selectedFilter)
       {
       QFileInfo myName(name);
       if (myName.isRelative())
@@ -863,9 +869,19 @@ QString MuseScore::getSaveScoreName(const QString& title,
       name = myName.absoluteFilePath();
 
       if (preferences.nativeDialogs) {
-            QString s;
-            QFileDialog::Options options = selectFolder ? QFileDialog::ShowDirsOnly : QFileDialog::Options(0);
-            return QFileDialog::getSaveFileName(this, title, name, filter, &s, options);
+            QString rv;
+            QFileDialog dialog(this, title, myName.absolutePath(), filter);
+            dialog.selectFile(myName.fileName());
+            QFileDialog::Options options = selectFolder
+                                         ? QFileDialog::ShowDirsOnly
+                                         : QFileDialog::Options(0);
+            dialog.setOptions(options);
+            if(dialog.exec()) {
+                rv = dialog.selectedFiles()[0];
+                if (!selectedFilter == 0)
+                    *selectedFilter = dialog.selectedNameFilter();
+                }
+            return rv;
             }
 
       QFileInfo myScores(preferences.myScoresPath);
@@ -1552,7 +1568,7 @@ void MuseScore::exportFile()
       QStringList fl;
       fl.append(tr("PDF File (*.pdf)"));
       fl.append(tr("PNG Bitmap Graphic (*.png)"));
-      fl.append(tr("Scalable Vector Graphic (*.svg)"));
+      fl.append(tr("Scalable Vector Graphic (*%1)").arg(EXT_SVG));
 #ifdef HAS_AUDIOFILE
       fl.append(tr("Wave Audio (*.wav)"));
       fl.append(tr("FLAC Audio (*.flac)"));
@@ -1566,8 +1582,9 @@ void MuseScore::exportFile()
       fl.append(tr("Compressed MusicXML File (*.mxl)"));
       fl.append(tr("Uncompressed MuseScore File (*.mscx)"));
 // SMAWS options
-      fl.append(tr("SMAWS SVG+VTT (*.vtt"));
-      fl.append(tr("SMAWS Rulers  (*_rul.vtt"));
+      fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS).arg(EXT_VTT));
+      fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS_RULERS).arg(EXT_VTT));
+// SMAWS end
 
       QString saveDialogTitle = tr("MuseScore: Export");
 
@@ -1607,7 +1624,8 @@ void MuseScore::exportFile()
       if (idx != -1)
             fl.move(idx, 0);
       QString filter = fl.join(";;");
-      QString fn = getSaveScoreName(saveDialogTitle, name, filter);
+      QString selectedFilter;
+      QString fn = getSaveScoreName(saveDialogTitle, name, filter, false, &selectedFilter);
       if (fn.isEmpty())
             return;
 
@@ -1615,10 +1633,18 @@ void MuseScore::exportFile()
       lastSaveCopyDirectory = fi.absolutePath();
       lastSaveCopyFormat = fi.suffix();
 
+      // A bit of a kludge, reusing the saveCopy arg in MuseScore::saveAs().
+      // It distinguishes between SMAWS and SMAWS_RULERS without adding an arg
+      // to saveAs(), which is called in several places outside this file too.
+      // The default prior to this variable existing, was true.
+      bool saveCopy = true;
+      if (selectedFilter.contains(FILTER_SMAWS_RULERS))
+            saveCopy = false;
+
       if (fi.suffix().isEmpty())
             QMessageBox::critical(this, tr("MuseScore: Export"), tr("Cannot determine file type"));
       else
-            saveAs(cs, true, fn, fi.suffix());
+            saveAs(cs, saveCopy, fn, fi.suffix());
       }
 
 //---------------------------------------------------------
@@ -1631,7 +1657,7 @@ bool MuseScore::exportParts()
       QStringList fl;
       fl.append(tr("PDF File (*.pdf)"));
       fl.append(tr("PNG Bitmap Graphic (*.png)"));
-      fl.append(tr("Scalable Vector Graphic (*.svg)"));
+      fl.append(tr("Scalable Vector Graphic (*%1)").arg(EXT_SVG));
 #ifdef HAS_AUDIOFILE
       fl.append(tr("Wave Audio (*.wav)"));
       fl.append(tr("FLAC Audio (*.flac)"));
@@ -1833,10 +1859,18 @@ bool MuseScore::saveAs(Score* cs, bool saveCopy, const QString& path, const QStr
             cs->switchToPageMode();
             rv = saveSvg(cs, fn);
             }
-      else if (ext == "vtt") {
-            // SMAWS: matched svg/vtt files
+      else if (suffix == EXT_VTT) {
+            // SMAWS: matched SVG + WebVTT files
+            // Rulers are global to a composition, shared by all the parts
+            // Users must generate them separately, once per composition.
+            // It is both a convenience and a requirement if you want rulers.
+            // This reuses the saveCopy arg in order to avoid another overload.
+            // See MuseScore::exportFile() above.
             cs->switchToPageMode();
-            //rv = saveSMAWS(fn);
+            if (saveCopy)
+                  rv = saveSMAWS(cs, fn);
+            else
+                  rv = saveSMAWS_Rulers(cs, fn);
             }
 #ifdef HAS_AUDIOFILE
       else if (ext == "wav" || ext == "flac" || ext == "ogg")
@@ -2514,35 +2548,146 @@ QString MuseScore::getWallpaper(const QString& caption)
       return QString();
       }
 
-//------------------------------------------------------------------
-//   saveSvg and
-//   saveVTT, a helper function exclusively for saveSvg
-//   getCueID, another little helper
-//   getAnnCueID, yet another, less generic, helper
-//------------------------------------------------------------------
-// Creates a cue ID string from a start/end tick value pair
-QString getCueID(int startTick, int endTick)
+//-----------------------------------------------------------------------------
+//   saveSvg()         the one, the original, fully integrated into MuseScore (not quite fully yet...)
+//   paintStaffLines() helps both saveSvg() and saveSMAWS paint SVG staff lines
+//   saveSMAWS()       duplicates some SaveSvg() code, writes SVG and VTT files
+//   saveVTT()         a helper function exclusively for saveSMAWS()
+//   getCueID()        another little helper
+//   getAnnCueID()     yet another, less generic, helper
+//   getRulerCueID()   yet another Cue-ID-getter
+//   paintStaffLines() helps both saveSvg() and saveSMAWS paint SVG staff lines
+//-----------------------------------------------------------------------------
+//
+// paintStaffLines() - not part of class MuseScore, totally private. It belongs
+// with paintElement() & paintElements(), but I'm grouping all things SVG here.
+// For MuseScore master, it doesn't hurt, and it may help in the future...
+static void paintStaffLines(Score* score, Page* page, QPainter* p, SvgGenerator* printer)
 {
-    // For cue_id formatting: 1234567_0000007
-    const int   fieldWidth =  7;
-    const int   base       = 10;
-    const QChar fillChar   = '0';
+    foreach (System* s, *(page->systems())) {
+        for (int i = 0, n = s->staves()->size(); i < n; i++) {
+            if (score->staff(i)->invisible())
+                continue;  // ignore invisible staves
 
-    return QString("%1_%2").arg(startTick, fieldWidth, base, fillChar)
-                             .arg(endTick, fieldWidth, base, fillChar);
+            // The goal here is to draw SVG staff lines more efficiently.
+            // MuseScore draws staff lines by measure, but for SVG they can
+            // generally be drawn once for each system. This makes a big
+            // difference for scores that scroll horizontally on a single
+            // page. But there is an exception to this rule:
+            //
+            //   ~ One (or more) invisible measure(s) in a system/staff ~
+            //     In this case the SVG staff lines for the system/staff
+            //     are drawn by measure.
+            //
+            bool byMeasure = false;
+            for (MeasureBase* mb = s->firstMeasure(); mb != 0; mb = s->nextMeasure(mb)) {
+                if (!static_cast<Measure*>(mb)->visible(i)) {
+                    byMeasure = true;
+                    continue;
+                }
+            }
+            if (byMeasure) { // Draw visible staff lines by measure
+                for (MeasureBase* mb = s->firstMeasure(); mb != 0; mb = s->nextMeasure(mb)) {
+                    Measure* m = static_cast<Measure*>(mb);
+                    if (m->visible(i)) {
+                        StaffLines* sl = m->staffLines(i);
+                        printer->setElement(sl);
+                        paintElement(*p, sl);
+                    }
+                }
+            }
+            else { // Draw staff lines once per system
+                StaffLines* firstSL = s->firstMeasure()->staffLines(i)->clone();
+                StaffLines*  lastSL =  s->lastMeasure()->staffLines(i);
+                firstSL->bbox().setRight(lastSL->bbox().right()
+                                      +  lastSL->pagePos().x()
+                                      - firstSL->pagePos().x());
+                printer->setElement(firstSL);
+                paintElement(*p, firstSL);
+            }
+        } // for each Staff
+    } //for each System
 }
-// Gets the cue ID for an annotation, such as rehearsal mark or chord symbol
-QString getAnnCueID(Score* score, Segment* segStart, Element::Type eType){
-    int  startTick = segStart->tick();
-    for (Segment* seg = segStart->next1(Segment::Type::ChordRest);
-                  seg; seg = seg->next1(Segment::Type::ChordRest)) {
-        for (Element* eAnn : seg->annotations()) {
-            if (eAnn->type() == eType)
-                return getCueID(startTick, seg->tick());
+
+static bool svgInit(Score* score, const QString& saveName, SvgGenerator* printer, QPainter* p)
+{
+    printer->setFileName(saveName);
+    printer->setTitle(score->title());
+
+    const PageFormat* pf = score->pageFormat();
+    QRectF r;
+    if (trimMargin >= 0 && score->npages() == 1) {
+          QMarginsF margins(trimMargin, trimMargin, trimMargin, trimMargin);
+          r = score->pages().first()->tbbox() + margins;
+          }
+    else
+          r = QRectF(0, 0, pf->width() * DPI * score->pages().size(), pf->height() * DPI);
+    qreal w = r.width();
+    qreal h = r.height();
+
+    printer->setSize(QSize(w, h));
+    printer->setViewBox(QRectF(0, 0, w, h));
+
+    score->setPrinting(true);
+    MScore::pdfPrinting = true;
+
+    if (!p->begin(printer))
+        return false;
+
+    p->setRenderHint(QPainter::Antialiasing, true);
+    p->setRenderHint(QPainter::TextAntialiasing, true);
+    if (trimMargin >= 0 && score->npages() == 1)
+          p->translate(-r.topLeft());
+
+    return true;
+}
+
+bool MuseScore::saveSvg(Score* score, const QString& saveName)
+{
+      SvgGenerator printer;
+      QPainter p;
+      if (!svgInit(score, saveName, &printer, &p))
+          return false;
+
+      foreach (Page* page, score->pages()) {
+        // 1st pass: StaffLines
+        paintStaffLines(score, page, &p, &printer);
+
+        // 2nd pass: the rest of the elements
+        QList<const Element*> pel = page->elements();
+        qStableSort(pel.begin(), pel.end(), elementLessThan);
+
+        Element::Type eType;
+        foreach (const Element* e, pel) {
+            // Always exclude invisible elements
+            if (!e->visible())
+                    continue;
+
+            eType = e->type();
+            switch (eType) { // In future sub-type code, this switch() grows, and eType gets used
+            case Element::Type::STAFF_LINES : // Handled in the 1st pass above
+                continue; // Exclude from 2nd pass
+                break;
+            default:
+                break;
+            } // switch(eType)
+
+            // Set the Element pointer inside SvgGenerator/SvgPaintEngine
+            printer.setElement(e);
+
+            // Paint it
+            paintElement(p, e);
         }
-    }
-    // If there's no "next" annotation, this is the last one in the score
-    return getCueID(startTick, score->lastSegment()->tick());
+        // Future code will create separate files for each page,
+        // so this horizontal offset page-simulation will disappear.
+        p.translate(QPointF(score->pageFormat()->width(), 0.0));
+      }
+
+      // Clean up and return
+      score->setPrinting(false);
+      MScore::pdfPrinting = false;
+      p.end(); // Writes MuseScore SVG file to disk, finally
+      return true;
 }
 //
 // saveVTT()
@@ -2555,7 +2700,7 @@ QIODevice::OpenMode openMode,
 {
     // Open a stream into the file
     QFile fileVTT;
-    fileVTT.setFileName(QString("%1.vtt").arg(fileRoot));
+    fileVTT.setFileName(QString("%1%2").arg(fileRoot).arg(EXT_VTT));
     fileVTT.open(openMode);  // TODO: check for failure here!!!
     QTextStream streamVTT(&fileVTT);
 
@@ -2592,293 +2737,96 @@ QIODevice::OpenMode openMode,
     fileVTT.close();
     return true;
 }
-
-//
-// MuseScore::saveSvg()
-//
-bool MuseScore::saveSvg(Score* score, const QString& saveName)
+// Creates a cue ID string from a start/end tick value pair
+QString getCueID(int startTick, int endTick)
 {
-    // (works around musescore rounding error) Round the score's spatium value - this is extreme rounding, but I don't see where Qt has rounding to a specific decimal place, and my value is always an int
-    score->setSpatium(qRound(score->spatium()));
-
-    SvgGenerator printer;
-    printer.setResolution(DPI);
-
-    QString title(cs->title());
-    printer.setTitle(title);
-
-    const QString SMAWS_VERSION = "2.1";
-    printer.setDescription(QString(
-            "©%1 ~ sidewayss.com, generated by MuseScore %2 + SMAWS %3")
-            .arg(QDate::currentDate().year()).arg(VERSION).arg(SMAWS_VERSION));
-
-    printer.setFileName(saveName);
-
-    const PageFormat* pf = score->pageFormat();
-    double mag = 1; //converterDpi / DPI;
-
-    QRectF r;
-    if (trimMargin >= 0 && score->npages() == 1) {
-        QMarginsF margins(trimMargin, trimMargin, trimMargin, trimMargin);
-        r = score->pages().first()->tbbox() + margins;
-    }
-    else
-        r = QRectF(0, 0, pf->width() * score->pages().size(), pf->height());
-
-    qreal w = r.width();
-    qreal h = r.height();
-
-    printer.setSize(QSize(w * mag, h * mag));
-    printer.setViewBox(QRectF(0.0, 0.0, w * mag, h * mag));
-
-    score->setPrinting(true);
-    MScore::pdfPrinting = true;
-
-    QPainter p(&printer);
-    p.setRenderHint(QPainter::Antialiasing, true);
-    p.setRenderHint(QPainter::TextAntialiasing, true);
-//    p.scale(mag, mag); // mag == 1 now, 1:1 scaling, the default
-    if (trimMargin >= 0 && score->npages() == 1)
-        p.translate(-r.topLeft());
-
-    // Start & End, Ticks & Time. VTT needs start & end times, and I need ticks
-    // to calculate time.
-    //
-    // cue_id is what links the SVG elements to the VTT cues
-    // It is a unique id because it is in this format:
-    //     "startTick_endTick"
-    // and startTick + endTick (duration) is unique to each cue, which refers
-    // to an SVG ChordRest, BarLine, or RehearsalMark, across staves/voices.
-    //
-    // setVTT is a chronologically sorted set of unique cue_ids
-    // mapSVG is a real map: key = cue_id, value = list of elements
-    // mapRulersSVG is for Markers and Bar|Beat rulers
-    //
-    Element::Type                 eType;
-    int                           startTick, endTick;
-    QString                       cue_id;
-    QStringList                   setVTT;       // QSet is unordered, I need sorting
-    QStringList                   setRulersVTT; //   ditto
-    QMultiMap<QString, Element*>  mapSVG;
-    QMap<QString, const Element*> mapRulersSVG; // Not multimap = rehearsal marks must be spaced > 1 measure apart; not a harsh limit.
-
     // For cue_id formatting: 1234567_0000007
-    // TODO: this is defined again inside getCueID()
-    const int fieldWidth =  7;
+    const int   fieldWidth =  7;
+    const int   base       = 10;
+    const QChar fillChar   = '0';
 
-    // The primary segment type we use
-    const Segment::Type SEG_TYPE_CR = Segment::Type::ChordRest;
-
-    // The root file name, without ".ext"
-    const QString fileRoot = saveName.left(saveName.size() - 4);
-
-    // 2 rulers = 2 SVG files
-    QFile fileBars;  // Bar|Beat, but only bars in the ruler. Beats in a counter?
-    QFile fileMarks; // Rehearsal marks
-
-    // This procedure opens files in only one mode
-    const QIODevice::OpenMode openMode = QIODevice::WriteOnly | QIODevice::Text;
-
-    foreach (Page* page, score->pages()) {
-        // 0th pass MuseScore SVG: an entire pass just for staff lines
-        printer.setCueID("");
-        foreach (System* s, *(page->systems())) {
-            for (int i = 0, n = s->staves()->size(); i < n; i++) {
-                if (score->staff(i)->invisible())
-                    continue;
-                StaffLines* firstSL = s->firstMeasure()->staffLines(i)->clone();
-          const StaffLines*  lastSL =  s->lastMeasure()->staffLines(i);
-                firstSL->bbox().setRight(lastSL->bbox().right()
-                                      +  lastSL->pagePos().x()
-                                      - firstSL->pagePos().x());
-                printer.setElement(firstSL);
-                   paintElement(p, firstSL);
-            }
+    return QString("%1_%2").arg(startTick, fieldWidth, base, fillChar)
+                             .arg(endTick, fieldWidth, base, fillChar);
+}
+// Gets the cue ID for an annotation, such as rehearsal mark or chord symbol
+QString getAnnCueID(Score* score, Segment* segStart, Element::Type eType)
+{
+    int  startTick = segStart->tick();
+    for (Segment* seg = segStart->next1(Segment::Type::ChordRest);
+                  seg; seg = seg->next1(Segment::Type::ChordRest)) {
+        for (Element* eAnn : seg->annotations()) {
+            if (eAnn->type() == eType)
+                return getCueID(startTick, seg->tick());
         }
+    }
+    // If there's no "next" annotation, this is the last one in the score
+    return getCueID(startTick, score->lastSegment()->tick());
+}
 
-        // 1st pass MuseScore SVG: the rest of the non-animated elements
-        QList<const Element*> pel = page->elements();
-        qStableSort(pel.begin(), pel.end(), elementLessThan);
+// Gets the cue ID for a ruler element, bar line or rehearsal mark
+QString getRulerCueID(Score* score, const Element* e)
+{
+    Element* p;
+    int      startTick;
+    QString  cue_id = "";
 
-        foreach (const Element* e, pel) {
-            // Always exclude invisible elements
-            if (!e->visible())
-                    continue;
-            // Exclude animated elements from this 1st pass, except BarLines,
-            // which must be drawn early to be in the background. I've added
-            // RehearsalMarks in with Barlines because they are similarly
-            // animated and they both get their tick() from a Segment parent.
-            eType = e->type();
-            cue_id = ""; // Default is un-animated (inanimate?) element
+    // Always exclude invisible elements
+    if (!e->visible())
+        return cue_id;
+
+    Element::Type eType = e->type();
+    switch (eType) {
+    case Element::Type::BAR_LINE       :
+    case Element::Type::REHEARSAL_MARK :
+    // Create the MuseScore and SMAWS-Rulers cue_id values:
+    // There are N + 1 BarLines per System
+    //     where N = number-of-measures-in-this-system
+    //    (# of barlines/system is variable, not fixed)
+    // Each Measure has only one BarLine, at its right edge (end-of-measure)
+    // The first BarLine in each system is a System BarLine (parent() == System)
+    // BarLine::tick() handles parent() == Segment, but not System. ...Maybe this should be changed there, but I don't want to open an additional module.
+    // End-of-measure BarLine's parent is a Segment in the Measure.    Maybe RehearsalMark::tick() should be created too...
+        p = e->parent();
+        switch (p->type()) {
+        case Element::Type::SYSTEM  :
+        // System BarLines only used for scrolling = zero duration
+        // System::firstMeasure() has the tick we need
+            startTick = static_cast<System*>(p)->firstMeasure()->tick();
+            cue_id = getCueID(startTick, startTick);
+            break;
+        case Element::Type::SEGMENT :
+        // Measure BarLines are also zero duration, used for scrolling
+        // and the rulers' playback position cursors.
+        // RehearsalMarks only animate in the ruler, not in the score,
+        // and they have full-duration cues, marker-to-marker.
             switch (eType) {
-            case Element::Type::STAFF_LINES : // not-animated, but we handled them in the 0th pass above
-            case Element::Type::NOTE        :
-            case Element::Type::REST        :
-            case Element::Type::LYRICS      :
-            case Element::Type::NOTEDOT     :
-            case Element::Type::HARMONY     : // Chord text/symbols for song book, fake book, etc,
-            case Element::Type::ACCIDENTAL  :
-                continue; // Exclude from 1st pass
+            case Element::Type::BAR_LINE :
+                startTick = static_cast<Measure*>(p->parent())->tick();
+                cue_id = getCueID(startTick, startTick);
                 break;
-
-            case Element::Type::BAR_LINE       :
-            case Element::Type::REHEARSAL_MARK : {
-            // Create the MuseScore and SMAWS-Rulers cue_id values:
-            // There are N + 1 BarLines per System
-            //     where N = number-of-measures-in-this-system
-            //    (# of barlines/system is variable, not fixed)
-            // Each Measure has only one BarLine, at its right edge (end-of-measure)
-            // The first BarLine in each system is a System BarLine (parent() == System)
-            // BarLine::tick() handles parent() == Segment, but not System. ...Maybe this should be changed there, but I don't want to open an additional module.
-            // End-of-measure BarLine's parent is a Segment in the Measure.    Maybe RehearsalMark::tick() should be created too...
-                Element* p = e->parent();
-                switch (p->type()) {
-                case Element::Type::SYSTEM  :
-                // System BarLines only used for scrolling = zero duration
-                // System::firstMeasure() has the tick we need
-                    startTick = static_cast<System*>(p)->firstMeasure()->tick();
-                    cue_id = getCueID(startTick, startTick);
-                    break;
-                case Element::Type::SEGMENT :
-                // Measure BarLines are also zero duration, used for scrolling
-                // and the rulers' playback position cursors.
-                // RehearsalMarks only animate in the ruler, not in the score,
-                // and they have full-duration cues, marker-to-marker.
-                    switch (eType) {
-                    case Element::Type::BAR_LINE :
-                        startTick = static_cast<Measure*>(p->parent())->tick();
-                        cue_id = getCueID(startTick, startTick);
-                        break;
-                    case Element::Type::REHEARSAL_MARK :
-                        cue_id = getAnnCueID(score, static_cast<Segment*>(p), eType);
-                        break;
-                    default:
-                        break; // This should absolutely never happen...
-                    }
-                    // SMAWS-Rulers = Measure end-of-BarLines + RehearsalMarks
-                    // At this point, cue_id should never be empty. If it's
-                    // empty, at the top of the file there is cue without a
-                    // cue_id and these times: 00:00:00.000 -> 00:00:00.001
-                    mapRulersSVG[cue_id] = e;
-                    break;
-                default:
-                    break; // Never happens
-                }
-                // Add the cue ID to the set
-                setVTT.append(cue_id);
-                break; }
+            case Element::Type::REHEARSAL_MARK :
+                cue_id = getAnnCueID(score, static_cast<Segment*>(p), eType);
+                break;
             default:
-                break;
-            } // switch(eType)
-
-            // Set the Element pointer inside SvgGenerator/SvgPaintEngine
-            printer.setElement(e);
-
-            // Set the cue_id, even if it's empty (especially if it's empty)
-            printer.setCueID(cue_id);
-
-            // Paint it
-            paintElement(p, e);
+                break; // This should absolutely never happen...
+            }
+            break;
+        default:
+            break;
         }
-
-        p.translate(QPointF(pf->width(), 0.0));
+        break;
+    default:
+        break;
     }
 
-    // 2nd pass: Deal with elements excluded in 1st pass
-    // Animated elements must be sorted in playback order, so we iterate:
-    //     by Measure, by Segment, by Track && ChordRest, by Element
-    // And we collect: into setVTT and mapSVG.
-    // After it's all collected, then we write the files.
-    for (Measure* m = score->firstMeasure(); m; m = m->nextMeasureMM()) {
-        for (Segment* s = m->first(SEG_TYPE_CR); s; s = s->next(SEG_TYPE_CR)) {
-            for (int t = 0, n = score->ntracks(); t < n; t++) {
-                if (s->cr(t) == 0)
-                    continue;
+    return cue_id;
+}
 
-                // We have a ChordRest, now we operate
-                ChordRest* cr = s->cr(t);
-
-                // Create the cue_id
-                startTick = cr->tick();
-                  endTick = startTick + cr->actualTicks();
-                   cue_id = getCueID(startTick, endTick);
-
-                // Add it to setVTT
-                setVTT.append(cue_id);
-
-                // The rest of the loop is spent populating mapSVG
-
-                // Is it a chord or a rest?
-                switch (cr->type()) {
-                case Element::Type::REST  :
-                    // Insert it
-                    mapSVG.insert(cue_id, cr);
-                    break;
-
-                case Element::Type::CHORD : {
-                    // Chords have notes, and notes have accidentals + dots.
-                    // For each note: add note + accidental + dots to mapSVG.
-                    // Both notes and rests have dots in the score, but in
-                    // MuseScore C++ only notes have dots. MAX_DOTS = 3;
-                    QList<Note*> notes = static_cast<Chord*>(cr)->notes();
-                    for (int i = 0, z = notes.size(); i < z; i++) {
-                        // Note (note head)
-                        mapSVG.insert(cue_id, notes[i]);
-                        // Accidental
-                        if (notes[i]->accidental() != 0)
-                            mapSVG.insert(cue_id, notes[i]->accidental());
-                        // Dots
-                        for (int j = 0; j < MAX_DOTS; j++) {
-                            if (notes[i]->dot(j) != 0)
-                                mapSVG.insert(cue_id, notes[i]->dot(j));
-                        }
-                    }
-                    break; }
-
-                default:
-                    break;
-                }
-                // Insert lyrics
-                for (int l = 0; l < cr->lyricsList().size(); ++l) {
-                    mapSVG.insert(cue_id, cr->lyrics(l));
-                }
-                // Chord symbols (Type::HARMONY) inherit their duration from
-                // the note they are attached to. I need them to last until the
-                // next chord change = new cue_id = must be last step.
-                for (Element* eAnn : s->annotations()) {
-                    if (eAnn->type() == Element::Type::HARMONY) {
-                        cue_id = getAnnCueID(score, s, eAnn->type());
-                        setVTT.append(cue_id);
-                        mapSVG.insert(cue_id, eAnn);
-                    }
-                }
-            } // tracks
-        } // segments
-    } // measures
-
+bool MuseScore::saveSMAWS_Rulers(Score* score, const QString& saveName)
+{
     //
-    // Write the VTT file
-    //
-    if (!saveVTT(score, fileRoot, setVTT, openMode, fieldWidth))
-        return false;
-    //
-    // Write the MuseScore SVG file: 2nd pass, animated elements
-    // mapSVG is already sorted in a reasonable way, no need to loop by key.
-    //
-    p.resetTransform(); // reset to page 1
-    for (QMultiMap<QString, Element*>::iterator i = mapSVG.begin(); i != mapSVG.end(); i++) {
-        Element* e = i.value();
-        if(e->visible()) {
-            printer.setElement(e);
-            printer.setCueID(i.key());
-            paintElement(p, e);
-        }
-    }
-    // TODO: Animated elements in a multi-page file? It's unnecessary IMO.
-    //       Currently no page-offset calculation, all elements are on page 1.
-
-    //
-    // Write the SVG files for the Bars & Markers rulers:
+    // Write the SVG files for the Bars & Markers rulers. The SVG is one per
+    // composition. The VTT is for every part, every score of that composition.
     //
     // In MuseScore, a Measure's Barline is the line at the end of the bar.
     // No one thinks of bar numbers as the end-barline. If I click on a barline
@@ -2896,16 +2844,14 @@ bool MuseScore::saveSvg(Score* score, const QString& saveName)
     // Short vs long lines every how many bars? Long every 5, Label every 10.
     // This is reflected in the value of a line's y2 attribute.
 
-    // TODO: "w" was declared/set at the top of this procedure, a long time ago.
+    // TODO: ???"w" was declared/set at the top of this procedure, a long time ago.
     //       It should align with wRulers below. I think I'm locked into 1360,
     //       so I should work in MuseScore to get scores to line up with that.
     //       Less work here, but some trial and error work there.
 
     // Strings for the ruler's <line> and <text> element attributes
     // Some constants contain fixed values, others are just attribute="
-          QString y,
-                  anchor,
-                  label;
+    QString y, anchor, label;
     const QString x           = " x= \"";
     const QString x1          = " x1=\"";
     const QString x2          = " x2=\"";
@@ -2930,7 +2876,7 @@ bool MuseScore::saveSvg(Score* score, const QString& saveName)
     const QString cursorMarks = "<polygon class=\"cursor\" points=\"-6,19 6,19 0,7\" transform=\"translate(8,0)\"/>\n";
 
     // For CSS Styling
-          QString classVal;
+    QString classVal;
     const QString cssClass    = " class=\"";
     const QString classRul    = "ruler\" ";
     const QString classRul5   = "ruler5\"";
@@ -2953,19 +2899,29 @@ bool MuseScore::saveSvg(Score* score, const QString& saveName)
     // Pixels of width per second
     const qreal pxPerSec = (wRuler - (2 * margin)) / duration;
 
+    // This procedure opens files in only one mode
+    const QIODevice::OpenMode openMode = QIODevice::WriteOnly | QIODevice::Text;
+
     qreal   pxX;      // Floating point version of x coordinates
     qreal   offX;     // x offset for rehearsal mark text
     int     iY1, iY2; // Integer version of y1 and y2 coordinates
     int     iBarNo;   // Integer version of measure number
     QString fn;       // file name
 
+    // The root file name, without the .ext
+    const QString fileRoot = saveName.left(saveName.size() - 4);
+
+    // 2 rulers = 2 SVG files
+    QFile fileBars;  // Bar|Beat, but only bars in the ruler. Beats in a counter?
+    QFile fileMarks; // Rehearsal marks
+
     // Open the files, setup the streams
-    fn = QString("%1_%2.svg").arg(fileRoot).arg("bars");
+    fn = QString("%1_%2%3").arg(fileRoot).arg("bars").arg(EXT_SVG);
     fileBars.setFileName(fn);
     fileBars.open(openMode);  // TODO: check for failure here!!!
     QTextStream streamBars(&fileBars);
 
-    fn = QString("%1_%2.svg").arg(fileRoot).arg("mrks");
+    fn = QString("%1_%2%3").arg(fileRoot).arg("mrks").arg(EXT_SVG);
     fileMarks.setFileName(fn);
     fileMarks.open(openMode);  // TODO: check for failure here!!!
     QTextStream streamMarks(&fileMarks);
@@ -2983,6 +2939,28 @@ bool MuseScore::saveSvg(Score* score, const QString& saveName)
     streamBars.setRealNumberNotation(QTextStream::FixedNotation);
     streamMarks.setRealNumberPrecision(4);
     streamMarks.setRealNumberNotation(QTextStream::FixedNotation);
+
+    // The collection of ruler elements
+    QMap<QString, const Element*> mapRulersSVG; // Not multimap = rehearsal marks must be spaced > 1 measure apart; not a harsh limit.
+
+    // Collect the ruler elements
+    QString cue_id;
+    foreach (Page* page, score->pages()) {
+        QList<const Element*> pel = page->elements();
+        qStableSort(pel.begin(), pel.end(), elementLessThan);
+
+        foreach (const Element* e, pel) {
+            cue_id = getRulerCueID(score, e);
+            if (!cue_id.isEmpty())
+                mapRulersSVG[cue_id] = e;
+        }
+    }
+
+    // For cue_id formatting: 1234567_0000007
+    // TODO: this is defined again inside getCueID() and saveSMAWS()
+    const int fieldWidth =  7;
+
+    int startTick;
 
     // Stream the line and text elements, with all their attributes:
     //   cue_id, x, x1, x2, y, y1, y2, anchor, and label
@@ -3008,7 +2986,7 @@ bool MuseScore::saveSvg(Score* score, const QString& saveName)
 
         // Non-Default Values
         const Element* e = i.value();
-        eType = e->type();
+        Element::Type eType = e->type();
         switch (eType) {
         case Element::Type::BAR_LINE :
             iBarNo = static_cast<Measure*>(e->parent()->parent())->no() + 1;
@@ -3097,12 +3075,220 @@ bool MuseScore::saveSvg(Score* score, const QString& saveName)
     fileBars.close();
     fileMarks.close();
 
-      // Clean up and return
-      score->setPrinting(false);
-      MScore::pdfPrinting = false;
-      p.end(); // Writes MuseScore SVG file to disk, finally
-      return true;
-      }
+    return true;
+}
+
+//
+// MuseScore::saveSMAWS()
+//
+bool MuseScore::saveSMAWS(Score* score, const QString& saveName)
+{
+// With the page settings option for points/pixels, rounding is not an issue.
+// But you must choose that option, otherwise rounding errors persist due
+// to the default templates being in inches (or mm, either way)
+//
+//    score->setSpatium(qRound(score->spatium()));
+//
+    SvgGenerator printer;
+    QPainter p;
+    // saveName is a VTT file, this needs an SVG file
+    const QString fileRoot = saveName.left(saveName.size() - 4);
+    const QString fileSVG  = QString("%1%2").arg(fileRoot).arg(EXT_SVG);
+    if (!svgInit(score, fileSVG, &printer, &p))
+        return false;
+
+    const QString SMAWS_VERSION = "2.1";
+    printer.setDescription(QString(
+            "©%1 ~ sidewayss.com, generated by MuseScore %2 + SMAWS %3")
+            .arg(QDate::currentDate().year()).arg(VERSION).arg(SMAWS_VERSION));
+
+    // Start & End, Ticks & Time. VTT needs start & end times, and I need ticks
+    // to calculate time.
+    //
+    // cue_id is what links the SVG elements to the VTT cues
+    // It is a unique id because it is in this format:
+    //     "startTick_endTick"
+    // and startTick + endTick (duration) is unique to each cue, which refers
+    // to an SVG ChordRest, BarLine, or RehearsalMark, across staves/voices.
+    //
+    // setVTT is a chronologically sorted set of unique cue_ids
+    // mapSVG is a real map: key = cue_id, value = list of elements
+    //
+    Element::Type                 eType;
+    int                           startTick, endTick;
+    QString                       cue_id;
+    QStringList                   setVTT;       // QSet is unordered, I need sorting
+    QMultiMap<QString, Element*>  mapSVG;
+
+    // For cue_id formatting: 1234567_0000007
+    // TODO: this is defined again inside getCueID()
+    const int fieldWidth =  7;
+
+    // The primary segment type we use
+    const Segment::Type SEG_TYPE_CR = Segment::Type::ChordRest;
+
+    // 2 rulers = 2 SVG files
+    QFile fileBars;  // Bar|Beat, but only bars in the ruler. Beats in a counter?
+    QFile fileMarks; // Rehearsal marks
+
+    // This procedure opens files in only one mode
+    const QIODevice::OpenMode openMode = QIODevice::WriteOnly | QIODevice::Text;
+
+    // TODO: Animated elements in a multi-page file? It's unnecessary IMO.
+    //       And the way saveSvg() handles pages in SVG is a simple horizontal
+    //       offset. SVG doesn't yet have support for pages, per se. So this
+    //       loop has no page-offset calculation = implicit assumption of only
+    //       one page per score for SMAWS export. At least for now...
+    //       Future plans exist to export each page as a separate file, so I'm
+    //       keeping the loop, in spite of the extra indentation, at least for now...
+    foreach (Page* page, score->pages()) {
+        // 0th pass MuseScore SVG: an entire pass just for staff lines
+        printer.setCueID("");
+        paintStaffLines(score, page, &p, &printer);
+
+        // 1st pass MuseScore SVG: the rest of the non-animated elements
+        QList<const Element*> pel = page->elements();
+        qStableSort(pel.begin(), pel.end(), elementLessThan);
+
+        foreach (const Element* e, pel) {
+            // Always exclude invisible elements
+            if (!e->visible())
+                    continue;
+            // Exclude animated elements from this 1st pass, except BarLines,
+            // which must be drawn early to be in the background. I've added
+            // RehearsalMarks in with Barlines because they are similarly
+            // animated and they both get their tick() from a Segment parent.
+            eType = e->type();
+            cue_id = ""; // Default is un-animated (inanimate?) element
+            switch (eType) {
+            case Element::Type::STAFF_LINES : // not-animated, but we handled them in the 0th pass above
+            case Element::Type::NOTE        :
+            case Element::Type::REST        :
+            case Element::Type::LYRICS      :
+            case Element::Type::NOTEDOT     :
+            case Element::Type::HARMONY     : // Chord text/symbols for song book, fake book, etc,
+            case Element::Type::ACCIDENTAL  :
+                continue; // Exclude from 1st pass
+                break;
+
+            case Element::Type::BAR_LINE       :
+            case Element::Type::REHEARSAL_MARK :
+                // Add the cue ID to the VTT set. SVG handled by saveSMAWS_Rulers()
+                cue_id = getRulerCueID(score, e);
+                if (!cue_id.isEmpty())
+                    setVTT.append(cue_id);
+                break;
+            default:
+                break;
+            }
+
+            // Set the Element pointer inside SvgGenerator/SvgPaintEngine
+            printer.setElement(e);
+
+            // Set the cue_id, even if it's empty (especially if it's empty)
+            printer.setCueID(cue_id);
+
+            // Paint it
+            paintElement(p, e);
+        }
+
+        // 2nd pass: Deal with elements excluded in 1st pass
+        // Animated elements must be sorted in playback order, so we iterate:
+        //     by Measure, by Segment, by Track && ChordRest, by Element
+        // And we collect: into setVTT and mapSVG.
+        // After it's all collected, then we write the files.
+        for (Measure* m = score->firstMeasure(); m; m = m->nextMeasureMM()) {
+            for (Segment* s = m->first(SEG_TYPE_CR); s; s = s->next(SEG_TYPE_CR)) {
+                for (int t = 0, n = score->ntracks(); t < n; t++) {
+                    if (s->cr(t) == 0)
+                        continue;
+
+                    // We have a ChordRest, now we operate
+                    ChordRest* cr = s->cr(t);
+
+                    // Create the cue_id
+                    startTick = cr->tick();
+                      endTick = startTick + cr->actualTicks();
+                       cue_id = getCueID(startTick, endTick);
+
+                    // Add it to setVTT
+                    setVTT.append(cue_id);
+
+                    // The rest of the loop is spent populating mapSVG
+
+                    // Is it a chord or a rest?
+                    switch (cr->type()) {
+                    case Element::Type::REST  :
+                        // Insert it
+                        mapSVG.insert(cue_id, cr);
+                        break;
+
+                    case Element::Type::CHORD : {
+                        // Chords have notes, and notes have accidentals + dots.
+                        // For each note: add note + accidental + dots to mapSVG.
+                        // Both notes and rests have dots in the score, but in
+                        // MuseScore C++ only notes have dots. MAX_DOTS = 3;
+                        QList<Note*> notes = static_cast<Chord*>(cr)->notes();
+                        for (int i = 0, z = notes.size(); i < z; i++) {
+                            // Note (note head)
+                            mapSVG.insert(cue_id, notes[i]);
+                            // Accidental
+                            if (notes[i]->accidental() != 0)
+                                mapSVG.insert(cue_id, notes[i]->accidental());
+                            // Dots
+                            for (int j = 0; j < MAX_DOTS; j++) {
+                                if (notes[i]->dot(j) != 0)
+                                    mapSVG.insert(cue_id, notes[i]->dot(j));
+                            }
+                        }
+                        break; }
+
+                    default:
+                        break;
+                    }
+                    // Insert lyrics
+                    for (int l = 0; l < cr->lyricsList().size(); ++l) {
+                        mapSVG.insert(cue_id, cr->lyrics(l));
+                    }
+                    // Chord symbols (Type::HARMONY) inherit their duration from
+                    // the note they are attached to. I need them to last until the
+                    // next chord change = new cue_id = must be last step.
+                    for (Element* eAnn : s->annotations()) {
+                        if (eAnn->type() == Element::Type::HARMONY) {
+                            cue_id = getAnnCueID(score, s, eAnn->type());
+                            setVTT.append(cue_id);
+                            mapSVG.insert(cue_id, eAnn);
+                        }
+                    }
+                } // tracks
+            } // segments
+        } // measures
+
+        //
+        // Write the VTT file
+        //
+        if (!saveVTT(score, fileRoot, setVTT, openMode, fieldWidth))
+            return false;
+        //
+        // Write the MuseScore SVG file: 2nd pass, animated elements
+        // mapSVG is already sorted in a reasonable way, no need to loop by key.
+        //
+        for (QMultiMap<QString, Element*>::iterator i = mapSVG.begin(); i != mapSVG.end(); i++) {
+            Element* e = i.value();
+            if(e->visible()) {
+                printer.setElement(e);
+                printer.setCueID(i.key());
+                paintElement(p, e);
+            }
+        }
+    }
+
+    // Clean up and return
+    score->setPrinting(false);
+    MScore::pdfPrinting = false;
+    p.end(); // Writes MuseScore SVG file to disk, finally
+    return true;
+}
 
 //---------------------------------------------------------
 //   createThumbnail
