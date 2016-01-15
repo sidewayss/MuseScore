@@ -362,12 +362,12 @@ bool SvgPaintEngine::begin(QPaintDevice *)
                                 << d->viewBox.top()    << SVG_SPACE
                                 << d->viewBox.width()  << SVG_SPACE
                                 << d->viewBox.height() << SVG_QUOTE
-             << SVG_WIDTH       << d->viewBox.width()  << SVG_QUOTE
-             << SVG_HEIGHT      << d->viewBox.height() << SVG_QUOTE << endl
+             << SVG_WIDTH       << d->size.width()     << SVG_QUOTE
+             << SVG_HEIGHT      << d->size.height()    << SVG_QUOTE << endl
              // Custom for SMAWS
              << SVG_CLASS       << SMAWS               << SVG_QUOTE
-             << SVG_ENDX        << d->viewBox.width()  << SVG_QUOTE
-             << SVG_ENDY        << d->viewBox.height() << SVG_QUOTE << endl
+             << SVG_ENDX        << d->viewBox.width()     << SVG_QUOTE
+             << SVG_ENDY        << d->viewBox.height()    << SVG_QUOTE << endl
              << SVG_ATTR        << SVG_HI << SVG_LO    << SVG_GT    << endl
              // Document attributes
              << SVG_TITLE_BEGIN << d->attributes.title << SVG_TITLE_END << endl

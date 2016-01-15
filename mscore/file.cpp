@@ -879,7 +879,7 @@ QString MuseScore::getSaveScoreName(const QString& title,
             dialog.setOptions(options);
             if(dialog.exec()) {
                 rv = dialog.selectedFiles()[0];
-                if (!selectedFilter == 0)
+                if (selectedFilter != 0)
                     *selectedFilter = dialog.selectedNameFilter();
                 }
             return rv;
@@ -2584,7 +2584,7 @@ static void paintStaffLines(Score* score, Page* page, QPainter* p, SvgGenerator*
             for (MeasureBase* mb = s->firstMeasure(); mb != 0; mb = s->nextMeasure(mb)) {
                 if (!static_cast<Measure*>(mb)->visible(i)) {
                     byMeasure = true;
-                    continue;
+                    break;
                 }
             }
             if (byMeasure) { // Draw visible staff lines by measure
@@ -2610,7 +2610,11 @@ static void paintStaffLines(Score* score, Page* page, QPainter* p, SvgGenerator*
     } //for each System
 }
 
-static bool svgInit(Score* score, const QString& saveName, SvgGenerator* printer, QPainter* p)
+static bool svgInit(Score* score,
+                    const QString& saveName,
+                    SvgGenerator* printer,
+                    QPainter* p,
+                    bool bSMAWS = false)
 {
     printer->setFileName(saveName);
     printer->setTitle(score->title());
@@ -2622,12 +2626,16 @@ static bool svgInit(Score* score, const QString& saveName, SvgGenerator* printer
           r = score->pages().first()->tbbox() + margins;
           }
     else
-          r = QRectF(0, 0, pf->width() * DPI * score->pages().size(), pf->height() * DPI);
+          r = QRectF(0, 0, pf->width() * score->pages().size(), pf->height());
     qreal w = r.width();
     qreal h = r.height();
 
-    printer->setSize(QSize(w, h));
     printer->setViewBox(QRectF(0, 0, w, h));
+    if (bSMAWS)
+        // SMAWS sets an initial 200% zoom
+        printer->setSize(QSize(w * 2, h * 2));
+    else
+        printer->setSize(QSize(w, h));
 
     score->setPrinting(true);
     MScore::pdfPrinting = true;
@@ -2753,8 +2761,8 @@ QString getCueID(int startTick, int endTick)
 QString getAnnCueID(Score* score, Segment* segStart, Element::Type eType)
 {
     int  startTick = segStart->tick();
-    for (Segment* seg = segStart->next1(Segment::Type::ChordRest);
-                  seg; seg = seg->next1(Segment::Type::ChordRest)) {
+    for (Segment* seg = segStart->next1MM(Segment::Type::ChordRest);
+                  seg; seg = seg->next1MM(Segment::Type::ChordRest)) {
         for (Element* eAnn : seg->annotations()) {
             if (eAnn->type() == eType)
                 return getCueID(startTick, seg->tick());
@@ -3095,7 +3103,7 @@ bool MuseScore::saveSMAWS(Score* score, const QString& saveName)
     // saveName is a VTT file, this needs an SVG file
     const QString fileRoot = saveName.left(saveName.size() - 4);
     const QString fileSVG  = QString("%1%2").arg(fileRoot).arg(EXT_SVG);
-    if (!svgInit(score, fileSVG, &printer, &p))
+    if (!svgInit(score, fileSVG, &printer, &p, true))
         return false;
 
     const QString SMAWS_VERSION = "2.1";
@@ -3125,9 +3133,6 @@ bool MuseScore::saveSMAWS(Score* score, const QString& saveName)
     // TODO: this is defined again inside getCueID()
     const int fieldWidth =  7;
 
-    // The primary segment type we use
-    const Segment::Type SEG_TYPE_CR = Segment::Type::ChordRest;
-
     // 2 rulers = 2 SVG files
     QFile fileBars;  // Bar|Beat, but only bars in the ruler. Beats in a counter?
     QFile fileMarks; // Rehearsal marks
@@ -3140,7 +3145,7 @@ bool MuseScore::saveSMAWS(Score* score, const QString& saveName)
     //       offset. SVG doesn't yet have support for pages, per se. So this
     //       loop has no page-offset calculation = implicit assumption of only
     //       one page per score for SMAWS export. At least for now...
-    //       Future plans exist to export each page as a separate file, so I'm
+    //       MuseScore plans to export each page as a separate file, so I'm
     //       keeping the loop, in spite of the extra indentation, at least for now...
     foreach (Page* page, score->pages()) {
         // 0th pass MuseScore SVG: an entire pass just for staff lines
@@ -3162,22 +3167,31 @@ bool MuseScore::saveSMAWS(Score* score, const QString& saveName)
             eType = e->type();
             cue_id = ""; // Default is un-animated (inanimate?) element
             switch (eType) {
-            case Element::Type::STAFF_LINES : // not-animated, but we handled them in the 0th pass above
-            case Element::Type::NOTE        :
-            case Element::Type::REST        :
-            case Element::Type::LYRICS      :
-            case Element::Type::NOTEDOT     :
-            case Element::Type::HARMONY     : // Chord text/symbols for song book, fake book, etc,
-            case Element::Type::ACCIDENTAL  :
+            case Element::Type::STAFF_LINES : // Not animated, handled above.
+            case Element::Type::NOTE        : // Notes,...
+            case Element::Type::REST        : // rests,...
+            case Element::Type::NOTEDOT     : // and...
+            case Element::Type::ACCIDENTAL  : // optional...
+            case Element::Type::LYRICS      : // accessories.
+            case Element::Type::HARMONY     : // Chord text/symbols.
+            case Element::Type::CLEF        : // Clefs, keysigs and timesigs...
+            case Element::Type::KEYSIG      : // are in a frozen pane when...
+            case Element::Type::TIMESIG     : // scrolling horizontally.
                 continue; // Exclude from 1st pass
                 break;
 
             case Element::Type::BAR_LINE       :
             case Element::Type::REHEARSAL_MARK :
-                // Add the cue ID to the VTT set. SVG handled by saveSMAWS_Rulers()
+                // Add the cue ID to the VTT set.
                 cue_id = getRulerCueID(score, e);
                 if (!cue_id.isEmpty())
                     setVTT.append(cue_id);
+                // RehearsalMarks only animate in the Ruler, not in the score.
+                // Same VTT file, different SVG file. See saveSMAWS_Rulers().
+                if (eType == Element::Type::REHEARSAL_MARK)
+                    cue_id = "";
+                break;
+                // These elements are best kept early in the draw order
                 break;
             default:
                 break;
@@ -3195,75 +3209,107 @@ bool MuseScore::saveSMAWS(Score* score, const QString& saveName)
 
         // 2nd pass: Deal with elements excluded in 1st pass
         // Animated elements must be sorted in playback order, so we iterate:
-        //     by Measure, by Segment, by Track && ChordRest, by Element
+        //     by Measure, by Segment, by Track, by SegmentType, by Element
         // And we collect: into setVTT and mapSVG.
         // After it's all collected, then we write the files.
         for (Measure* m = score->firstMeasure(); m; m = m->nextMeasureMM()) {
-            for (Segment* s = m->first(SEG_TYPE_CR); s; s = s->next(SEG_TYPE_CR)) {
+            for (Segment* s = m->first(); s; s = s->next()) {
                 for (int t = 0, n = score->ntracks(); t < n; t++) {
-                    if (s->cr(t) == 0)
-                        continue;
+                    Segment::Type sType = s->segmentType();
+                    switch (sType) {
+                    // ChordRests are the highlighted elements in the animation
+                    case Segment::Type::ChordRest : {
+                        // Not all tracks within the segment will have content
+                        if (s->cr(t) == 0)
+                            continue;
 
-                    // We have a ChordRest, now we operate
-                    ChordRest* cr = s->cr(t);
+                        // We have a ChordRest, now we operate
+                        ChordRest* cr = s->cr(t);
 
-                    // Create the cue_id
-                    startTick = cr->tick();
-                      endTick = startTick + cr->actualTicks();
-                       cue_id = getCueID(startTick, endTick);
+                        // Create the cue_id
+                        startTick = cr->tick();
+                          endTick = startTick + cr->actualTicks();
+                           cue_id = getCueID(startTick, endTick);
 
-                    // Add it to setVTT
-                    setVTT.append(cue_id);
+                        // Add it to setVTT
+                        setVTT.append(cue_id);
 
-                    // The rest of the loop is spent populating mapSVG
+                        // The rest of the loop is spent populating mapSVG
 
-                    // Is it a chord or a rest?
-                    switch (cr->type()) {
-                    case Element::Type::REST  :
-                        // Insert it
-                        mapSVG.insert(cue_id, cr);
-                        break;
+                        // Is it a chord or a rest?
+                        switch (cr->type()) {
+                        case Element::Type::REST  :
+                            // Insert it
+                            mapSVG.insert(cue_id, cr);
+                            break;
 
-                    case Element::Type::CHORD : {
-                        // Chords have notes, and notes have accidentals + dots.
-                        // For each note: add note + accidental + dots to mapSVG.
-                        // Both notes and rests have dots in the score, but in
-                        // MuseScore C++ only notes have dots. MAX_DOTS = 3;
-                        QList<Note*> notes = static_cast<Chord*>(cr)->notes();
-                        for (int i = 0, z = notes.size(); i < z; i++) {
-                            // Note (note head)
-                            mapSVG.insert(cue_id, notes[i]);
-                            // Accidental
-                            if (notes[i]->accidental() != 0)
-                                mapSVG.insert(cue_id, notes[i]->accidental());
-                            // Dots
-                            for (int j = 0; j < MAX_DOTS; j++) {
-                                if (notes[i]->dot(j) != 0)
-                                    mapSVG.insert(cue_id, notes[i]->dot(j));
+                        case Element::Type::CHORD : {
+                            // Chords have notes, and notes have accidentals + dots.
+                            // For each note: add note + accidental + dots to mapSVG.
+                            // Both notes and rests have dots in the score, but in
+                            // MuseScore C++ only notes have dots. MAX_DOTS = 3;
+                            QList<Note*> notes = static_cast<Chord*>(cr)->notes();
+                            for (int i = 0, z = notes.size(); i < z; i++) {
+                                // Note (note head)
+                                mapSVG.insert(cue_id, notes[i]);
+                                // Accidental
+                                if (notes[i]->accidental() != 0)
+                                    mapSVG.insert(cue_id, notes[i]->accidental());
+                                // Dots
+                                for (int j = 0; j < MAX_DOTS; j++) {
+                                    if (notes[i]->dot(j) != 0)
+                                        mapSVG.insert(cue_id, notes[i]->dot(j));
+                                }
+                            }
+                            break; }
+
+                        default:
+                            break;
+                        }
+                        // Insert lyrics
+                        for (int l = 0; l < cr->lyricsList().size(); ++l) {
+                            mapSVG.insert(cue_id, cr->lyrics(l));
+                        }
+                        // Chord symbols (Type::HARMONY) inherit their duration from
+                        // the note they are attached to. I need them to last until the
+                        // next chord change = new cue_id = must be last step.
+                        for (Element* eAnn : s->annotations()) {
+                            if (eAnn->type() == Element::Type::HARMONY) {
+                                cue_id = getAnnCueID(score, s, eAnn->type());
+                                setVTT.append(cue_id);
+                                mapSVG.insert(cue_id, eAnn);
                             }
                         }
+                        break; } // Segment::Type::ChordRest
+
+                    // These elements are animated by appearing the frozen left
+                    // pane when scrolling horizontally. These work out best
+                    // as full duration (vs. zero duration / scrolling) cues.
+                    // Horizontal scrolling is the default, the most common.
+                    case Segment::Type::Clef    :
+                    case Segment::Type::KeySig  :
+                    case Segment::Type::TimeSig : {
+                        // Validation by track
+                        if (s->element(t) == 0)
+                            continue;
+
+                        // Create the cue_id
+                        Segment* seg = s->next1MM(sType);
+                        if (seg == 0) // No next, use end of score
+                            seg = score->lastSegment();
+                        cue_id = getCueID(s->tick(), seg->tick());
+
+                        // Add it to setVTT and mapSVG
+                        setVTT.append(cue_id);
+                        mapSVG.insert(cue_id, s->element(t));
                         break; }
 
                     default:
                         break;
-                    }
-                    // Insert lyrics
-                    for (int l = 0; l < cr->lyricsList().size(); ++l) {
-                        mapSVG.insert(cue_id, cr->lyrics(l));
-                    }
-                    // Chord symbols (Type::HARMONY) inherit their duration from
-                    // the note they are attached to. I need them to last until the
-                    // next chord change = new cue_id = must be last step.
-                    for (Element* eAnn : s->annotations()) {
-                        if (eAnn->type() == Element::Type::HARMONY) {
-                            cue_id = getAnnCueID(score, s, eAnn->type());
-                            setVTT.append(cue_id);
-                            mapSVG.insert(cue_id, eAnn);
-                        }
-                    }
-                } // tracks
-            } // segments
-        } // measures
+                    } // switch (segment type)
+                } // for (tracks)
+            } // for (segments)
+        } // for (measures)
 
         //
         // Write the VTT file
