@@ -67,38 +67,6 @@ static void translate_dashPattern(QVector<qreal> pattern, const qreal& width, QS
     pattern_string->chop(1);
 }
 
-// Gets the contents of the SVG class attribute, based on element type/name
-static QString getClass(const Ms::Element *e)
-{
-    Ms::Element::Type eType;
-              QString eName;
-
-    // Add element type as "class"
-    if (e == NULL)
-        return eName; // e should never be null, but this prevents a crash if it is
-
-    eType = e->type();
-    eName = e->name(eType);
-
-    // BarLine sub-types = BarLineType enum + parent() == System
-    if (eType == Ms::Element::Type::BAR_LINE) {
-        if (e->parent()->type() == Ms::Element::Type::SYSTEM) {
-            // System BarLines
-            eType = e->parent()->type();
-            eName = e->name(eType);
-        }
-        else {
-            // All the Measure BarLines by BarLineType
-            Ms::BarLineType blt = static_cast<const Ms::BarLine*>(e)->barLineType();
-            if  (blt != Ms::BarLineType::NORMAL) {
-                // Non-NORMAL BarLineTypes fit in outside the Element::Type box
-                eName = static_cast<const Ms::BarLine*>(e)->barLineTypeName();
-            }
-        }
-    }
-    return eName;
-}
-
 class SvgPaintEnginePrivate : public QPaintEnginePrivate
 {
 public:
@@ -162,15 +130,17 @@ private:
 // class Text is not visible from here, so I can't get the data from _element.
     QRectF _textFrame;
 
+// Gets the SVG class attribute for an element
+    QString getClass(const Ms::Element* e);
+
 // For fancy text formatting inside the SVG file
     void formatXY(qreal x, qreal y);
 
 protected:
-// The Ms::Element being generated right now
-    const Ms::Element* _element = NULL;
+    const Ms::Element* _element = NULL; // The Ms::Element being generated now
 
-// The current VTT cue ID
-    QString _cue_id;
+    QString _cue_id;  // The current VTT cue ID
+    bool _scrollAxis; // Scroll Axis = bool; only 2 axes: x(false), y(true).
 
 // SVG floating point precision
 #define SVG_PRECISION 2
@@ -258,13 +228,17 @@ protected:
 //#define SVG_COMMENT_END     "-->"
 
 // Custom SVG attributes (and some default settings)
-#define SVG_CLASS " class=\""
-#define SVG_ENDX  " data-endx=\""
-#define SVG_ENDY  " data-endy=\""
-#define SVG_CUE   " data-cue=\""
-#define SVG_ATTR  " data-attr=\"fill\""  // the only animated attribute so far
-#define SVG_HI    " data-hi=\"#0000bb\"" // medium-bright blue
-#define SVG_LO    " data-lo=\"#505050\"" // charcoal gray
+#define SVG_CLASS  " class=\""
+#define SVG_ENDX   " data-endx=\""
+#define SVG_ENDY   " data-endy=\""
+#define SVG_SCROLL " data-scroll=\""
+#define SVG_CUE    " data-cue=\""
+#define SVG_ATTR   " data-attr=\"fill\""  // the only animated attribute so far
+#define SVG_HI     " data-hi=\"#0000bb\"" // medium-bright blue
+#define SVG_LO     " data-lo=\"#505050\"" // charcoal gray
+
+#define CLASS_CLEF_COURTESY "ClefCourtesy"
+#define CUE_ID_ZERO "0000000_0000000"
 
 // SMAWS
 #define SMAWS "SMAWS"
@@ -351,32 +325,13 @@ bool SvgPaintEngine::begin(QPaintDevice *)
         return false;
     }
 
-    // Stream the headers
-    d->stream = new QTextStream(&d->header);
-
-             // Standard SVG
-    stream() << XML_STYLESHEET  << endl
-             << SVG_BEGIN       << XML_NAMESPACE
-             << SVG_PRESERVE_ASPECT << SVG_XYMIN_SLICE << SVG_QUOTE << endl
-             << SVG_VIEW_BOX    << d->viewBox.left()   << SVG_SPACE
-                                << d->viewBox.top()    << SVG_SPACE
-                                << d->viewBox.width()  << SVG_SPACE
-                                << d->viewBox.height() << SVG_QUOTE
-             << SVG_WIDTH       << d->size.width()     << SVG_QUOTE
-             << SVG_HEIGHT      << d->size.height()    << SVG_QUOTE << endl
-             // Custom for SMAWS
-             << SVG_CLASS       << SMAWS               << SVG_QUOTE
-             << SVG_ENDX        << d->viewBox.width()     << SVG_QUOTE
-             << SVG_ENDY        << d->viewBox.height()    << SVG_QUOTE << endl
-             << SVG_ATTR        << SVG_HI << SVG_LO    << SVG_GT    << endl
-             // Document attributes
-             << SVG_TITLE_BEGIN << d->attributes.title << SVG_TITLE_END << endl
-             << SVG_DESC_BEGIN  << d->attributes.desc  << SVG_DESC_END  << endl;
-
-    // Point the stream at the body string, for other functions to populate
-    d->stream->setString(&d->body);
+    // Initialize the stream, for other functions to populate
+    d->stream = new QTextStream(&d->body);
     d->stream->setRealNumberPrecision(SVG_PRECISION);
     d->stream->setRealNumberNotation(QTextStream::FixedNotation);
+
+    // Set this flag to default value, return
+    _scrollAxis = false;
     return true;
 }
 
@@ -386,6 +341,32 @@ bool SvgPaintEngine::begin(QPaintDevice *)
 bool SvgPaintEngine::end()
 {
     Q_D(SvgPaintEngine);
+
+    // Stream the headers
+    d->stream->setString(&d->header);
+
+    // The entire reason for waiting to stream the headers until end() is to
+    // set the scroll axis [this used to happen in begin()].
+    const QString scrollAxis = _scrollAxis ? "y" : "x";
+             // Standard SVG attributes
+    stream() << XML_STYLESHEET  << endl
+             << SVG_BEGIN       << XML_NAMESPACE
+             << SVG_PRESERVE_ASPECT << SVG_XYMIN_SLICE << SVG_QUOTE << endl
+             << SVG_VIEW_BOX    << d->viewBox.left()   << SVG_SPACE
+                                << d->viewBox.top()    << SVG_SPACE
+                                << d->viewBox.width()  << SVG_SPACE
+                                << d->viewBox.height() << SVG_QUOTE
+             << SVG_WIDTH       << d->size.width()     << SVG_QUOTE
+             << SVG_HEIGHT      << d->size.height()    << SVG_QUOTE << endl
+             // Custom attributes/values for SMAWS
+             << SVG_CLASS       << SMAWS               << SVG_QUOTE << endl
+             << SVG_SCROLL      << scrollAxis          << SVG_QUOTE << SVG_SPACE
+             << SVG_ENDX        << d->viewBox.width()  << SVG_QUOTE
+             << SVG_ENDY        << d->viewBox.height() << SVG_QUOTE << endl
+             << SVG_ATTR        << SVG_HI << SVG_LO    << SVG_GT    << endl
+             // Document attributes
+             << SVG_TITLE_BEGIN << d->attributes.title << SVG_TITLE_END << endl
+             << SVG_DESC_BEGIN  << d->attributes.desc  << SVG_DESC_END  << endl;
 
     // Point the stream at the real output device (the .svg file)
     d->stream->setDevice(d->outputDevice);
@@ -643,7 +624,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
 
     // fill-rule is here because UpdateState() doesn't have a QPainterPath arg
     // Majority of <path>s use the default value: fill-rule="nonzero"
-    switch (_element->type()) {
+    switch (eType) {
     case Ms::Element::Type::BEAM         :
     case Ms::Element::Type::BRACKET      :
     case Ms::Element::Type::SLUR_SEGMENT :
@@ -801,6 +782,45 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         stream() << textItem.text();
 
     stream() << SVG_TEXT_END << endl; // The terminator
+}
+
+// Gets the contents of the SVG class attribute, based on element type/name
+QString SvgPaintEngine::getClass(const Ms::Element* e)
+{
+    Ms::Element::Type eType;
+              QString eName;
+
+    // Add element type as "class"
+    if (e == NULL)
+        return eName; // e should never be null, but this prevents a crash if it is
+
+    eType = e->type();
+    eName = e->name(eType);
+
+    // BarLine sub-types = BarLineType enum + parent() == System
+    if (eType == Ms::Element::Type::BAR_LINE) {
+        if (e->parent()->type() == Ms::Element::Type::SYSTEM) {
+            // System BarLines
+            eType = e->parent()->type();
+            eName = e->name(eType);
+        }
+        else {
+            // All the Measure BarLines by BarLineType
+            Ms::BarLineType blt = static_cast<const Ms::BarLine*>(e)->barLineType();
+            if  (blt != Ms::BarLineType::NORMAL) {
+                // Non-NORMAL BarLineTypes fit in outside the Element::Type box
+                eName = static_cast<const Ms::BarLine*>(e)->barLineTypeName();
+            }
+        }
+    }
+    // For horizontal scrolling, all but the firt clef are courtesy clefs.
+    // Unfortunately, everything is in reverse order, so the first clef is
+    // the last one to pass through here. So I use the cue_id.
+    if (eType == Ms::Element::Type::CLEF && !_scrollAxis
+                                         && _cue_id != CUE_ID_ZERO)
+        eName = CLASS_CLEF_COURTESY;
+
+    return eName;
 }
 
 void SvgPaintEngine::formatXY(const qreal x, const qreal y)
@@ -1135,4 +1155,12 @@ void SvgGenerator::setElement(const Ms::Element* e) {
 */
 void SvgGenerator::setCueID(const QString& qs) {
     static_cast<SvgPaintEngine*>(paintEngine())->_cue_id = qs;
+}
+/*!
+    setScrollAxis() function
+    Sets the _scrollAxis variable in SvgPaintEngine.
+    Called by saveSVG() in mscore/file.cpp.
+*/
+void SvgGenerator::setScrollAxis(bool axis) {
+    static_cast<SvgPaintEngine*>(paintEngine())->_scrollAxis = axis;
 }

@@ -2561,9 +2561,9 @@ QString MuseScore::getWallpaper(const QString& caption)
 // Pure SMAWS:
 //   saveSMAWS()       writes linked SVG and VTT files for animation
 //   saveVTT()         a helper function exclusively for saveSMAWS()
-//   getCueID()        another little helper - Cue IDs link SVG to VTT
-//   getAnnCueID()     gets Annotation Cue IDs (Harmony and RehearsalMarker)
-//   getRulerCueID()   gets BarLine and RehearsalMarker Cue IDs.
+//   getCueID()        another little helper (Cue IDs link SVG to VTT)
+//   getAnnCueID()     gets Annotation Cue ID (Harmony and RehearsalMark)
+//   getScrollCueID()  gets Cue ID for scrolling cues and RehearsalMarks
 ///////////////////////////////////////////////////////////////////////////////
 // paintStaffLines() - consolidates shared code in saveSVG() and saveSMAWS()
 //                     for MuseScore master, no harm, no gain, 100% neutral
@@ -2707,15 +2707,19 @@ bool MuseScore::saveSvg(Score* score, const QString& saveName)
 ///////////////////////////////////////////////////////////////////////////////
 // SMAWS functions - 100% outside of MuseScore master (at least for now...)
 ///////////////////////////////////////////////////////////////////////////////
-// 3 Cue ID generators: getCueID(), getAnnCueID(), getRulerCueID()
+// 3 Cue ID generators: getCueID(), getAnnCueID(), getScrollCueID()
 //
 // getCueID()
 // Creates a cue ID string from a start/end tick value pair
-static QString getCueID(int startTick, int endTick)
+static QString getCueID(int startTick, int endTick = -1)
 {
     // For cue_id formatting: 1234567_0000007
     const int   base       = 10;
     const QChar fillChar   = '0';
+
+    // Missing endTick means zero duration cue, only one value required
+    if (endTick < 0)
+        endTick = startTick;
 
     return QString("%1_%2").arg(startTick, CUE_ID_FIELD_WIDTH, base, fillChar)
                              .arg(endTick, CUE_ID_FIELD_WIDTH, base, fillChar);
@@ -2735,12 +2739,13 @@ static QString getAnnCueID(Score* score, Segment* segStart, Element::Type eType)
     // If there's no "next" annotation, this is the last one in the score
     return getCueID(startTick, score->lastSegment()->tick());
 }
-// getRulerCueID()
-// Gets the cue ID for a ruler element, bar line or rehearsal mark
-static QString getRulerCueID(Score* score, const Element* e)
+// getScrollCueID()
+// Gets the cue ID for zero-duration (scrolling) cues + rehearsal marks:
+//  - A ruler element: BarLine or RehearsalMark
+//  - A frozen pane element: Clef, KeySig, or TimeSig
+static QString getScrollCueID(Score* score, const Element* e)
 {
     Element* p;
-    int      startTick;
     QString  cue_id = "";
 
     // Always exclude invisible elements
@@ -2751,6 +2756,9 @@ static QString getRulerCueID(Score* score, const Element* e)
     switch (eType) {
     case Element::Type::BAR_LINE       :
     case Element::Type::REHEARSAL_MARK :
+    case Element::Type::CLEF           :
+    case Element::Type::KEYSIG         :
+    case Element::Type::TIMESIG        :
     // Create the MuseScore and SMAWS-Rulers cue_id values:
     // There are N + 1 BarLines per System
     //     where N = number-of-measures-in-this-system
@@ -2764,8 +2772,7 @@ static QString getRulerCueID(Score* score, const Element* e)
         case Element::Type::SYSTEM  :
         // System BarLines only used for scrolling = zero duration
         // System::firstMeasure() has the tick we need
-            startTick = static_cast<System*>(p)->firstMeasure()->tick();
-            cue_id = getCueID(startTick, startTick);
+            cue_id = getCueID(static_cast<System*>(p)->firstMeasure()->tick());
             break;
         case Element::Type::SEGMENT :
         // Measure BarLines are also zero duration, used for scrolling
@@ -2774,21 +2781,21 @@ static QString getRulerCueID(Score* score, const Element* e)
         // and they have full-duration cues, marker-to-marker.
             switch (eType) {
             case Element::Type::BAR_LINE :
-                startTick = static_cast<Measure*>(p->parent())->tick();
-                cue_id = getCueID(startTick, startTick);
+                cue_id = getCueID(static_cast<Measure*>(p->parent())->tick());
                 break;
             case Element::Type::REHEARSAL_MARK :
                 cue_id = getAnnCueID(score, static_cast<Segment*>(p), eType);
                 break;
-            default:
-                break; // This should absolutely never happen...
+            default: // Clefs, KeySigs, TimeSigs
+                cue_id = getCueID(static_cast<Segment*>(p)->tick());
+                break;
             }
             break;
         default:
-            break;
+            break; // Should never happen
         }
         break;
-    default:
+    default: // Non-scrolling element types return an empty cue_id
         break;
     }
 
@@ -2960,7 +2967,7 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, const QString& saveName)
         qStableSort(pel.begin(), pel.end(), elementLessThan);
 
         foreach (const Element* e, pel) {
-            cue_id = getRulerCueID(score, e);
+            cue_id = getScrollCueID(score, e);
             if (!cue_id.isEmpty())
                 mapRulersSVG[cue_id] = e;
         }
@@ -3075,10 +3082,10 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, const QString& saveName)
     fileMarks.close();
     return true;
 }
-// MuseScore::saveSMAWS()
-// Generates one SVG file for the score, and one VTT file for the score plus
-// the Bars and Markers rulers.
-// NOTE:
+// MuseScore::saveSMAWS() - one SVG file: with Cue IDs in data-cue attribute
+//                          one VTT file: linked to the score SVG file and
+//                          also linked to Bars and Markers (rulers) SVG files.
+// ¡¡¡Warning!!!
 // With the page settings option for points/pixels, rounding is not an issue.
 // But you must choose that option, otherwise rounding errors persist due
 // to the default templates being in mm (or inches, either way).
@@ -3128,16 +3135,14 @@ bool MuseScore::saveSMAWS(Score* score, const QString& saveName)
     Element::Type eType;
     QList<const Element*> pel = page->elements();
     qStableSort(pel.begin(), pel.end(), elementLessThan);
+    printer.setScrollAxis(score->pageFormat()->twosided()); // true = y axis, a hack for now.
     foreach (const Element* e, pel) {
         // Always exclude invisible elements
         if (!e->visible())
                 continue;
-        // Exclude animated elements from this 1st pass, except BarLines,
-        // which must be drawn early to be in the background. I've added
-        // RehearsalMarks in with Barlines because they are similarly
-        // animated and they both get their tick() from a Segment parent.
+        // Exclude animated elements from this 1st pass, except those used
+        // for scrolling cues: BarLine, RehearsalMark, Clef, KeySig, TimeSig.
         eType = e->type();
-        cue_id = ""; // Default is un-animated (inanimate?) element
         switch (eType) {
         case Element::Type::STAFF_LINES : // Not animated, handled above.
         case Element::Type::NOTE        : // Notes,
@@ -3146,25 +3151,30 @@ bool MuseScore::saveSMAWS(Score* score, const QString& saveName)
         case Element::Type::ACCIDENTAL  : // ...optional
         case Element::Type::LYRICS      : // ...accessories.
         case Element::Type::HARMONY     : // Chord text/symbols.
-        case Element::Type::CLEF        : // Clefs, keysigs and timesigs
-        case Element::Type::KEYSIG      : // ...are in a frozen pane when
-        case Element::Type::TIMESIG     : // ...scrolling horizontally.
             continue; // Exclude from 1st pass
             break;
         case Element::Type::BAR_LINE       :
         case Element::Type::REHEARSAL_MARK :
             // Add the cue ID to the VTT set.
-            cue_id = getRulerCueID(score, e);
-            if (!cue_id.isEmpty())
+            cue_id = getScrollCueID(score, e);
+            if (!cue_id.isEmpty()) {
                 setVTT.append(cue_id);
-            // RehearsalMarks only animate in the Ruler, not in the score.
-            // Same VTT file, different SVG file. See saveSMAWS_Rulers().
-            if (eType == Element::Type::REHEARSAL_MARK)
-                cue_id = "";
+                // RehearsalMarks only animate in the Ruler, not in the score.
+                // Same VTT file, different SVG file. See saveSMAWS_Rulers().
+                if (eType == Element::Type::REHEARSAL_MARK)
+                    cue_id = "";
+            }
             break;
-            // These elements are best kept early in the draw order
+        case Element::Type::CLEF    : // Clefs, keysigs and timesigs
+        case Element::Type::KEYSIG  : // ...are in a frozen pane when
+        case Element::Type::TIMESIG : // ...scrolling horizontally.
+            // Create the cue_id
+            cue_id = getScrollCueID(score, e);
+            // Add it to setVTT
+            setVTT.append(cue_id);
             break;
         default:
+            cue_id = ""; // Default is un-animated (inanimate?) element
             break;
         }
         // Set the Element pointer inside SvgGenerator/SvgPaintEngine
@@ -3246,29 +3256,6 @@ bool MuseScore::saveSMAWS(Score* score, const QString& saveName)
                         }
                     }
                     break; } // Segment::Type::ChordRest
-
-                // These elements are animated by appearing in the frozen left
-                // pane when scrolling horizontally. These work out best as
-                // full duration (vs. zero duration == scrolling) cues.
-                // Horizontal scrolling is the default, the most common.
-                case Segment::Type::Clef    :
-                case Segment::Type::KeySig  :
-                case Segment::Type::TimeSig : {
-                    // Validation by track
-                    if (s->element(t) == 0)
-                        continue;
-
-                    // Create the cue_id
-                    Segment* seg = s->next1MM(sType);
-                    if (seg == 0) // No next, use end of score
-                        seg = score->lastSegment();
-                    cue_id = getCueID(s->tick(), seg->tick());
-
-                    // Add it to setVTT and mapSVG
-                    setVTT.append(cue_id);
-                    mapSVG.insert(cue_id, s->element(t));
-                    break; }
-
                 default:
                     break;
                 } // switch (segment type)

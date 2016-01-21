@@ -113,7 +113,7 @@ private:
 public:
     void setElement(const Ms::Element* e);
     void setCueID(const QString& qs);
-
+    void setScrollAxis(bool axis);
 };
 
 #endif // QSVGGENERATOR_H
