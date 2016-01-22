@@ -49,9 +49,10 @@
 #include <QtCore/qobjectdefs.h>
 #include <QtCore/qscopedpointer.h>
 
-#include "libmscore/element.h" // for Element class
-#include "libmscore/barline.h" // for BarLine class
-#include "libmscore/mscore.h"  // for BarLineType enum
+#include "libmscore/element.h"   // for Element class
+#include "libmscore/barline.h"   // for BarLine class
+#include "libmscore/mscore.h"    // for BarLineType enum
+#include "libmscore/tempotext.h" // for TempoText class
 
 class SvgGeneratorPrivate;
 

@@ -2745,20 +2745,21 @@ static QString getAnnCueID(Score* score, Segment* segStart, Element::Type eType)
 //  - A frozen pane element: Clef, KeySig, or TimeSig
 static QString getScrollCueID(Score* score, const Element* e)
 {
-    Element* p;
     QString  cue_id = "";
+    Element* p;
+    Element::Type eType = e->type();
 
-    // Always exclude invisible elements
-    if (!e->visible())
+    // Always exclude invisible elements ...except TEMPO_TEXT.
+    if (!e->visible() && eType != Element::Type::TEMPO_TEXT)
         return cue_id;
 
-    Element::Type eType = e->type();
     switch (eType) {
     case Element::Type::BAR_LINE       :
     case Element::Type::REHEARSAL_MARK :
     case Element::Type::CLEF           :
     case Element::Type::KEYSIG         :
     case Element::Type::TIMESIG        :
+    case Element::Type::TEMPO_TEXT     :
     // Create the MuseScore and SMAWS-Rulers cue_id values:
     // There are N + 1 BarLines per System
     //     where N = number-of-measures-in-this-system
@@ -2786,7 +2787,7 @@ static QString getScrollCueID(Score* score, const Element* e)
             case Element::Type::REHEARSAL_MARK :
                 cue_id = getAnnCueID(score, static_cast<Segment*>(p), eType);
                 break;
-            default: // Clefs, KeySigs, TimeSigs
+            default: // Clefs, KeySigs, TimeSigs, TempoTexts
                 cue_id = getCueID(static_cast<Segment*>(p)->tick());
                 break;
             }
@@ -3137,12 +3138,12 @@ bool MuseScore::saveSMAWS(Score* score, const QString& saveName)
     qStableSort(pel.begin(), pel.end(), elementLessThan);
     printer.setScrollAxis(score->pageFormat()->twosided()); // true = y axis, a hack for now.
     foreach (const Element* e, pel) {
-        // Always exclude invisible elements
-        if (!e->visible())
+        eType = e->type();
+        // Always exclude invisible elements ...unless they're tempo changes.
+        if (!e->visible() && eType != Element::Type::TEMPO_TEXT)
                 continue;
         // Exclude animated elements from this 1st pass, except those used
         // for scrolling cues: BarLine, RehearsalMark, Clef, KeySig, TimeSig.
-        eType = e->type();
         switch (eType) {
         case Element::Type::STAFF_LINES : // Not animated, handled above.
         case Element::Type::NOTE        : // Notes,
@@ -3165,9 +3166,10 @@ bool MuseScore::saveSMAWS(Score* score, const QString& saveName)
                     cue_id = "";
             }
             break;
-        case Element::Type::CLEF    : // Clefs, keysigs and timesigs
-        case Element::Type::KEYSIG  : // ...are in a frozen pane when
-        case Element::Type::TIMESIG : // ...scrolling horizontally.
+        case Element::Type::CLEF       : // clefs, keysigs, timesigs, tempos...
+        case Element::Type::KEYSIG     : // ...are in a frozen pane when
+        case Element::Type::TIMESIG    : // ...scrolling horizontally.
+        case Element::Type::TEMPO_TEXT :
             // Create the cue_id
             cue_id = getScrollCueID(score, e);
             // Add it to setVTT

@@ -134,7 +134,8 @@ private:
     QString getClass(const Ms::Element* e);
 
 // For fancy text formatting inside the SVG file
-    void formatXY(qreal x, qreal y);
+    void streamXY(qreal x, qreal y);
+    void streamFixed(const QString& attr, const qreal n, const int numDigits);
 
 protected:
     const Ms::Element* _element = NULL; // The Ms::Element being generated now
@@ -229,16 +230,16 @@ protected:
 
 // Custom SVG attributes (and some default settings)
 #define SVG_CLASS  " class=\""
-#define SVG_ENDX   " data-endx=\""
-#define SVG_ENDY   " data-endy=\""
 #define SVG_SCROLL " data-scroll=\""
 #define SVG_CUE    " data-cue=\""
 #define SVG_ATTR   " data-attr=\"fill\""  // the only animated attribute so far
 #define SVG_HI     " data-hi=\"#0000bb\"" // medium-bright blue
-#define SVG_LO     " data-lo=\"#505050\"" // charcoal gray
+#define SVG_LO     " data-lo=\"#000000\"" // black
+#define SVG_TEMPO  " data-tempo="
 
 #define CLASS_CLEF_COURTESY "ClefCourtesy"
 #define CUE_ID_ZERO "0000000_0000000"
+#define BPS2BPM 60 // Beats per Second to Beats per Minute conversion factor
 
 // SMAWS
 #define SMAWS "SMAWS"
@@ -359,10 +360,8 @@ bool SvgPaintEngine::end()
              << SVG_WIDTH       << d->size.width()     << SVG_QUOTE
              << SVG_HEIGHT      << d->size.height()    << SVG_QUOTE << endl
              // Custom attributes/values for SMAWS
-             << SVG_CLASS       << SMAWS               << SVG_QUOTE << endl
-             << SVG_SCROLL      << scrollAxis          << SVG_QUOTE << SVG_SPACE
-             << SVG_ENDX        << d->viewBox.width()  << SVG_QUOTE
-             << SVG_ENDY        << d->viewBox.height() << SVG_QUOTE << endl
+             << SVG_CLASS       << SMAWS               << SVG_QUOTE
+             << SVG_SCROLL      << scrollAxis          << SVG_QUOTE << endl
              << SVG_ATTR        << SVG_HI << SVG_LO    << SVG_GT    << endl
              // Document attributes
              << SVG_TITLE_BEGIN << d->attributes.title << SVG_TITLE_END << endl
@@ -389,12 +388,12 @@ void SvgPaintEngine::updateState(const QPaintEngineState &state)
     // stateString = Attribute Settings
     stateString.clear();
 
-    // Cue ID for animated elements onlyl
-    if (!_cue_id.isEmpty())
-        stateStream << SVG_CUE << _cue_id << SVG_QUOTE;
-
     // SVG class attribute, based on Ms::Element::Type, among other things
     stateStream << SVG_CLASS << getClass(_element) << SVG_QUOTE;
+
+    // Cue ID for animated elements only
+    if (!_cue_id.isEmpty())
+        stateStream << SVG_CUE << _cue_id << SVG_QUOTE;
 
     // Set attributes for element types not styled by CSS
     switch (_element->type()) {
@@ -612,7 +611,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
 
         stream() << SVG_RECT_BEGIN << stateString;
 
-        formatXY(_textFrame.x(), _textFrame.y());
+        streamXY(_textFrame.x(), _textFrame.y());
         stream() << SVG_WIDTH  << _textFrame.width()  << SVG_QUOTE
                  << SVG_HEIGHT << _textFrame.height() << SVG_QUOTE
                  << SVG_RX << SVG_RY << SVG_ELEMENT_END  << endl;
@@ -699,8 +698,9 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 
 void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
 {
-    QString qs;            // For fancy fixed-width formats
-    QTextStream qts(&qs);
+    // Just in case, to avoids crashes
+    if (_element == NULL)
+        return;
 
     qreal x = p.x() + _dx; // The de-translated coordinates
     qreal y = p.y() + _dy;
@@ -715,19 +715,32 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     // Begin the <text>
     stream() << SVG_TEXT_BEGIN;
 
-    // stateString for text is wrong, so the necessary bits are repeated here:
-    if (!_cue_id.isEmpty())
-        stream() << SVG_CUE << _cue_id << SVG_QUOTE;
-    if (_element != NULL) {
-        // This may seem like a lot of trouble for formatting, but I like it
+    // stateString for text is wrong, so the necessary bits are repeated here.
+    stream() << SVG_CLASS;
+    if (_cue_id.isEmpty())
+        // no cue id = no fancy formatting
+        stream() << getClass(_element) << SVG_QUOTE;
+    else {
+        // First stream the class attribute, with fancy fixed formatting
+        QString qs;
+        QTextStream qts(&qs);
         qs.clear();
         qts << getClass(_element) << SVG_QUOTE;
-        stream() << SVG_CLASS;
         stream().setFieldAlignment(QTextStream::AlignLeft);
-        stream().setFieldWidth(14);
+        stream().setFieldWidth(13); // ClefCourtesy is the longest so far at 12, + 1 for ".
         stream() << qs;
         stream().setFieldWidth(0);
+
+        // Then stream the Cue ID
+        stream() << SVG_CUE << _cue_id << SVG_QUOTE;
     }
+
+    // Tempo changes have an extra custom attribute: "data-tempo" (units=bpm)
+    if(eType == Ms::Element::Type::TEMPO_TEXT)
+        streamFixed(SVG_TEMPO,
+                    static_cast<const Ms::TempoText*>(_element)->tempo() * BPS2BPM,
+                    3); // max bpm is realistically around 450 = 3 digits
+
     switch (eType) {
     case Ms::Element::Type::REHEARSAL_MARK :
         // This text is centered inside a rect or circle: x and y must relocate
@@ -745,6 +758,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     case Ms::Element::Type::NOTEDOT      :
     case Ms::Element::Type::REST         :
     case Ms::Element::Type::STAFF_TEXT   :
+    case Ms::Element::Type::TEMPO_TEXT   :
     case Ms::Element::Type::TEXT         : // Measure numbers only, AFAIK
     case Ms::Element::Type::TIMESIG      :
     case Ms::Element::Type::TUPLET       :
@@ -763,23 +777,26 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         break;
     }
     // Stream the fancily formatted x and y coordinates
-    formatXY(x, y);
+    streamXY(x, y);
     stream() << SVG_GT;
 
-    // The <text>Content</text>
-    if (fontFamily.left(6) == "MScore") {
-        // MScore fonts are all Private Use Area unicode characters, nothing
-        // alphanumeric, so it's best to render them as XML entities.
-        const QChar *data = textItem.text().constData();
-        while (!data->isNull()) {
-            stream() << XML_ELEMENT_BEGIN
-                     << QString::number(data->unicode(), 16).toUpper()
-                     << XML_ELEMENT_END;
-            ++data;
+    // The content, as in: <text>content</text>:
+    if (_element->visible()) { // Some tempo changes are invisible = no content
+        if (fontFamily.left(6) == "MScore") { //!!!TODO: this should be for all extended, non-ascii chars, maybe.
+            // MScore fonts are all Private Use Area unicode chars, nothing
+            // alphanumeric, so it's best to render them as hex XML entities.
+            // Most are one-char-per-text-element, so it lines up vertically.
+            const QChar *data = textItem.text().constData();
+            while (!data->isNull()) {
+                stream() << XML_ELEMENT_BEGIN
+                         << QString::number(data->unicode(), 16).toUpper()
+                         << XML_ELEMENT_END;
+                ++data;
+            }
         }
+        else
+            stream() << textItem.text();
     }
-    else
-        stream() << textItem.text();
 
     stream() << SVG_TEXT_END << endl; // The terminator
 }
@@ -823,29 +840,28 @@ QString SvgPaintEngine::getClass(const Ms::Element* e)
     return eName;
 }
 
-void SvgPaintEngine::formatXY(const qreal x, const qreal y)
+void SvgPaintEngine::streamXY(const qreal x, const qreal y)
+{
+    streamFixed(SVG_X, x, 5); // x is often > 10,000
+    streamFixed(SVG_Y, y, 4); // y is never > 9,999
+}
+
+void SvgPaintEngine::streamFixed(const QString& attr, const qreal n, const int numDigits)
 {
     QString qs;            // For fancy fixed-width formats
     QTextStream qts(&qs);
 
     stream().setFieldAlignment(QTextStream::AlignRight);
-    stream() << SVG_X;
-    stream().setFieldWidth(SVG_PRECISION + 8); // x is often > 10,000
+    stream() << attr;
+    stream().setFieldWidth(SVG_PRECISION + 3 + numDigits); // 3 = . + (2 x ")
     qs.clear();
     qts.setRealNumberNotation(QTextStream::FixedNotation);
     qts.setRealNumberPrecision(SVG_PRECISION);
-    qts << SVG_QUOTE << x << SVG_QUOTE;
-    stream() << qs;
-    stream().setFieldWidth(0);
-    stream() << SVG_Y;
-    stream().setFieldWidth(SVG_PRECISION + 7); // y is never > 9,999
-    qs.clear();
-    qts << SVG_QUOTE << y << SVG_QUOTE;
+    qts << SVG_QUOTE << n << SVG_QUOTE;
     stream() << qs;
     stream().setFieldWidth(0);
     stream().setFieldAlignment(QTextStream::AlignLeft);
 }
-
 ///////////////////////////////////////////////////////////////////////////////
 class SvgGeneratorPrivate
 {
