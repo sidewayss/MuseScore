@@ -52,7 +52,126 @@
 #include "libmscore/element.h"   // for Element class
 #include "libmscore/barline.h"   // for BarLine class
 #include "libmscore/mscore.h"    // for BarLineType enum
+#include "libmscore/score.h"     // for Score::nstaves()
 #include "libmscore/tempotext.h" // for TempoText class
+
+///////////////////////////////////////////////////////////////////////////////
+// SVG and SMAWS constants
+
+// SVG floating point precision
+#define SVG_PRECISION 2
+
+// SVG strings as constants
+#define SVG_SPACE    ' '
+#define SVG_4SPACES  "    "
+#define SVG_DASH     "-"
+#define SVG_QUOTE    "\""
+#define SVG_COMMA    ','
+#define SVG_GT       '>'
+#define SVG_PX       "px"
+#define SVG_NONE     "none"
+#define SVG_EVENODD  "evenodd"
+#define SVG_BUTT     "butt"
+#define SVG_SQUARE   "square"
+#define SVG_ROUND    "round"
+#define SVG_MITER    "miter"
+#define SVG_BEVEL    "bevel"
+#define SVG_ONE      "1"
+#define SVG_BLACK    "#000000"
+
+#define SVG_BEGIN    "<svg"
+#define SVG_END      "</svg>"
+
+#define SVG_WIDTH    " width=\""
+#define SVG_HEIGHT   " height=\""
+#define SVG_VIEW_BOX " viewBox=\""
+
+#define SVG_X        " x="
+#define SVG_Y        " y="
+
+#define SVG_RX       " rx=\"1\"" // for now these are constant values
+#define SVG_RY       " ry=\"1\""
+
+#define SVG_POINTS   " points=\""
+#define SVG_D        " d=\""
+#define SVG_MOVE     'M'
+#define SVG_LINE     'L'
+#define SVG_CURVE    'C'
+
+#define SVG_ELEMENT_END "/>"
+
+#define SVG_DEFS_BEGIN  "<defs>"
+#define SVG_DEFS_END    "</defs>"
+#define SVG_TITLE_BEGIN "<title>"
+#define SVG_TITLE_END   "</title>"
+#define SVG_DESC_BEGIN  "<desc>"
+#define SVG_DESC_END    "</desc>"
+
+#define SVG_GROUP_BEGIN "<g"
+#define SVG_GROUP_END   "</g>"
+#define SVG_TEXT_BEGIN  "<text"
+#define SVG_TEXT_END    "</text>"
+
+#define SVG_IMAGE       "<image"
+#define SVG_PATH        "<path"
+#define SVG_POLYLINE    "<polyline"
+#define SVG_RECT        "<rect"
+#define SVG_USE         "<use"
+
+#define SVG_PRESERVE_ASPECT " preserveAspectRatio=\""
+#define SVG_XYMIN_SLICE     "xMinYMin slice"
+
+#define SVG_FILL            " fill=\""
+#define SVG_STROKE          " stroke=\""
+#define SVG_STROKE_WIDTH    " stroke-width=\""
+#define SVG_STROKE_LINECAP  " stroke-linecap=\""
+#define SVG_STROKE_LINEJOIN " stroke-linejoin=\""
+#define SVG_STROKE_DASHARRAY " stroke-dasharray=\""
+#define SVG_STROKE_DASHOFFSET " stroke-dashoffset=\""
+#define SVG_STROKE_MITERLIMIT " stroke-miterlimit=\""
+
+#define SVG_OPACITY         " opacity=\""
+#define SVG_FILL_OPACITY    " fill-opacity=\""
+#define SVG_STROKE_OPACITY  " stroke-opacity=\""
+
+#define SVG_FONT_FAMILY     " font-family=\""
+#define SVG_FONT_SIZE       " font-size=\""
+
+#define SVG_FILL_RULE       " fill-rule=\"evenodd\""
+#define SVG_VECTOR_EFFECT   " vector-effect=\"non-scaling-stroke\""
+
+//#define SVG_COMMENT_BEGIN   "<!--"
+//#define SVG_COMMENT_END     "-->"
+
+#define XLINK_HREF "xlink:href=\"#"
+
+// For extended characters in MScore font (unicode Private Use Area)
+#define XML_ENTITY_BEGIN "&#x"
+#define XML_ENTITY_END   ';'
+
+// Boilerplate header text
+#define XML_NAMESPACE  " xmlns=\"http://www.w3.org/2000/svg\""
+#define XML_STYLESHEET "<?xml-stylesheet type=\"text/css\" href=\"MuseScore.svg.css\"?>"
+#define XML_XLINK      " xmlns:xlink=\"http://www.w3.org/1999/xlink\""
+
+// Custom SVG attributes (and some default settings)
+#define SVG_CLASS  " class=\""
+#define SVG_ID     " id=\""
+#define SVG_SCROLL " data-scroll=\""
+#define SVG_CUE    " data-cue=\""
+#define SVG_ATTR   " data-attr=\"fill\""  // the only animated attribute so far
+#define SVG_HI     " data-hi=\"#0000bb\"" // medium-bright blue
+#define SVG_LO     " data-lo=\"#000000\"" // black
+#define SVG_STAFF  " data-staff=\""
+#define SVG_TEMPO  " data-tempo="
+
+#define CLASS_CLEF_COURTESY "ClefCourtesy"
+#define CLASS_SIGNATURES    "Signatures"
+#define CUE_ID_ZERO "0000000_0000000"
+#define BPS2BPM 60 // Beats per Second to Beats per Minute conversion factor
+
+#define SMAWS "SMAWS" // SMAWS
+///////////////////////////////////////////////////////////////////////////////
 
 class SvgGeneratorPrivate;
 

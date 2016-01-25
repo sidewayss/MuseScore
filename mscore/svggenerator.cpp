@@ -83,6 +83,8 @@ public:
     }
     QSize  size;
     QRectF viewBox;
+    int    xDigits;
+    int    yDigits;
 
     QIODevice* outputDevice;
     int        resolution;
@@ -92,9 +94,8 @@ public:
         QString desc;
     } attributes;
 
-    QString header;
-    QString body;
-
+    QString      header;
+    QString      body;
     QTextStream* stream;
 };
 
@@ -115,8 +116,15 @@ class SvgPaintEngine : public QPaintEngine
     Q_DECLARE_PRIVATE(SvgPaintEngine)
 
 private:
+    // For UpdateState(), handles repeated sub-elements within an element
     QString     stateString;
     QTextStream stateStream;
+
+    // For Frozen Pane (horizontal scrolling only)
+    QString      frozenLines;
+    QStringList  frozenDefs;
+    QTextStream* frozenStream;
+    QFile        frozenFile;
 
 // To eliminate transform attribute on polylines
     qreal _dx;
@@ -135,7 +143,7 @@ private:
 
 // For fancy text formatting inside the SVG file
     void streamXY(qreal x, qreal y);
-    void streamFixed(const QString& attr, const qreal n, const int numDigits);
+    QString fixedFormat(const QString& attr, const qreal n, const int maxDigits);
 
 protected:
     const Ms::Element* _element = NULL; // The Ms::Element being generated now
@@ -143,113 +151,13 @@ protected:
     QString _cue_id;  // The current VTT cue ID
     bool _scrollAxis; // Scroll Axis = bool; only 2 axes: x(false), y(true).
 
-// SVG floating point precision
-#define SVG_PRECISION 2
-
-// SVG strings as constants
-#define SVG_SPACE    ' '
-#define SVG_QUOTE    "\""
-#define SVG_COMMA    ","
-#define SVG_GT       ">"
-#define SVG_PX       "px"
-#define SVG_NONE     "none"
-#define SVG_EVENODD  "evenodd"
-#define SVG_BUTT     "butt"
-#define SVG_SQUARE   "square"
-#define SVG_ROUND    "round"
-#define SVG_MITER    "miter"
-#define SVG_BEVEL    "bevel"
-#define SVG_ONE      "1"
-#define SVG_BLACK    "#000000"
-
-#define SVG_BEGIN    "<svg"
-#define SVG_END      "</svg>"
-
-#define SVG_WIDTH    " width=\""
-#define SVG_HEIGHT   " height=\""
-#define SVG_VIEW_BOX " viewBox=\""
-
-#define SVG_X        " x="
-#define SVG_Y        " y="
-
-#define SVG_RX       " rx=\"1\"" // for now these are constant values
-#define SVG_RY       " ry=\"1\""
-
-#define SVG_POINTS   " points=\""
-#define SVG_D        " d=\""
-#define SVG_MOVE     'M'
-#define SVG_LINE     'L'
-#define SVG_CURVE    'C'
-
-#define SVG_ELEMENT_END "/>"
-
-#define XML_NAMESPACE   " xmlns=\"http://www.w3.org/2000/svg\""
-#define XML_STYLESHEET  "<?xml-stylesheet type=\"text/css\" href=\"MuseScore.svg.css\"?>"
-
-#define SVG_TITLE_BEGIN "<title>"
-#define SVG_TITLE_END   "</title>"
-#define SVG_DESC_BEGIN  "<desc>"
-#define SVG_DESC_END    "</desc>"
-
-#define SVG_TEXT_BEGIN  "<text"
-#define SVG_TEXT_END    "</text>"
-
-#define SVG_IMAGE       "<image"
-#define SVG_PATH        "<path"
-#define SVG_POLYLINE    "<polyline"
-#define SVG_RECT_BEGIN  "<rect"
-
-#define SVG_PRESERVE_ASPECT " preserveAspectRatio=\""
-#define SVG_XYMIN_SLICE     "xMinYMin slice"
-
-#define SVG_FILL            " fill=\""
-#define SVG_STROKE          " stroke=\""
-#define SVG_STROKE_WIDTH    " stroke-width=\""
-#define SVG_STROKE_LINECAP  " stroke-linecap=\""
-#define SVG_STROKE_LINEJOIN " stroke-linejoin=\""
-#define SVG_STROKE_DASHARRAY " stroke-dasharray=\""
-#define SVG_STROKE_DASHOFFSET " stroke-dashoffset=\""
-#define SVG_STROKE_MITERLIMIT " stroke-miterlimit=\""
-
-#define SVG_OPACITY         " opacity=\""
-#define SVG_FILL_OPACITY    " fill-opacity=\""
-#define SVG_STROKE_OPACITY  " stroke-opacity=\""
-
-#define SVG_FONT_FAMILY     " font-family=\""
-#define SVG_FONT_SIZE       " font-size=\""
-
-#define SVG_FILL_RULE       " fill-rule=\"evenodd\""
-#define SVG_VECTOR_EFFECT   " vector-effect=\"non-scaling-stroke\""
-
-// For extended characters in MScore & other fonts (unicode Private Use Area)
-#define XML_ELEMENT_BEGIN   "&#x"
-#define XML_ELEMENT_END     ";"
-
-//#define SVG_COMMENT_BEGIN   "<!--"
-//#define SVG_COMMENT_END     "-->"
-
-// Custom SVG attributes (and some default settings)
-#define SVG_CLASS  " class=\""
-#define SVG_SCROLL " data-scroll=\""
-#define SVG_CUE    " data-cue=\""
-#define SVG_ATTR   " data-attr=\"fill\""  // the only animated attribute so far
-#define SVG_HI     " data-hi=\"#0000bb\"" // medium-bright blue
-#define SVG_LO     " data-lo=\"#000000\"" // black
-#define SVG_TEMPO  " data-tempo="
-
-#define CLASS_CLEF_COURTESY "ClefCourtesy"
-#define CUE_ID_ZERO "0000000_0000000"
-#define BPS2BPM 60 // Beats per Second to Beats per Minute conversion factor
-
-// SMAWS
-#define SMAWS "SMAWS"
-
 public:
     SvgPaintEngine()
         : QPaintEngine(*new SvgPaintEnginePrivate,
                        svgEngineFeatures()),
           stateStream(&stateString)
     {
+        frozenStream = 0;
     }
 
     bool begin(QPaintDevice *device);
@@ -280,6 +188,9 @@ public:
     void setViewBox(const QRectF &viewBox) {
         Q_ASSERT(!isActive());
         d_func()->viewBox = viewBox;
+        // These are for fancy fixed-width formattting
+        d_func()->xDigits = QString::number(qRound(viewBox.width())).size();
+        d_func()->yDigits = QString::number(qRound(viewBox.height())).size();
     }
     QString documentTitle() const { return d_func()->attributes.title; }
     void setDocumentTitle(const QString &title) {
@@ -328,8 +239,9 @@ bool SvgPaintEngine::begin(QPaintDevice *)
 
     // Initialize the stream, for other functions to populate
     d->stream = new QTextStream(&d->body);
-    d->stream->setRealNumberPrecision(SVG_PRECISION);
+    d->stream->setFieldAlignment(QTextStream::AlignLeft);
     d->stream->setRealNumberNotation(QTextStream::FixedNotation);
+    d->stream->setRealNumberPrecision(SVG_PRECISION);
 
     // Set this flag to default value, return
     _scrollAxis = false;
@@ -350,8 +262,8 @@ bool SvgPaintEngine::end()
     // set the scroll axis [this used to happen in begin()].
     const QString scrollAxis = _scrollAxis ? "y" : "x";
              // Standard SVG attributes
-    stream() << XML_STYLESHEET  << endl
-             << SVG_BEGIN       << XML_NAMESPACE
+    stream() << XML_STYLESHEET << endl
+             << SVG_BEGIN      << XML_NAMESPACE
              << SVG_PRESERVE_ASPECT << SVG_XYMIN_SLICE << SVG_QUOTE << endl
              << SVG_VIEW_BOX    << d->viewBox.left()   << SVG_SPACE
                                 << d->viewBox.top()    << SVG_SPACE
@@ -375,8 +287,66 @@ bool SvgPaintEngine::end()
     stream() << d->header;
     stream() << d->body;
     stream() << SVG_END << endl;
-
+    // Clean up
     delete d->stream;
+
+    // Deal with Frozen Pane, if it exists
+    if (frozenStream != 0) {
+        frozenFile.open(QIODevice::WriteOnly | QIODevice::Text);
+        frozenStream->setDevice(&frozenFile);
+        // Standard SVG header plus XLink and some indentation
+        *frozenStream << XML_STYLESHEET  << endl
+                      << SVG_BEGIN       << XML_NAMESPACE << endl
+                      << SVG_4SPACES     << XML_XLINK     << endl
+                      << SVG_4SPACES     << SVG_PRESERVE_ASPECT
+                                         << SVG_XYMIN_SLICE << SVG_QUOTE << endl
+                      << SVG_4SPACES     << SVG_VIEW_BOX <<   0 << SVG_SPACE
+                                                         <<   0 << SVG_SPACE
+                                                         << 100 << SVG_SPACE
+                                                         << d->viewBox.height() << SVG_QUOTE
+                                         << SVG_WIDTH    << 200                 << SVG_QUOTE
+                                         << SVG_HEIGHT   << d->size.height()    << SVG_QUOTE
+                                         << SVG_GT << endl
+                      << SVG_TITLE_BEGIN << "Frozen Pane for "
+                                         << d->attributes.title << SVG_TITLE_END << endl
+                      << SVG_DESC_BEGIN  << d->attributes.desc  << SVG_DESC_END  << endl;
+        // Defs
+        frozenDefs.sort(); // Chronological order
+        *frozenStream << SVG_DEFS_BEGIN  << endl;
+        for (int i = 0, n = frozenDefs.size(); i < n; i++)
+            *frozenStream << frozenDefs[i] << SVG_4SPACES << SVG_GROUP_END << endl;
+        *frozenStream << SVG_DEFS_END    << endl;
+        // StaffLines and System bar lines
+        *frozenStream << frozenLines     << endl;
+        // <use> elements, three per staff
+        QStringList types;
+        types << QString("%1%2").arg(_element->name(Ms::Element::Type::TEMPO_TEXT)).arg(SVG_QUOTE)
+              << QString("%1%2").arg(_element->name(Ms::Element::Type::CLEF)).arg(SVG_QUOTE)
+              << QString("%1%2").arg(CLASS_SIGNATURES).arg(SVG_QUOTE);
+
+        frozenStream->setFieldAlignment(QTextStream::AlignLeft);
+        for (int i = 0; i < _element->score()->nstaves(); i++) {
+            // Tempo does not change across staves. It is types[0].
+            for (int j = i > 0 ? 1 : 0; j < types.size(); j++) {
+                *frozenStream << SVG_USE << SVG_ID << i << SVG_DASH;
+                frozenStream->setFieldWidth(12);
+                *frozenStream << types[j];
+                frozenStream->setFieldWidth(0);
+                *frozenStream << XLINK_HREF << CUE_ID_ZERO << SVG_DASH
+                                            << i << SVG_DASH;
+                frozenStream->setFieldWidth(11);
+                *frozenStream << types[j];
+                frozenStream->setFieldWidth(0);
+                *frozenStream  << SVG_ELEMENT_END << endl;
+            }
+        }
+        // </svg> = end of SVG
+        *frozenStream << SVG_END << endl;
+
+        // Write and close the Frozen Pane file
+        frozenStream->flush();
+        frozenFile.close();
+    }
     return true;
 }
 
@@ -609,7 +579,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
         _textFrame.setWidth(qMax(_element->width() + 2, 16.0));
         _textFrame.setHeight(13);
 
-        stream() << SVG_RECT_BEGIN << stateString;
+        stream() << SVG_RECT << stateString;
 
         streamXY(_textFrame.x(), _textFrame.y());
         stream() << SVG_WIDTH  << _textFrame.width()  << SVG_QUOTE
@@ -675,10 +645,6 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 {
     Q_ASSERT(pointCount >= 2);
 
-    QPainterPath path(points[0]);
-    for (int i = 1; i < pointCount; ++i)
-        path.lineTo(points[i]);
-
     if (mode == PolylineMode) {
         stream() << SVG_POLYLINE << stateString
                  << SVG_POINTS;
@@ -689,8 +655,33 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
                 stream() << SVG_SPACE;
         }
         stream() << SVG_QUOTE << SVG_ELEMENT_END <<endl;
+
+        // For Frozen Pane (horizontal scrolling only)
+        const Ms::Element::Type eType = _element->type();
+        if (frozenStream != 0 && (eType == Ms::Element::Type::SYSTEM
+                               || eType == Ms::Element::Type::STAFF_LINES))
+        {
+            // These are straight lines, only two points
+            frozenStream->setString(&frozenLines);
+            frozenStream->setRealNumberNotation(QTextStream::FixedNotation);
+            frozenStream->setRealNumberPrecision(SVG_PRECISION);
+            *frozenStream << SVG_POLYLINE << stateString << SVG_POINTS
+                          << points[0].x() + _dx << SVG_COMMA
+                          << points[0].y() + _dy << SVG_SPACE;
+
+            if (eType == Ms::Element::Type::STAFF_LINES)
+                *frozenStream << 100;
+            else
+                *frozenStream << points[1].x() + _dx;
+
+            *frozenStream << SVG_COMMA << points[1].y() + _dy
+                          << SVG_QUOTE << SVG_ELEMENT_END <<endl;
+        }
     }
     else { // not PolylineMode
+        QPainterPath path(points[0]);
+        for (int i = 1; i < pointCount; ++i)
+            path.lineTo(points[i]);
         path.closeSubpath();
         drawPath(path);
     }
@@ -716,30 +707,27 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     stream() << SVG_TEXT_BEGIN;
 
     // stateString for text is wrong, so the necessary bits are repeated here.
+    QString classValue = getClass(_element);
     stream() << SVG_CLASS;
+
     if (_cue_id.isEmpty())
         // no cue id = no fancy formatting
-        stream() << getClass(_element) << SVG_QUOTE;
+        stream() << classValue << SVG_QUOTE;
     else {
         // First stream the class attribute, with fancy fixed formatting
-        QString qs;
-        QTextStream qts(&qs);
-        qs.clear();
-        qts << getClass(_element) << SVG_QUOTE;
-        stream().setFieldAlignment(QTextStream::AlignLeft);
         stream().setFieldWidth(13); // ClefCourtesy is the longest so far at 12, + 1 for ".
-        stream() << qs;
+        stream() << QString("%1%2").arg(classValue).arg(SVG_QUOTE);
         stream().setFieldWidth(0);
 
         // Then stream the Cue ID
         stream() << SVG_CUE << _cue_id << SVG_QUOTE;
     }
 
-    // Tempo changes have an extra custom attribute: "data-tempo" (units=bpm)
-    if(eType == Ms::Element::Type::TEMPO_TEXT)
-        streamFixed(SVG_TEMPO,
-                    static_cast<const Ms::TempoText*>(_element)->tempo() * BPS2BPM,
-                    3); // max bpm is realistically around 450 = 3 digits
+    bool isFrozen = eType == Ms::Element::Type::CLEF
+                 || eType == Ms::Element::Type::KEYSIG
+                 || eType == Ms::Element::Type::TEMPO_TEXT
+                 || eType == Ms::Element::Type::TIMESIG;
+    int idxStaff = _element->track() / Ms::VOICES;
 
     switch (eType) {
     case Ms::Element::Type::REHEARSAL_MARK :
@@ -762,7 +750,18 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     case Ms::Element::Type::TEXT         : // Measure numbers only, AFAIK
     case Ms::Element::Type::TIMESIG      :
     case Ms::Element::Type::TUPLET       :
-        // These elements are all styled by CSS, no need to specify attributes
+        // These elements are all styled by CSS, no need to specify attributes,
+        // except for these custom attributes for frozen pane elements.
+        if (isFrozen) {
+            // data-staff attribute
+            stream() << SVG_STAFF << idxStaff << SVG_QUOTE;
+            // Tempo changes have an extra custom attribute: "data-tempo"
+            if(eType == Ms::Element::Type::TEMPO_TEXT)
+                stream() << fixedFormat(SVG_TEMPO,
+                                        static_cast<const Ms::TempoText*>(_element)->tempo()
+                                         * BPS2BPM,
+                                        3); // max bpm is realistically around 450 = 3 digits
+        }
         break;
     default:
         // The rest of what is stateString elsewhere
@@ -776,29 +775,96 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
                  << SVG_FONT_SIZE   << fontSize   << SVG_QUOTE;
         break;
     }
-    // Stream the fancily formatted x and y coordinates
-    streamXY(x, y);
-    stream() << SVG_GT;
+
+    streamXY(x, y);     // Stream the fancily formatted x and y coordinates
+    stream() << SVG_GT; // end attributes
 
     // The content, as in: <text>content</text>:
+    // This string, along with textItem.text().constData() go missing at some
+    // point prior to the Frozen Pane code,...
+    QString     textContent;
+    QTextStream streamContent(&textContent);
+    ///...so this const string maintains a const copy of textItem.text().
+    const QString item = textItem.text();
+    const QChar* data = textItem.text().constData();
     if (_element->visible()) { // Some tempo changes are invisible = no content
-        if (fontFamily.left(6) == "MScore") { //!!!TODO: this should be for all extended, non-ascii chars, maybe.
+        if (fontFamily.left(6) == "MScore") { //!!!TODO: should this be for all extended, non-ascii chars?
             // MScore fonts are all Private Use Area unicode chars, nothing
             // alphanumeric, so it's best to render them as hex XML entities.
             // Most are one-char-per-text-element, so it lines up vertically.
-            const QChar *data = textItem.text().constData();
             while (!data->isNull()) {
-                stream() << XML_ELEMENT_BEGIN
-                         << QString::number(data->unicode(), 16).toUpper()
-                         << XML_ELEMENT_END;
+                streamContent << XML_ENTITY_BEGIN
+                              << QString::number(data->unicode(), 16).toUpper()
+                              << XML_ENTITY_END;
                 ++data;
             }
         }
         else
-            stream() << textItem.text();
+            streamContent << textItem.text();
     }
+    stream() << textContent << SVG_TEXT_END << endl;
 
-    stream() << SVG_TEXT_END << endl; // The terminator
+    // Handle Frozen Pane elements
+    if (frozenStream != 0 && isFrozen)
+    {
+        const bool groupClass = eType == Ms::Element::Type::CLEF
+                             || eType == Ms::Element::Type::TEMPO_TEXT;
+
+        if (eType == Ms::Element::Type::CLEF) // No frozen courtesy clefs
+            classValue = _element->name(eType);
+
+        const QString defClass = groupClass ? classValue : CLASS_SIGNATURES;
+
+        const QString cueStaff = QString("%1%2%3%2%4")
+                                         .arg(_cue_id)
+                                         .arg(SVG_DASH)
+                                         .arg(idxStaff)
+                                         .arg(defClass);
+
+        const QRegExp rxCueStaff(QString("%1%2%1").arg("*").arg(cueStaff),
+                                 Qt::CaseSensitive,
+                                 QRegExp::Wildcard);
+
+        const int idxCueStaff = frozenDefs.lastIndexOf(rxCueStaff);
+
+        QString qs;
+        if (idxCueStaff != -1) {
+            // Multi-element definition already started
+            frozenStream->setString(&frozenDefs[idxCueStaff]);
+        }
+        else {
+            // New def, stream the group element begin + attributes
+            frozenStream->setString(&qs);
+            *frozenStream << SVG_4SPACES << SVG_GROUP_BEGIN
+                          << SVG_ID << cueStaff << SVG_QUOTE;
+            if (groupClass)
+                *frozenStream << SVG_CLASS << classValue << SVG_QUOTE;
+            *frozenStream << SVG_GT << endl;
+        }
+        // Stream the text element
+        *frozenStream << SVG_4SPACES << SVG_4SPACES << SVG_TEXT_BEGIN
+                      << fixedFormat(SVG_X, x, 3) << fixedFormat(SVG_Y, y, 4);
+        if (!groupClass)
+            *frozenStream << SVG_CLASS << classValue << SVG_QUOTE;
+        *frozenStream << SVG_GT;
+
+        // textContent has somehow lost its value by here, so I do it again!???
+        // ??? also: This file has no tolerance for non-ascii chars, but there
+        //     is very little text content in this file, so it's all XML hex:
+        data = item.constData();
+        while (!data->isNull()) {
+            *frozenStream << XML_ENTITY_BEGIN
+                          << QString::number(data->unicode(), 16).toUpper()
+                          << XML_ENTITY_END;
+            ++data;
+        }
+
+        *frozenStream << SVG_TEXT_END << endl;
+
+        // Add the string to the list, if appropriate
+        if (idxCueStaff == -1)
+            frozenDefs.append(qs);
+    }
 }
 
 // Gets the contents of the SVG class attribute, based on element type/name
@@ -842,26 +908,30 @@ QString SvgPaintEngine::getClass(const Ms::Element* e)
 
 void SvgPaintEngine::streamXY(const qreal x, const qreal y)
 {
-    streamFixed(SVG_X, x, 5); // x is often > 10,000
-    streamFixed(SVG_Y, y, 4); // y is never > 9,999
+    stream() << fixedFormat(SVG_X, x, d_func()->xDigits);
+    stream() << fixedFormat(SVG_Y, y, d_func()->yDigits);
 }
 
-void SvgPaintEngine::streamFixed(const QString& attr, const qreal n, const int numDigits)
+QString SvgPaintEngine::fixedFormat(const QString& attr,
+                                    const qreal    n,
+                                    const int      maxDigits)
 {
-    QString qs;            // For fancy fixed-width formats
-    QTextStream qts(&qs);
+    QString qsN;
+    QTextStream qtsN(&qsN);
+    qtsN.setRealNumberNotation(QTextStream::FixedNotation);
+    qtsN.setRealNumberPrecision(SVG_PRECISION);
+    qtsN << n;
 
-    stream().setFieldAlignment(QTextStream::AlignRight);
-    stream() << attr;
-    stream().setFieldWidth(SVG_PRECISION + 3 + numDigits); // 3 = . + (2 x ")
-    qs.clear();
-    qts.setRealNumberNotation(QTextStream::FixedNotation);
-    qts.setRealNumberPrecision(SVG_PRECISION);
-    qts << SVG_QUOTE << n << SVG_QUOTE;
-    stream() << qs;
-    stream().setFieldWidth(0);
-    stream().setFieldAlignment(QTextStream::AlignLeft);
+    QString qs;
+    QTextStream qts(&qs);
+    qts << attr;
+    qts.setFieldAlignment(QTextStream::AlignRight);
+    qts.setFieldWidth(SVG_PRECISION + 3 + maxDigits); // 3 = . + (2 x ")
+    qts << QString("%1%2%3").arg(SVG_QUOTE).arg(qsN).arg(SVG_QUOTE);
+
+    return qs;
 }
+
 ///////////////////////////////////////////////////////////////////////////////
 class SvgGeneratorPrivate
 {
@@ -1178,5 +1248,21 @@ void SvgGenerator::setCueID(const QString& qs) {
     Called by saveSVG() in mscore/file.cpp.
 */
 void SvgGenerator::setScrollAxis(bool axis) {
-    static_cast<SvgPaintEngine*>(paintEngine())->_scrollAxis = axis;
+    // Set the member variable
+    SvgPaintEngine* pe = static_cast<SvgPaintEngine*>(paintEngine());
+    pe->_scrollAxis = axis;
+
+    // Deal with Frozen Pane (horizontal scrolling only)
+    if (!axis) {
+        // The Frozen Pane file
+        const QString fn = d_func()->fileName;
+        pe->frozenFile.setFileName(QString("%1_frz.svg")
+                                   .arg(fn.left(fn.length() - 4)));
+
+        // The Frozen Pane stream
+        pe->frozenStream = new QTextStream();
+        pe->frozenStream->setFieldAlignment(QTextStream::AlignLeft);
+        pe->frozenStream->setRealNumberNotation(QTextStream::FixedNotation);
+        pe->frozenStream->setRealNumberPrecision(SVG_PRECISION);
+    }
 }
