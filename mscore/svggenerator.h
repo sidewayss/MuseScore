@@ -50,11 +50,7 @@
 #include <QtCore/qscopedpointer.h>
 
 #include "libmscore/element.h"   // for Element class
-#include "libmscore/barline.h"   // for BarLine class
-#include "libmscore/mscore.h"    // for BarLineType enum
-#include "libmscore/score.h"     // for Score::nstaves()
-#include "libmscore/tempotext.h" // for TempoText class
-
+using EType = Ms::Element::Type; // It get used a lot, Type consts are long too
 ///////////////////////////////////////////////////////////////////////////////
 // SVG and SMAWS constants
 
@@ -121,24 +117,27 @@
 #define SVG_PRESERVE_ASPECT " preserveAspectRatio=\""
 #define SVG_XYMIN_SLICE     "xMinYMin slice"
 
-#define SVG_FILL            " fill=\""
-#define SVG_STROKE          " stroke=\""
-#define SVG_STROKE_WIDTH    " stroke-width=\""
-#define SVG_STROKE_LINECAP  " stroke-linecap=\""
+#define SVG_FILL           " fill=\""
+#define SVG_STROKE         " stroke=\""
+#define SVG_STROKE_WIDTH   " stroke-width=\""
+#define SVG_STROKE_LINECAP " stroke-linecap=\""
 #define SVG_STROKE_LINEJOIN " stroke-linejoin=\""
 #define SVG_STROKE_DASHARRAY " stroke-dasharray=\""
 #define SVG_STROKE_DASHOFFSET " stroke-dashoffset=\""
 #define SVG_STROKE_MITERLIMIT " stroke-miterlimit=\""
 
-#define SVG_OPACITY         " opacity=\""
-#define SVG_FILL_OPACITY    " fill-opacity=\""
-#define SVG_STROKE_OPACITY  " stroke-opacity=\""
+#define SVG_FILL_RULE      " fill-rule=\"evenodd\""
+#define SVG_FILL_OPACITY   " fill-opacity=\""
+#define SVG_OPACITY        " opacity=\""
+#define SVG_STROKE_OPACITY " stroke-opacity=\""
+#define SVG_VECTOR_EFFECT  " vector-effect=\"non-scaling-stroke\""
 
-#define SVG_FONT_FAMILY     " font-family=\""
-#define SVG_FONT_SIZE       " font-size=\""
+#define SVG_FONT_FAMILY " font-family=\""
+#define SVG_FONT_SIZE   " font-size=\""
 
-#define SVG_FILL_RULE       " fill-rule=\"evenodd\""
-#define SVG_VECTOR_EFFECT   " vector-effect=\"non-scaling-stroke\""
+#define SVG_TRANSLATE     " transform=\"translate("
+#define SVG_MATRIX        " transform=\"matrix("
+#define SVG_TRANSFORM_END ")\""
 
 //#define SVG_COMMENT_BEGIN   "<!--"
 //#define SVG_COMMENT_END     "-->"
@@ -162,13 +161,15 @@
 #define SVG_ATTR   " data-attr=\"fill\""  // the only animated attribute so far
 #define SVG_HI     " data-hi=\"#0000bb\"" // medium-bright blue
 #define SVG_LO     " data-lo=\"#000000\"" // black
+#define SVG_STAVES " data-staves=\""
 #define SVG_STAFF  " data-staff=\""
 #define SVG_TEMPO  " data-tempo="
 
+#define NATURAL_SIGN 57953 // 0xE261, natural signs excluded from frozen panes
 #define CLASS_CLEF_COURTESY "ClefCourtesy"
 #define CLASS_SIGNATURES    "Signatures"
 #define CUE_ID_ZERO "0000000_0000000"
-#define BPS2BPM 60 // Beats per Second to Beats per Minute conversion factor
+//#define BPS2BPM 60 // Beats per Second to Beats per Minute conversion factor
 
 #define SMAWS "SMAWS" // SMAWS
 ///////////////////////////////////////////////////////////////////////////////
@@ -234,6 +235,9 @@ public:
     void setElement(const Ms::Element* e);
     void setCueID(const QString& qs);
     void setScrollAxis(bool axis);
+    void setNStaves(int n);
+    void setSMAWS();
+    void freezeIt();
 };
 
 #endif // QSVGGENERATOR_H
