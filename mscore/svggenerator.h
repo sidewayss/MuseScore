@@ -60,6 +60,7 @@ using EType = Ms::Element::Type; // It get used a lot, Type consts are long too
 // SVG strings as constants
 #define SVG_SPACE    ' '
 #define SVG_4SPACES  "    "
+#define SVG_8SPACES  "        "
 #define SVG_DASH     "-"
 #define SVG_QUOTE    "\""
 #define SVG_COMMA    ','

@@ -172,6 +172,8 @@ protected:
     const Ms::Element* _e;  // The Ms::Element being generated now
           EType        _et; // That element's ::Type - it's used everywhere
 
+    void initStream(QTextStream* stream);
+
 // SMAWS only:
     QString _cue_id;           // The current VTT cue ID
     bool    _isSMAWS;          // In order to use SMAWS code only as necessary
@@ -212,7 +214,7 @@ protected:
     bool  isNewTimeSig;
 
     void freezeSigs(); // Called by SvgGenerator::freezeIt()
-// end Frozen Pane
+// end Frozen Pane.
 ///////////////////
 
 public:
@@ -311,9 +313,7 @@ bool SvgPaintEngine::begin(QPaintDevice *)
 
     // Initialize the stream, for other functions to populate
     d->stream = new QTextStream(&d->body);
-    d->stream->setFieldAlignment(QTextStream::AlignLeft);
-    d->stream->setRealNumberNotation(QTextStream::FixedNotation);
-    d->stream->setRealNumberPrecision(SVG_PRECISION);
+    initStream(d->stream);
 
     // Set this flag to default value, return
     _isScrollVertical = false;
@@ -388,7 +388,7 @@ bool SvgPaintEngine::end()
                                          << d->attributes.title << SVG_TITLE_END << endl
                       << SVG_DESC_BEGIN  << d->attributes.desc  << SVG_DESC_END  << endl;
         // <defs>
-//        frozenDefs.sort(); // Chronological + class=alphabetical order
+        frozenDefs.sort(); // alphabetical = Chronological + Staff + defClass
         *frozenStream << SVG_DEFS_BEGIN  << endl;
         for (int i = 0, n = frozenDefs.size(); i < n; i++)
             *frozenStream << frozenDefs[i] << SVG_4SPACES << SVG_GROUP_END << endl;
@@ -450,14 +450,18 @@ void SvgPaintEngine::updateState(const QPaintEngineState &state)
     styleState.clear();
 
     // SVG class attribute, based on Ms::Element::Type, among other things
-    _classValue = getClass();
     qts.setString(&classState);
-    qts.setFieldAlignment(QTextStream::AlignLeft);
-    qts << SVG_CLASS;
+    initStream(&qts);
 
-    if (_cue_id.isEmpty() || _et == EType::BAR_LINE)
-        // no cue id or BarLine = no fancy formatting
+    qts << SVG_CLASS;
+    _classValue = getClass();
+    if (_cue_id.isEmpty() || _et == EType::BAR_LINE) {
+        // No cue id or BarLine = no fancy formatting
         qts << _classValue << SVG_QUOTE;
+        if (!_cue_id.isEmpty())
+            // But bar lines need cue ids
+            qts << SVG_CUE << _cue_id << SVG_QUOTE;
+    }
     else {
         // First stream the class attribute, with fancy fixed formatting
         int w = _isFrozen ? 17 : 11;  // Frozen: InstrumentChange" = 17
@@ -721,6 +725,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     case EType::BEAM         :
     case EType::BRACKET      :
     case EType::SLUR_SEGMENT :
+    case EType::TREMOLO      :
         break; // fill-rule styled by CSS
     default:
         if (p.fillRule() == Qt::OddEvenFill)
@@ -840,6 +845,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     case EType::ACCIDENTAL        :
     case EType::ARTICULATION      :
     case EType::CLEF              :
+    case EType::GLISSANDO_SEGMENT :
     case EType::HARMONY           : // Chord text/symbols for song book, fake book, etc,
     case EType::HOOK              :
     case EType::INSTRUMENT_CHANGE :
@@ -979,7 +985,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         switch (_et) {
         case EType::INSTRUMENT_NAME   :
         case EType::INSTRUMENT_CHANGE :
-            x = p.x();      // No offset
+            x = 1;          // That's as far left as it goes
             break;
         case EType::TEMPO_TEXT :
             x = _xLeft;     // Left-aligns with System barline
@@ -998,9 +1004,11 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
                     xTranslateTimeSig = offset - xOffsetTimeSig;
                     xOffsetTimeSig    = offset;
                 }
-                for (int i = 0; i < _nStaves - 1; i++) {
+                for (int i = 0; i < _nStaves; i++) {
                     // Reset KeySig text, KeySig contents vary by Clef/Staff.
                     keySigs[i].clear();
+                    // Reset any Clef-induced y-axis translation
+                    yTranslateKeySig[i] = 0;
                     // Each staff decrements its own offset, per accidental
                     xOffsetAccidental[i] = offset;
                 }
@@ -1020,19 +1028,19 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
                 // This code runs max once per _cue_id value (see freezeSigs())
                 isNewTimeSig = true;
                 // Reset TimeSig text, TimeSig y-coordinate varies Staff.
-                for (int i = 0; i < _nStaves - 1; i++)
+                for (int i = 0; i < _nStaves; i++)
                     timeSigs[i].clear();
             }
             // Signatures are added in freezeSigs(), here we accumulate
             frozenStream->setString(&timeSigs[idxStaff]);
-            x = _xLeft + 4 + 16 + xOffsetTimeSig + 2; //!!! 2 = fixed margin between KeySig/TimeSig
-            break;
-        default:
+            x = _xLeft + 4 + 16 + xOffsetTimeSig + 3; //!!! fixed margin between KeySig/TimeSig
+            break;                                    //!!! default setting is 0.5 * spatium, but
+        default:                                      //!!! it ends up more like 3 than 2.5. not sure why.
             break;
         }
 
         // Stream the text element
-        *frozenStream << SVG_4SPACES << SVG_4SPACES << SVG_TEXT_BEGIN
+        *frozenStream << SVG_8SPACES << SVG_TEXT_BEGIN
                       << fixedFormat(SVG_X, x, 3) //!!! literal value
                       << fixedFormat(SVG_Y, y, d_func()->yDigits);
         if (!groupClass)
@@ -1163,8 +1171,8 @@ QString SvgPaintEngine::defGroup(const QString &groupID,
                     * 2.5; //!!!This is SPATIUM20 / 2, but I should really get the score's spatium
             if (yOffsetKeySig[idxStaff] != offset) {
                 // C/Am is the absence of a KeySig, so a score can start w/o a
-                // KeySig. Not true for Clef of TimeSig. And one would never
-                // want to translate the first anything, no reference yet.
+                // KeySig. Not true for Clef of TimeSig. The first KeySig will
+                // never require a translation. This is a y-axis offset.
                 if (_cue_id != CUE_ID_ZERO)
                     yTranslateKeySig[idxStaff] = offset - yOffsetKeySig[idxStaff];
                 yOffsetKeySig[idxStaff] = offset;
@@ -1182,6 +1190,7 @@ QString SvgPaintEngine::defGroup(const QString &groupID,
 // _cue_id and this function group the staves at a moment in time.
 void SvgPaintEngine::freezeSigs() // protected, only called by SvgGenerator::freezeIt()
 {
+    QString     qs;
     QTextStream qts;
 
     for (int i = 0; i < _nStaves; i++) {
@@ -1191,31 +1200,41 @@ void SvgPaintEngine::freezeSigs() // protected, only called by SvgGenerator::fre
 
         // KeySigs
         if (isNewKeySig)
-            qts << keySigs[i];     // Stream the new KeySig
+            qts << keySigs[i];     /// Stream the new KeySig
         else if (yTranslateKeySig[i] != 0) {
             // New inner group w/transform="translate()":
-            qts << SVG_4SPACES       << SVG_4SPACES << SVG_GROUP_BEGIN
-                << SVG_TRANSLATE     << "0 "        << yTranslateKeySig[i]
-                << SVG_TRANSFORM_END << SVG_GT      << endl;
-            qts << keySigs[i];     // Stream the old KeySig
+            // Temporarily indent the keySig an extra 4 spaces
+            qs = keySigs[i];
+            qs.replace(SVG_8SPACES, QString("%1%2").arg(SVG_8SPACES)
+                                                   .arg(SVG_4SPACES));
+            qts << SVG_8SPACES       << SVG_GROUP_BEGIN
+                << SVG_TRANSLATE     << "0 " << yTranslateKeySig[i]
+                << SVG_TRANSFORM_END << SVG_GT        << endl
+                << qs              /// Stream the old KeySig (indented)
+                << SVG_8SPACES       << SVG_GROUP_END << endl;
         }
 
         // TimeSigs
         if (isNewTimeSig) {
             if (!isNewKeySig)
-                qts << keySigs[i]; // Stream the old KeySig
-            qts << timeSigs[i];    // Stream the new TimeSig
+                qts << keySigs[i]; /// Stream the old KeySig
+            qts << timeSigs[i];    /// Stream the new TimeSig
         }
         else if (xTranslateTimeSig != 0) {
             // xTranslateTimeSig is only non-zero if isNewKeySig = true.
             // New inner group w/transform="translate()":
-            qts << SVG_4SPACES       << SVG_4SPACES       << SVG_GROUP_BEGIN
+            // Temporarily indent the timeSig an extra 4 spaces
+            qs = timeSigs[i];
+            qs.replace(SVG_8SPACES, QString("%1%2").arg(SVG_8SPACES)
+                                                   .arg(SVG_4SPACES));
+            qts << SVG_8SPACES       << SVG_GROUP_BEGIN
                 << SVG_TRANSLATE     << xTranslateTimeSig << " 0"
-                << SVG_TRANSFORM_END << SVG_GT            << endl;
-            qts << timeSigs[i];    // Stream the old TimeSig
+                << SVG_TRANSFORM_END << SVG_GT                 << endl
+                << qs              /// Stream the old TimeSig (indented)
+                << SVG_8SPACES       << SVG_GROUP_END << endl;
         }
         else if (yTranslateKeySig[i] != 0)
-            qts << timeSigs[i];    // Stream the old TimeSig
+            qts << timeSigs[i];    /// Stream the old TimeSig
 
         // Add the completed Signatures def to frozenDefs
         frozenDefs.append(openSigs[i]);
@@ -1225,6 +1244,14 @@ void SvgPaintEngine::freezeSigs() // protected, only called by SvgGenerator::fre
     }
     isNewKeySig  = false;
     isNewTimeSig = false;
+}
+
+// All the streams are initialized with the same properties
+void SvgPaintEngine::initStream(QTextStream* stream) // protected, called by SvgGenerator::setScrollAxis()
+{
+    stream->setFieldAlignment(QTextStream::AlignLeft);
+    stream->setRealNumberNotation(QTextStream::FixedNotation);
+    stream->setRealNumberPrecision(SVG_PRECISION);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1559,9 +1586,7 @@ void SvgGenerator::setScrollAxis(bool axis) {
                                    .arg(fn.left(fn.length() - 4)));
         // The Frozen Pane stream
         pe->frozenStream = new QTextStream();
-        pe->frozenStream->setFieldAlignment(QTextStream::AlignLeft);
-        pe->frozenStream->setRealNumberNotation(QTextStream::FixedNotation);
-        pe->frozenStream->setRealNumberPrecision(SVG_PRECISION);
+        pe->initStream(pe->frozenStream);
     }
 }
 /*!
