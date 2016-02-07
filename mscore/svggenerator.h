@@ -153,6 +153,7 @@ using EType = Ms::Element::Type; // It get used a lot, Type consts are long too
 #define XML_NAMESPACE  " xmlns=\"http://www.w3.org/2000/svg\""
 #define XML_STYLESHEET "<?xml-stylesheet type=\"text/css\" href=\"MuseScore.svg.css\"?>"
 #define XML_XLINK      " xmlns:xlink=\"http://www.w3.org/1999/xlink\""
+#define VTT_HEADER     "WEBVTT\n\nNOTE\n    SMAWS  - Sheet Music Animation w/Sound -\n    This file links to one or more SVG files via the\n    cue ids, which are in this format: 0000000_1234567\nNOTE\n\n";
 
 // Custom SVG attributes (and some default settings)
 #define SVG_CLASS  " class=\""

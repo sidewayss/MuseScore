@@ -419,6 +419,12 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       void updateNewWizard();
       void updateViewModeCombo();
 
+///// SMAWS/MAB ///////////////////////////////////////////
+      bool saveSMAWS       (Score* score, QFileInfo* qfi);
+      bool saveSMAWS_Rulers(Score* score, QFileInfo* qfi);
+      bool saveMAB_MixTree (Score* score, QFileInfo* qfi);
+///////////////////////////////////////////////////////////
+
    private slots:
       void cmd(QAction* a, const QString& cmd);
       void autoSaveTimerTimeout();
@@ -618,11 +624,6 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       bool savePng(Score*, const QString& name);
       bool saveMidi(Score* score, const QString& name);
 //      bool saveLilypond(Score*, const QString& name);
-
-// SMAWS
-      bool saveSMAWS(Score*, const QString& name);
-      bool saveSMAWS_Rulers(Score*, const QString& name);
-//
 
       virtual void closeScore(Score* score);
 
