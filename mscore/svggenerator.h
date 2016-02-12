@@ -158,11 +158,12 @@ using EType = Ms::Element::Type; // It get used a lot, Type consts are long too
 // Custom SVG attributes (and some default settings)
 #define SVG_CLASS  " class=\""
 #define SVG_ID     " id=\""
+#define SVG_CURSOR " cursor=\"default\""
 #define SVG_SCROLL " data-scroll=\""
 #define SVG_CUE    " data-cue=\""
 #define SVG_ATTR   " data-attr=\"fill\""  // the only animated attribute so far
-#define SVG_HI     " data-hi=\"#0000bb\"" // medium-bright blue
-#define SVG_LO     " data-lo=\"#000000\"" // black
+//#define SVG_HI     " data-hi=\"#0000bb\"" // medium-bright blue
+//#define SVG_LO     " data-lo=\"#000000\"" // black
 #define SVG_STAVES " data-staves=\""
 #define SVG_STAFF  " data-staff=\""
 #define SVG_TEMPO  " data-tempo="

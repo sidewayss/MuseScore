@@ -2932,8 +2932,8 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
     const QString closer      = ">";
     const QString quote       = "\"";
     const QString endSVG      = "</svg>";
-    const QString hdrBars     = "<?xml-stylesheet type=\"text/css\" href=\"SMAWS_21.css\" ?>\n<svg width=\"1360\" height=\"20\" xmlns=\"http://www.w3.org/2000/svg\">\n";
-    const QString hdrMarks    = "<?xml-stylesheet type=\"text/css\" href=\"SMAWS_21.css\" ?>\n<svg width=\"1360\" height=\"20\" xmlns=\"http://www.w3.org/2000/svg\"\n data-attr=\"fill\" data-hi=\"#00bb00\" data-lo=\"black\">\n";
+    const QString hdrBars     = "<?xml-stylesheet type=\"text/css\" href=\"SMAWS_21.css\" ?>\n<svg width=\"1360\" height=\"20\" cursor=\"default\" xmlns=\"http://www.w3.org/2000/svg\">\n";
+    const QString hdrMarks    = "<?xml-stylesheet type=\"text/css\" href=\"SMAWS_21.css\" ?>\n<svg width=\"1360\" height=\"20\" cursor=\"default\" xmlns=\"http://www.w3.org/2000/svg\"\n data-attr=\"fill\" data-hi=\"#00bb00\" data-lo=\"black\">\n";
     const QString border      = "<rect class=\"border\" x=\"0.5\" y=\"0.5\" width=\"1359\" height=\"19\"/>\n";
     const QString cursorBars  = "<polygon class=\"cursor\" points=\"-6,1 6,1 0,12\" transform=\"translate(8,0)\"/>\n";
     const QString cursorMarks = "<polygon class=\"cursor\" points=\"-6,19 6,19 0,7\" transform=\"translate(8,0)\"/>\n";
@@ -2978,6 +2978,7 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
     fileMarks.setFileName(fn);
     fileMarks.open(openMode);  // TODO: check for failure here!!!
     QTextStream streamMarks(&fileMarks);
+
     // Stream the headers, borders, and cursors
     streamBars  << hdrBars;
     streamMarks << hdrMarks;

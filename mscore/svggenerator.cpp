@@ -347,10 +347,11 @@ bool SvgPaintEngine::end()
              << SVG_WIDTH       << d->size.width()     << SVG_QUOTE
              << SVG_HEIGHT      << d->size.height()    << SVG_QUOTE << endl
      // Custom attributes/values for SMAWS
+             << SVG_CURSOR   // to avoid I-Beam text cursor
              << SVG_CLASS       << SMAWS               << SVG_QUOTE
              << SVG_STAVES      << nStaves             << SVG_QUOTE
              << SVG_SCROLL      << scrollAxis          << SVG_QUOTE << endl
-             << SVG_ATTR        << SVG_HI << SVG_LO    << SVG_GT    << endl
+             << SVG_ATTR        << SVG_GT              << endl
      // Document attributes
              << SVG_TITLE_BEGIN << d->attributes.title << SVG_TITLE_END << endl
              << SVG_DESC_BEGIN  << d->attributes.desc  << SVG_DESC_END  << endl;
