@@ -86,14 +86,19 @@ using EType = Ms::Element::Type; // It get used a lot, Type consts are long too
 #define SVG_X        " x="
 #define SVG_Y        " y="
 
+#define SVG_X1       " x1=\""
+#define SVG_X2       " x2=\""
+#define SVG_Y1       " y1=\""
+#define SVG_Y2       " y2=\""
+
 #define SVG_RX       " rx=\"1\"" // for now these are constant values
-#define SVG_RY       " ry=\"1\""
+#define SVG_RY       " ry=\"1\"" // only used once for rehearsal mark rects
 
 #define SVG_POINTS   " points=\""
 #define SVG_D        " d=\""
-#define SVG_MOVE     'M'
-#define SVG_LINE     'L'
-#define SVG_CURVE    'C'
+#define SVG_M        'M' // Move
+#define SVG_L        'L' // Line
+#define SVG_C        'C' // Curve
 
 #define SVG_ELEMENT_END "/>"
 
@@ -112,6 +117,7 @@ using EType = Ms::Element::Type; // It get used a lot, Type consts are long too
 #define SVG_IMAGE       "<image"
 #define SVG_PATH        "<path"
 #define SVG_POLYLINE    "<polyline"
+#define SVG_LINE        "<line"
 #define SVG_RECT        "<rect"
 #define SVG_USE         "<use"
 
@@ -167,6 +173,7 @@ using EType = Ms::Element::Type; // It get used a lot, Type consts are long too
 #define SVG_STAVES " data-staves=\""
 #define SVG_STAFF  " data-staff=\""
 #define SVG_TEMPO  " data-tempo="
+#define SVG_START  " data-start=\"" // cue start time in milliseconds
 
 #define NATURAL_SIGN 57953 // 0xE261, natural signs excluded from frozen panes
 #define CLASS_CLEF_COURTESY "ClefCourtesy"

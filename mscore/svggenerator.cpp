@@ -742,13 +742,13 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
         qreal y = ppe.y + _dy;
         switch (ppe.type) {
         case QPainterPath::MoveToElement:
-            stream() << SVG_MOVE  << x << SVG_COMMA << y;
+            stream() << SVG_M << x << SVG_COMMA << y;
             break;
         case QPainterPath::LineToElement:
-            stream() << SVG_LINE  << x << SVG_COMMA << y;
+            stream() << SVG_L << x << SVG_COMMA << y;
             break;
         case QPainterPath::CurveToElement:
-            stream() << SVG_CURVE << x << SVG_COMMA << y;
+            stream() << SVG_C << x << SVG_COMMA << y;
             ++i;
             while (i < p.elementCount()) {
                 const QPainterPath::Element &ppeCurve = p.elementAt(i);
