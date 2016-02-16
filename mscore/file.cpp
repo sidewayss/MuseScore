@@ -2809,10 +2809,10 @@ static QString getScrollCueID(Score* score, const Element* e)
     case EType::REHEARSAL_MARK :
         cue_id = getAnnCueID(score, e, eType);
         break;
-    case EType::TEMPO_TEXT     :
-    case EType::CLEF           :
-    case EType::KEYSIG         :
-    case EType::TIMESIG        :
+    case EType::TEMPO_TEXT :
+    case EType::CLEF       :
+    case EType::KEYSIG     :
+    case EType::TIMESIG    :
         cue_id = getCueID(static_cast<Segment*>(p)->tick());
         break;
     case EType::INSTRUMENT_NAME :
@@ -2928,8 +2928,8 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
     const QString anchorEnd   = " style=\"text-anchor:end\"";
 
     // Boilerplate headers, borders, and cursors
-    const QString hdrBars     = "<?xml-stylesheet type=\"text/css\" href=\"SMAWS_21.css\" ?>\n<svg width=\"1360\" height=\"20\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\">\n";
-    const QString hdrMarks    = "<?xml-stylesheet type=\"text/css\" href=\"SMAWS_21.css\" ?>\n<svg width=\"1360\" height=\"20\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\"\n data-attr=\"fill\">\n";
+    const QString hdrBars     = "<?xml-stylesheet type=\"text/css\" href=\"SMAWS_21.css\" ?>\n<svg width=\"1360\" height=\"20\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\">\n\n";
+    const QString hdrMarks    = "<?xml-stylesheet type=\"text/css\" href=\"SMAWS_21.css\" ?>\n<svg width=\"1360\" height=\"20\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\"\n data-attr=\"fill\">\n\n";
     const QString border      = "<rect class=\"border\" x=\"0.5\" y=\"0.5\" width=\"1359\" height=\"19\"/>\n";
     const QString cursorBars  = "<polygon class=\"cursor\" points=\"-6,1 6,1 0,12\" transform=\"translate(8,0)\"/>\n";
     const QString cursorMarks = "<polygon class=\"cursor\" points=\"-6,19 6,19 0,7\" transform=\"translate(8,0)\"/>\n";
@@ -3004,7 +3004,7 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
             switch (e->type()) {
             case EType::BAR_LINE       :
             case EType::SYSTEM         : // The first barline in any system
-            case EType::REHEARSAL_MARK : // This procedure is
+            case EType::REHEARSAL_MARK :
                 break;
             default:
                 continue;
@@ -3014,6 +3014,10 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
                 mapRulersSVG[cue_id] = e;
         }
     }
+    // The bar lines ruler has a final, extra line, and maybe text.
+    cue_id = getCueID(score->lastSegment()->tick());
+    mapRulersSVG[cue_id] = static_cast<const Element*>(score->lastSegment());
+
     // Tick/Time variables: end tick/time and duration don't apply here
     int     startTick;
     int     startMSec;
@@ -3034,7 +3038,7 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
         // Default Values:
         // x = x1 = x2, they're all the same: a vertical line or centered text.
         // The exception is x for rehearsal mark text, which is offset right.
-        // y and label are more varied.
+        // Y values are varied, but with a limited set of values, by EType.
         iY1    = 1;
         iY2    = 9;
         offX   = 0;
@@ -3047,13 +3051,20 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
         startTick = cue_id.left(CUE_ID_FIELD_WIDTH).toInt();
         startMSec = qRound(tempos->tick2time(startTick) * 1000);
         pxX = margin + (startMSec * pxPerMSec);
-        dataStart = QString( "%1%2%3").arg(SVG_START).arg(startMSec).arg(SVG_QUOTE);
+        dataStart = QString("%1%2%3").arg(SVG_START).arg(startMSec).arg(SVG_QUOTE);
 
+        qreal   width, x;
+        QString start;
         const Element* e = i.value();
         EType eType = e->type();
         switch (eType) {
         case EType::BAR_LINE :
-            iBarNo = static_cast<Measure*>(e->parent()->parent())->no() + 1;
+        case EType::SEGMENT  : // Final, extra line in Bars ruler
+            if (eType == EType::BAR_LINE)
+                iBarNo = static_cast<Measure*>(e->parent()->parent())->no() + 1;
+            else
+                iBarNo++; // That imaginary bar on the other side of the final BarLine
+
             if (iBarNo % 5 == 0) {
                 // Multiples of 5 get a longer, thick line
                 iY2 = 13;
@@ -3064,102 +3075,77 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
                     label = QString("%1").arg(iBarNo);
                 }
             }
+            if (startTick > 0) {
+                x = rectX;
+                width = pxX - ((pxX - lineX) / 2) - rectX;
+                start = prevStart;
+            }
             y    = yBars;
             break;
         case EType::REHEARSAL_MARK :
-            offX =  6;
-            y    = yMarks;
-            iY1  =  7;
-            iY2  = 19;
-            label  = static_cast<const Text*>(e)->xmlText();
+            y     = yMarks;
+            iY1   =  7;
+            iY2   = 19;
+            offX  =  6;
+            x     = pxX - offX;
+            width = offX * 2;
+            label = static_cast<const Text*>(e)->xmlText();
+            start = dataStart;
             classVal = classMrkr;
             break;
 
         default:
             break;
         }
-        // Stream the line element
+        // Ruler lines have invisible rects around them, allowing users to be
+        // less precise with their mouse clicks. The last BarLine ruler line
+        // is excluded, because it's not clickable.
+        // The code operates on the current Marker and the previous BarLine.
+        // Marker rects have a fixed width rect = text offset from line.
+        // BarLine rects split the space around each line, no empty spaces.
         const bool  isMarker = (eType == EType::REHEARSAL_MARK);
         QTextStream* streamX = isMarker ? &streamMarks : &streamBars;
-        if (!isMarker) {
-            // BarLines ruler has invisible rects around each line to allow
-            // users to be less precise with their mouse clicks. The last
-            // BarLine ruler line is excluded, because it's not clickable.
-            if (startTick > 0) {
-                const qreal width = pxX - ((pxX - lineX) / 2) - rectX;
-                *streamX << SVG_RECT
-                            << SVG_X << SVG_QUOTE << rectX    << SVG_QUOTE
-                            << SVG_Y << SVG_QUOTE << iY1      << SVG_QUOTE
-                            << SVG_WIDTH          << width    << SVG_QUOTE
-                            << SVG_HEIGHT         << "18"     << SVG_QUOTE
-                            << SVG_FILL           << SVG_NONE << SVG_QUOTE
-                            << onClick            << prevStart
-                         << SVG_ELEMENT_END << endl;
+        if (isMarker || startTick > 0) {
+            if (isMarker)
+                *streamX << endl;
+
+            *streamX << SVG_RECT << onClick   << start
+                        << SVG_X << SVG_QUOTE << x        << SVG_QUOTE
+                        << SVG_Y << SVG_QUOTE << iY1      << SVG_QUOTE
+                        << SVG_WIDTH          << width    << SVG_QUOTE
+                        << SVG_HEIGHT         << "18"     << SVG_QUOTE
+                        << SVG_FILL           << SVG_NONE << SVG_QUOTE
+                     << SVG_ELEMENT_END << endl;
+
+            if (!isMarker)
                 rectX += width;
-            }
+        }
+        if (!isMarker) {
+            *streamX << endl;
             lineX = pxX;
             prevStart = dataStart;
         }
-        *streamX << SVG_LINE  << SVG_CUE          << cue_id        << SVG_QUOTE
-                 << SVG_CLASS << classVal         << onClick       << dataStart
-                 << SVG_X1    << pxX << SVG_QUOTE << SVG_Y1 << iY1 << SVG_QUOTE
-                 << SVG_X2    << pxX << SVG_QUOTE << SVG_Y2 << iY2 << SVG_QUOTE
-                 << SVG_STROKE       << SVG_BLACK << SVG_QUOTE
-                 << SVG_ELEMENT_END  << endl;
+        *streamX << SVG_LINE      << onClick   << dataStart
+                    << SVG_CUE    << cue_id    << SVG_QUOTE
+                    << SVG_CLASS  << classVal
+                    << SVG_X1     << pxX       << SVG_QUOTE
+                    << SVG_Y1     << iY1       << SVG_QUOTE
+                    << SVG_X2     << pxX       << SVG_QUOTE
+                    << SVG_Y2     << iY2       << SVG_QUOTE
+                    << SVG_STROKE << SVG_BLACK << SVG_QUOTE
+                 << SVG_ELEMENT_END << endl;
 
         // Only stream the text element if there's text inside it
         if (!label.isEmpty()) {
-            *streamX << SVG_TEXT_BEGIN << SVG_CUE    << cue_id     << SVG_QUOTE
-                     << SVG_CLASS      << classVal   << onClick    << dataStart
-                     << SVG_X          << SVG_QUOTE  << pxX + offX << SVG_QUOTE
-                     << y              << anchor     << SVG_GT     << label
-                     << SVG_TEXT_END   << endl;
+            *streamX << SVG_TEXT_BEGIN << onClick    << dataStart
+                        << SVG_CUE     << cue_id     << SVG_QUOTE
+                        << SVG_CLASS   << classVal
+                        << SVG_X       << SVG_SPACE  << SVG_QUOTE
+                                       << pxX + offX << SVG_QUOTE
+                        << y << anchor << SVG_GT     << label
+                     << SVG_TEXT_END << endl;
         }
     } //for (i)
-
-    // The bar lines ruler has a final, extra line and maybe text,
-    // which does not get an onClick handler because it = bar_count + 1
-    // ??? what to do when playback reaches end of audio? move cursor here???
-    pxX = wRuler - margin;
-    iY1 = 1;
-    iY2 = 9;
-    label = "";
-    iBarNo++;
-    classVal = classRul;
-    if (iBarNo % 5 == 0) {
-        iY2 = 13;
-        classVal = classRul5;
-        if (iBarNo % 10 == 0) {
-            iY2 = 4;
-            label = QString("%1").arg(iBarNo);
-        }
-    }
-    // !!repeated lines of code: (see *streamX << SVG_RECT above)
-    const qreal width = pxX - ((pxX - lineX) / 2) - rectX;
-    streamBars << SVG_RECT
-                  << SVG_X << SVG_QUOTE << rectX    << SVG_QUOTE
-                  << SVG_Y << SVG_QUOTE << iY1      << SVG_QUOTE
-                  << SVG_WIDTH          << width    << SVG_QUOTE
-                  << SVG_HEIGHT         << "18"     << SVG_QUOTE
-                  << SVG_FILL           << SVG_NONE << SVG_QUOTE
-                  << onClick            << prevStart
-               << SVG_ELEMENT_END << endl;
-    // !!repeated line of code: (see *streamX << SVG_LINE above)
-    streamBars << SVG_LINE  << SVG_CUE          << cue_id    << SVG_QUOTE
-               << SVG_CLASS << classVal         << dataStart
-               << SVG_X1    << pxX << SVG_QUOTE << SVG_Y1 << iY1 << SVG_QUOTE
-               << SVG_X2    << pxX << SVG_QUOTE << SVG_Y2 << iY2 << SVG_QUOTE
-               << SVG_STROKE       << SVG_BLACK << SVG_QUOTE
-               << SVG_ELEMENT_END  << endl;
-    if (!label.isEmpty()) {
-        anchor = anchorEnd;
-        // !!repeated line of code: (see *streamX << SVG_TEXT_BEGIN above)
-        streamBars << SVG_TEXT_BEGIN << SVG_CUE   << cue_id     << SVG_QUOTE
-                   << SVG_CLASS      << classVal  << dataStart
-                   << SVG_X          << SVG_QUOTE << wRuler - 2 << SVG_QUOTE
-                   << y              << anchor    << SVG_GT     << label
-                   << SVG_TEXT_END   << endl;
-    }
     // Stream the "footer", terminating the <svg> element
     streamBars  << SVG_END;
     streamMarks << SVG_END;
@@ -3324,6 +3310,11 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi)
         paintElement(p, e);
     }
 
+    // The bars ruler is based around the concept of start-of-bar lines, so it
+    // has a line for the imaginary bar on the other side of the final BarLine.
+    // That ruler line has this Cue ID:
+    setVTT.append(getCueID(score->lastSegment()->tick()));
+
     // 2nd pass: Animated elements
     // Animated elements are sorted in playback order by their QMaps.
     // mapFrozen goes first, if it has any contents
@@ -3345,7 +3336,7 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi)
             printer.freezeIt(); // Complete the last frozen pane def
         }
     }
-    // mapSVG, where the reverse draw order is unimportant
+    // mapSVG (in reverse draw order, but that is not a problem)
     for (SVGMap::iterator i = mapSVG.begin(); i != mapSVG.end(); ++i) {
         printer.setCueID(i.key());
         printer.setElement(i.value());
