@@ -2931,6 +2931,7 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
     const QString hdrBars     = "<?xml-stylesheet type=\"text/css\" href=\"SMAWS_21.css\" ?>\n<svg width=\"1360\" height=\"20\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\">\n\n";
     const QString hdrMarks    = "<?xml-stylesheet type=\"text/css\" href=\"SMAWS_21.css\" ?>\n<svg width=\"1360\" height=\"20\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\"\n data-attr=\"fill\">\n\n";
     const QString border      = "<rect class=\"border\" x=\"0.5\" y=\"0.5\" width=\"1359\" height=\"19\"/>\n";
+    const QString grayRect    = "<rect class=\"gray\"   x=\"0\"   y=\"1\"   width=   \"0\" height=\"18\" fill=\"none\"/>\n";
     const QString cursorBars  = "<polygon class=\"cursor\" points=\"-6,1 6,1 0,12\" transform=\"translate(8,0)\"/>\n";
     const QString cursorMarks = "<polygon class=\"cursor\" points=\"-6,19 6,19 0,7\" transform=\"translate(8,0)\"/>\n";
 
@@ -2978,11 +2979,13 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
     fileMarks.open(openMode);  // TODO: check for failure here!!!
     QTextStream streamMarks(&fileMarks);
 
-    // Stream the headers, borders, and cursors
+    // Stream the headers, borders, template "gray-out" rect, and cursors
     streamBars  << hdrBars;
     streamMarks << hdrMarks;
     streamBars  << border;
     streamMarks << border;
+    streamBars  << grayRect;
+    streamMarks << grayRect;
     streamBars  << cursorBars;
     streamMarks << cursorMarks;
     // Display floating point numbers with consistent precision
@@ -3367,66 +3370,93 @@ bool MuseScore::saveMAB_MixTree(Score* score, QFileInfo* qfi)
              t < max;
              t += VOICES)
     {
-        const int         idx = t / VOICES;
-        const bool    isPulse = score->staff(idx)->small(); // These are smaller in SVG too
-        const QString   iName = score->systems()->first()->staff(idx)->instrumentNames.first()->xmlText();
-        const QString notName = QString("%1%2").arg(notChar).arg(iName); // For timeline gray-out cues
+        // Staff index
+        const int idx = t / VOICES;
 
-        Measure* pm = 0; // Previous Measure
-        Note*    note;
+        // These are smaller in SVG too
+        const bool isPulse = score->staff(idx)->small();
+
+        // 1 Intrument Name = comma-separated list of MixTree node names
+        const QString iName = score->systems()->first()->staff(idx)->instrumentNames.first()->xmlText();
+
+        // The "not" (gray-out) version of the instrument name.
+        // Each node name must be prefixed with the notChar in the cue text.
+        QStringList notList = iName.split(SVG_COMMA);
+        QString notName;
+        QTextStream qts(&notName);
+        for (QStringList::iterator i = notList.begin(); i != notList.end(); ++i) {
+            if (i != notList.begin())
+                qts << SVG_COMMA; // Comma-delimited, but not comma-terminated
+            qts << notChar << *i;
+        }
+
         int      startTick  = 0;
-        bool     isPrevRest = true;
+        bool     isPrevRest = true; // Is the previous element a rest?
+        Measure* pm = 0;            // The previous measure
+        Note*    note;
 
         // By measure by segment of type ChordRest
         for (Measure* m = score->firstMeasure();
                       m;
                       m = m->nextMeasureMM())
         {
-            // Empty measures generate gray-out cues for the timeline rulers
+            // Empty measure = all rests
+            // Empty measures generate gray-out cues for the timeline rulers.
             if (m->isMeasureRest(idx)) {
-                // Duplicates code  below for: rest encountered after note.
+                // If there is a highlight cue pending, finish it.
+                // --Duplicates code from below, see: "Case: EType::Rest".--
                 if (!isPulse && !isPrevRest && startTick != 0) {
                     isPrevRest = true;
                     mapMAB.insert(getCueID(startTick, m->tick()), iName);
                 }
-                if (pm && !pm->isMeasureRest(idx))
+
+                // Empty measure following a non-empty measure. Start of
+                // a possibly multi-measure rest.
+                if (pm != 0 && !pm->isMeasureRest(idx))
                     startTick = m->tick();
+
+                // Final measure is empty
                 if (!m->nextMeasureMM())
                     mapMAB.insert(getCueID(startTick, m->tick() + m->ticks()), notName);
-
-                continue; // Nothing more to do for empty measure
             }
-            else if (pm && pm->isMeasureRest(idx))
-                mapMAB.insert(getCueID(startTick, m->tick()), notName);
+            // Non-empty measures have highlight and pulse cues
+            else {
+                // Complete any pending gray-out cue
+                if (pm != 0 && pm->isMeasureRest(idx))
+                    mapMAB.insert(getCueID(startTick, m->tick()), notName);
 
-            for (Segment* s = m->first(Segment::Type::ChordRest);
-                          s;
-                          s = s->next(Segment::Type::ChordRest))
-            {
-                ChordRest* cr = s->cr(t);
-                if (cr == 0)
-                    continue;
-                switch (cr->type()) {
-                case EType::CHORD :
-                    if (isPulse || isPrevRest) {
-                        isPrevRest = false;
-                        startTick = cr->tick();
+                // Highlight and Pulse cues
+                for (Segment* s = m->first(Segment::Type::ChordRest);
+                              s;
+                              s = s->next(Segment::Type::ChordRest))
+                {
+                    ChordRest* cr = s->cr(t);
+                    if (cr == 0)
+                        continue;
+                    switch (cr->type()) {
+                    case EType::CHORD :
+                        if (isPulse || isPrevRest) {
+                            isPrevRest = false;
+                            startTick = cr->tick();
+                        }
+                        if (isPulse) {
+                            note = static_cast<Chord*>(cr)->notes().first();
+                            while (note->tieFor() && note != note->tieFor()->endNote())
+                                note = note->tieFor()->endNote();
+                            cr = static_cast<ChordRest*>(note->parent());
+                            mapMAB.insert(getCueID(startTick, cr->tick() + cr->actualTicks()), iName);
+                            s = cr->segment(); // ¡Updates the pointer used in the inner for loop!
+                        }
+                        break;
+                    case EType::REST :
+                        if (!isPulse && !isPrevRest && startTick != 0) {
+                            isPrevRest = true;
+                            mapMAB.insert(getCueID(startTick, cr->tick()), iName);
+                        }
+                        break;
+                    default:
+                        break; // This should never happen
                     }
-                    if (isPulse) {
-                        note = static_cast<Chord*>(cr)->notes().first();
-                        while (note->tieFor() && note != note->tieFor()->endNote())
-                            note = note->tieFor()->endNote();
-                        cr = static_cast<ChordRest*>(note->parent());
-                        mapMAB.insert(getCueID(startTick, cr->tick() + cr->actualTicks()), iName);
-                        s = cr->segment(); // ¡Updates the pointer used in the inner for loop!
-                    }
-                    break;
-                case EType::REST :
-                    if (!isPulse && !isPrevRest && startTick != 0) {
-                        isPrevRest = true;
-                        mapMAB.insert(getCueID(startTick, cr->tick()), iName);
-                    } break;
-                default: break; // This should never happen
                 }
             }
             pm = m; // Remember the previous measure for the next iteration

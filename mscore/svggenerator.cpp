@@ -178,6 +178,8 @@ protected:
     QString _cue_id;           // The current VTT cue ID
     bool    _isSMAWS;          // In order to use SMAWS code only as necessary
     bool    _isScrollVertical; // Only 2 axes: x = false, y = true.
+    qreal   _cursorTop;        // For calculating the height of (vertical bar)
+    qreal   _cursorBot;        // sheet music playback position cursor.
 
 ///////////////////
 // for Frozen Pane:
@@ -315,8 +317,13 @@ bool SvgPaintEngine::begin(QPaintDevice *)
     d->stream = new QTextStream(&d->body);
     initStream(d->stream);
 
-    // Set this flag to default value, return
+    // SMAWS - but can't check _isSMAWS because it isn't set yet:
+    // Set these for later cursor height calculation
+    _cursorTop = 1000000; // Any absurdly high number will do.
+    _cursorBot = 0;       // SVG y-axis is top-to-bottom, zero-to-infinity.
+    // Set this flag to default value
     _isScrollVertical = false;
+
     return true;
 }
 
@@ -363,7 +370,25 @@ bool SvgPaintEngine::end()
     // Stream our strings out to the device, in order
     stream() << d->header;
     stream() << d->body;
+
+    // SMAWS: vertical bar cursor to indicate playback position, off-canvas
+    // until playback begins (see negative x-coordinate below). Fill and width
+    // are set by the container.
+    if (_isSMAWS) {
+        stream().setRealNumberNotation(QTextStream::FixedNotation);
+        stream().setRealNumberPrecision(SVG_PRECISION);
+        stream() << SVG_RECT
+                    << SVG_CLASS          << CLASS_CURSOR << SVG_QUOTE
+                    << SVG_X << SVG_QUOTE << "-5"         << SVG_QUOTE
+                    << SVG_WIDTH          << SVG_ZERO     << SVG_QUOTE
+                    << SVG_Y << SVG_QUOTE << _cursorTop - (Ms::SPATIUM20 / 2)  << SVG_QUOTE
+                    << SVG_HEIGHT << (_cursorBot - _cursorTop) + Ms::SPATIUM20 << SVG_QUOTE
+                 << SVG_ELEMENT_END << endl;
+    }
+
+    // End the <svg> element
     stream() << SVG_END << endl;
+
     // Clean up
     delete d->stream;
 
@@ -780,13 +805,26 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
         stream() << SVG_POLYLINE << classState << styleState << SVG_POINTS;
         for (int i = 0; i < pointCount; ++i) {
             const QPointF &pt = points[i];
+
             stream() << pt.x() + _dx << SVG_COMMA << pt.y() + _dy;
+
             if (i != pointCount - 1)
                 stream() << SVG_SPACE;
+
         }
         stream() << SVG_QUOTE << SVG_ELEMENT_END <<endl;
 
-        // For Frozen Pane (horizontal scrolling only)
+        // SMAWS: For calculating the height of the vertical bar cursor
+        if (_isSMAWS && _et == EType::STAFF_LINES) {
+            qreal y = points[0].y() + _dy;
+            if (_cursorTop > y)
+                _cursorTop = y;
+            if (_cursorBot < y)
+                _cursorBot = y;
+        }
+
+        // For Frozen Pane (horizontal scrolling only):
+        // StaffLines and System BarLines
         if (frozenStream != 0
         && (_et == EType::STAFF_LINES
             || (_et == EType::BAR_LINE

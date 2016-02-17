@@ -58,13 +58,15 @@ using EType = Ms::Element::Type; // It get used a lot, Type consts are long too
 #define SVG_PRECISION 2
 
 // SVG strings as constants
+#define SVG_QUOTE    '"'
+#define SVG_COMMA    ','
+#define SVG_DASH     '-'
+#define SVG_GT       '>'
+#define SVG_ZERO     '0'
+#define SVG_ONE      "1"
 #define SVG_SPACE    ' '
 #define SVG_4SPACES  "    "
 #define SVG_8SPACES  "        "
-#define SVG_DASH     "-"
-#define SVG_QUOTE    "\""
-#define SVG_COMMA    ','
-#define SVG_GT       '>'
 #define SVG_PX       "px"
 #define SVG_NONE     "none"
 #define SVG_EVENODD  "evenodd"
@@ -73,7 +75,6 @@ using EType = Ms::Element::Type; // It get used a lot, Type consts are long too
 #define SVG_ROUND    "round"
 #define SVG_MITER    "miter"
 #define SVG_BEVEL    "bevel"
-#define SVG_ONE      "1"
 #define SVG_BLACK    "#000000"
 
 #define SVG_BEGIN    "<svg"
@@ -178,6 +179,7 @@ using EType = Ms::Element::Type; // It get used a lot, Type consts are long too
 #define NATURAL_SIGN 57953 // 0xE261, natural signs excluded from frozen panes
 #define CLASS_CLEF_COURTESY "ClefCourtesy"
 #define CLASS_SIGNATURES    "Signatures"
+#define CLASS_CURSOR        "cursor"
 #define CUE_ID_ZERO "0000000_0000000"
 //#define BPS2BPM 60 // Beats per Second to Beats per Minute conversion factor
 
