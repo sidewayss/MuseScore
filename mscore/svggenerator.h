@@ -176,10 +176,12 @@ using EType = Ms::Element::Type; // It get used a lot, Type consts are long too
 #define SVG_TEMPO  " data-tempo="
 #define SVG_START  " data-start=\"" // cue start time in milliseconds
 
-#define NATURAL_SIGN 57953 // 0xE261, natural signs excluded from frozen panes
 #define CLASS_CLEF_COURTESY "ClefCourtesy"
 #define CLASS_SIGNATURES    "Signatures"
 #define CLASS_CURSOR        "cursor"
+#define CLASS_GRAY          "gray"
+
+#define NATURAL_SIGN 57953 // 0xE261, natural signs excluded from frozen panes
 #define CUE_ID_ZERO "0000000_0000000"
 //#define BPS2BPM 60 // Beats per Second to Beats per Minute conversion factor
 

@@ -371,9 +371,10 @@ bool SvgPaintEngine::end()
     stream() << d->header;
     stream() << d->body;
 
-    // SMAWS: vertical bar cursor to indicate playback position, off-canvas
+    // SMAWS: 1) vertical bar cursor to indicate playback position, off-canvas
     // until playback begins (see negative x-coordinate below). Fill and width
     // are set by the container.
+    //        2) two <rect> elements (left/right) for graying out inactive bars
     if (_isSMAWS) {
         stream().setRealNumberNotation(QTextStream::FixedNotation);
         stream().setRealNumberPrecision(SVG_PRECISION);
@@ -384,6 +385,16 @@ bool SvgPaintEngine::end()
                     << SVG_Y << SVG_QUOTE << _cursorTop - (Ms::SPATIUM20 / 2)  << SVG_QUOTE
                     << SVG_HEIGHT << (_cursorBot - _cursorTop) + Ms::SPATIUM20 << SVG_QUOTE
                  << SVG_ELEMENT_END << endl;
+
+        for (int i = 0; i < 2; i++)
+            stream() << SVG_RECT
+                        << SVG_CLASS          << CLASS_GRAY  << SVG_QUOTE
+                        << SVG_X << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
+                        << SVG_Y << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
+                        << SVG_WIDTH          << SVG_ZERO    << SVG_QUOTE
+                        << SVG_FILL_OPACITY   << SVG_ZERO    << SVG_QUOTE
+                        << SVG_HEIGHT << d->viewBox.height() << SVG_QUOTE
+                     << SVG_ELEMENT_END << endl;
     }
 
     // End the <svg> element
