@@ -179,7 +179,8 @@ protected:
     bool    _isSMAWS;          // In order to use SMAWS code only as necessary
     bool    _isScrollVertical; // Only 2 axes: x = false, y = true.
     qreal   _cursorTop;        // For calculating the height of (vertical bar)
-    qreal   _cursorBot;        // sheet music playback position cursor.
+    qreal   _cursorHeight;     // sheet music playback position cursor.
+    int     _startMSecs;       // The elements start time in milliseconds -Yes, it kind of duplicates _cue_id, but it serves a different purpose for now. an oddly important yet minor kludge.
 
 ///////////////////
 // for Frozen Pane:
@@ -318,9 +319,6 @@ bool SvgPaintEngine::begin(QPaintDevice *)
     initStream(d->stream);
 
     // SMAWS - but can't check _isSMAWS because it isn't set yet:
-    // Set these for later cursor height calculation
-    _cursorTop = 1000000; // Any absurdly high number will do.
-    _cursorBot = 0;       // SVG y-axis is top-to-bottom, zero-to-infinity.
     // Set this flag to default value
     _isScrollVertical = false;
 
@@ -352,8 +350,9 @@ bool SvgPaintEngine::end()
                                 << d->viewBox.width()  << SVG_SPACE
                                 << d->viewBox.height() << SVG_QUOTE
              << SVG_WIDTH       << d->size.width()     << SVG_QUOTE
-             << SVG_HEIGHT      << d->size.height()    << SVG_QUOTE << endl
+             << SVG_HEIGHT      << d->size.height()    << SVG_QUOTE
      // Custom attributes/values for SMAWS
+             << SVG_POINTER_EVENTS                     << endl
              << SVG_CURSOR      // to avoid I-Beam text cursor
              << SVG_CLASS       << SMAWS               << SVG_QUOTE
              << SVG_STAVES      << nStaves             << SVG_QUOTE
@@ -379,22 +378,24 @@ bool SvgPaintEngine::end()
         stream().setRealNumberNotation(QTextStream::FixedNotation);
         stream().setRealNumberPrecision(SVG_PRECISION);
         stream() << SVG_RECT
-                    << SVG_CLASS          << CLASS_CURSOR << SVG_QUOTE
-                    << SVG_X << SVG_QUOTE << "-5"         << SVG_QUOTE
-                    << SVG_WIDTH          << SVG_ZERO     << SVG_QUOTE
-                    << SVG_Y << SVG_QUOTE << _cursorTop - (Ms::SPATIUM20 / 2)  << SVG_QUOTE
-                    << SVG_HEIGHT << (_cursorBot - _cursorTop) + Ms::SPATIUM20 << SVG_QUOTE
+                    << SVG_CLASS          << CLASS_CURSOR  << SVG_QUOTE
+                    << SVG_X << SVG_QUOTE << "-5"          << SVG_QUOTE
+                    << SVG_WIDTH          << SVG_ZERO      << SVG_QUOTE
+                    << SVG_Y << SVG_QUOTE << _cursorTop    << SVG_QUOTE
+                    << SVG_HEIGHT         << _cursorHeight << SVG_QUOTE
                  << SVG_ELEMENT_END << endl;
 
-        for (int i = 0; i < 2; i++)
-            stream() << SVG_RECT
-                        << SVG_CLASS          << CLASS_GRAY  << SVG_QUOTE
-                        << SVG_X << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
-                        << SVG_Y << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
-                        << SVG_WIDTH          << SVG_ZERO    << SVG_QUOTE
-                        << SVG_FILL_OPACITY   << SVG_ZERO    << SVG_QUOTE
-                        << SVG_HEIGHT << d->viewBox.height() << SVG_QUOTE
-                     << SVG_ELEMENT_END << endl;
+        if (!_isScrollVertical) {
+            for (int i = 0; i < 2; i++)
+                stream() << SVG_RECT
+                            << SVG_CLASS          << CLASS_GRAY  << SVG_QUOTE
+                            << SVG_X << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
+                            << SVG_Y << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
+                            << SVG_WIDTH          << SVG_ZERO    << SVG_QUOTE
+                            << SVG_FILL_OPACITY   << SVG_ZERO    << SVG_QUOTE
+                            << SVG_HEIGHT << d->viewBox.height() << SVG_QUOTE
+                         << SVG_ELEMENT_END << endl;
+        }
     }
 
     // End the <svg> element
@@ -825,15 +826,6 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
         }
         stream() << SVG_QUOTE << SVG_ELEMENT_END <<endl;
 
-        // SMAWS: For calculating the height of the vertical bar cursor
-        if (_isSMAWS && _et == EType::STAFF_LINES) {
-            qreal y = points[0].y() + _dy;
-            if (_cursorTop > y)
-                _cursorTop = y;
-            if (_cursorBot < y)
-                _cursorBot = y;
-        }
-
         // For Frozen Pane (horizontal scrolling only):
         // StaffLines and System BarLines
         if (frozenStream != 0
@@ -937,6 +929,22 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     }
 
     streamXY(x, y);     // Stream the fancily formatted x and y coordinates
+
+    // These elements get onClick events and data-start attribute
+    switch (_et) {
+    case EType::HARMONY        :
+    case EType::LYRICS         :
+    case EType::NOTE           :
+    case EType::NOTEDOT        :
+    case EType::REST           :
+    case EType::REHEARSAL_MARK :
+        stream() << " onclick=\"top.clickMusic(evt)\""
+                 << SVG_START << _startMSecs << SVG_QUOTE;
+        break;
+    default:
+        break;
+    }
+
     stream() << SVG_GT; // end attributes
 
     // The content, as in: <text>content</text>:
@@ -1603,24 +1611,24 @@ void SvgGenerator::setElement(const Ms::Element* e) {
 /*!
     setSMAWS() function
     Sets the _isSMAWS variable in SvgPaintEngine to true.
-    Called by saveSVG() in mscore/file.cpp.
+    Called by saveSMAWS() in mscore/file.cpp.
 */
 void SvgGenerator::setSMAWS() {
     static_cast<SvgPaintEngine*>(paintEngine())->_isSMAWS = true;
 }
 
 /*!
-    setCueID() function (SMAWS)
+    setCueID() function
     Sets the _cue_id variable in SvgPaintEngine.
-    Called by saveSVG() in mscore/file.cpp.
+    Called by saveSMAWS() in mscore/file.cpp.
 */
 void SvgGenerator::setCueID(const QString& qs) {
     static_cast<SvgPaintEngine*>(paintEngine())->_cue_id = qs;
 }
 /*!
-    setScrollAxis() function (SMAWS)
+    setScrollAxis() function
     Sets the _isScrollVertical variable in SvgPaintEngine.
-    Called by saveSVG() in mscore/file.cpp.
+    Called by saveSMAWS() in mscore/file.cpp.
 */
 void SvgGenerator::setScrollAxis(bool axis) {
     // Set the member variable
@@ -1640,9 +1648,9 @@ void SvgGenerator::setScrollAxis(bool axis) {
     }
 }
 /*!
-    setNStaves() function (SMAWS)
+    setNStaves() function
     Sets the _nStaves variable in SvgPaintEngine.
-    Called by saveSVG() in mscore/file.cpp.
+    Called by saveSMAWS() in mscore/file.cpp.
 */
 void SvgGenerator::setNStaves(int n) {
     SvgPaintEngine* pe = static_cast<SvgPaintEngine*>(paintEngine());
@@ -1654,6 +1662,33 @@ void SvgGenerator::setNStaves(int n) {
     pe->yTranslateKeySig.resize(n);
     pe->xOffsetAccidental.resize(n);
 }
+/*!
+    setCursorTop() function
+    Sets the _cursorTop variable in SvgPaintEngine.
+    Called by saveSMAWS() in mscore/file.cpp.
+*/
+void SvgGenerator::setCursorTop(qreal top) {
+    static_cast<SvgPaintEngine*>(paintEngine())->_cursorTop = top;
+}
+
+/*!
+    setCursorHeight() function
+    Sets the _cursorHeight variable in SvgPaintEngine.
+    Called by saveSMAWS() in mscore/file.cpp.
+*/
+void SvgGenerator::setCursorHeight(qreal height) {
+    static_cast<SvgPaintEngine*>(paintEngine())->_cursorHeight = height;
+}
+
+/*!
+    setCursorHeight() function
+    Sets the _cursorHeight variable in SvgPaintEngine.
+    Called by saveSMAWS() in mscore/file.cpp.
+*/
+void SvgGenerator::setStartMSecs(int start) {
+    static_cast<SvgPaintEngine*>(paintEngine())->_startMSecs = start;
+}
+
 /*!
     freezeIt() function (SMAWS)
     Calls SvgPaintEngine::freezeSigs() to complete and stream frozen pane defs

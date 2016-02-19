@@ -2572,6 +2572,10 @@ QString MuseScore::getWallpaper(const QString& caption)
 //                     for MuseScore master, no harm, no gain, 100% neutral
 static void paintStaffLines(Score* score, Page* page, QPainter* p, SvgGenerator* printer)
 {
+    bool  isFirst   = true;
+    qreal cursorTop = -1;
+    qreal cursorBot = -1;
+
     foreach (System* s, *(page->systems())) {
         for (int i = 0, n = s->staves()->size(); i < n; i++) {
             if (score->staff(i)->invisible())
@@ -2613,8 +2617,29 @@ static void paintStaffLines(Score* score, Page* page, QPainter* p, SvgGenerator*
                 printer->setElement(firstSL);
                 paintElement(*p, firstSL);
             }
+
+            // SMAWS scores need the top y-coord and height of the first system
+            // for the highlight cursor. This is the best place to calculate it,
+            // especially for vertical scores. It assumes all systems are the
+            // same height. Systems and staves are in top-to-bottom order here.
+            if (isFirst) {
+                StaffLines* sl = s->firstMeasure()->staffLines(i);
+                if (i == 0)
+                    cursorTop = sl->bbox().top()
+                              + sl->pagePos().y()
+                              - (Ms::SPATIUM20 / 2);
+                // The bottom of the last visible staff in the first system
+                cursorBot = sl->bbox().top()
+                          + sl->pagePos().y()
+                          + score->staff(i)->height() // bbox().bottom() includes margins
+                          + (Ms::SPATIUM20 / 2);
+            }
         } // for each Staff
+        isFirst = false;
     } //for each System
+
+    printer->setCursorTop(cursorTop);
+    printer->setCursorHeight(cursorBot - cursorTop);
 }
 
 // svgInit() - consolidates shared code in saveSVG and saveSMAWS.
@@ -2721,9 +2746,10 @@ bool MuseScore::saveSvg(Score* score, const QString& saveName)
 // SMAWS functions - 100% outside of MuseScore master (at least for now...)
 ///////////////////////////////////////////////////////////////////////////////
 
-// Static helper functions. They all return QString.
+// Static helper functions. They all return QString except startMSecFromCueID()
 // 3 Cue ID generators: getCueID(), getAnnCueID(), getScrollCueID()
 // 1 VTT Cue generator: getVTTCueTwo()
+// 1 Extractor of Start Milliseconds from a string Cue ID: startMSecFromCueID()
 //
 // Cue IDs -> Start & End | Ticks & Time:
 // VTT needs start & end times, and I need ticks to calculate time.
@@ -2732,6 +2758,15 @@ bool MuseScore::saveSvg(Score* score, const QString& saveName)
 //     "startTick_endTick"
 // and startTick + endTick (duration) is unique to each cue, which links
 // to one or more SVG Notes, BarLines, etc., across staves/voices.
+
+// startMSecsFromCueID()
+// Returns the Start Milliseconds for a Cue ID
+static int startMSecsFromCueID(Score* score, QString& cue_id)
+{   if (!cue_id.isEmpty())
+        return qRound(score->tempomap()->tick2time(cue_id.left(CUE_ID_FIELD_WIDTH).toInt()) * 1000);
+    else
+        return 0;
+}
 
 // getCueID()
 // Creates a cue ID string from a start/end tick value pair
@@ -3052,7 +3087,7 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
         // Values for this cue
         cue_id = i.key();
         startTick = cue_id.left(CUE_ID_FIELD_WIDTH).toInt();
-        startMSec = qRound(tempos->tick2time(startTick) * 1000);
+        startMSec = startMSecsFromCueID(score, cue_id);
         pxX = margin + (startMSec * pxPerMSec);
         dataStart = QString("%1%2%3").arg(SVG_START).arg(startMSec).arg(SVG_QUOTE);
 
@@ -3293,10 +3328,6 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi)
             // Add the cue ID to the VTT set.
             cue_id = getScrollCueID(score, e);
             setVTT.append(cue_id);
-            // RehearsalMarks only animate in the Ruler, not in the score.
-            // Same VTT file, different SVG file. See saveSMAWS_Rulers().
-            if (eType == EType::REHEARSAL_MARK)
-                cue_id = "";
             break;
 
         default:                        /// Un-animated (inanimate?) elements
@@ -3306,6 +3337,17 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi)
 
         // Set the Element pointer inside SvgGenerator/SvgPaintEngine
         printer.setElement(e);
+
+        // Elements with the onClick event need this (yes, it semi-duplicates the cue id...)
+        // RehearsalMarks happen to be one of those elements, and though it may
+        // not make sense to you, I prefer not to highlight them in the score. (for now...)
+        printer.setStartMSecs(startMSecsFromCueID(score, cue_id));
+
+        // RehearsalMarks only animate in the Ruler, not in the score.
+        // Same VTT file, different SVG file. See saveSMAWS_Rulers().
+        if (eType == EType::REHEARSAL_MARK)
+            cue_id = "";
+
         // Set the cue_id, even if it's empty (especially if it's empty)
         printer.setCueID(cue_id);
 
@@ -3341,7 +3383,9 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi)
     }
     // mapSVG (in reverse draw order, but that is not a problem)
     for (SVGMap::iterator i = mapSVG.begin(); i != mapSVG.end(); ++i) {
-        printer.setCueID(i.key());
+        cue_id = i.key();
+        printer.setCueID(cue_id);
+        printer.setStartMSecs(startMSecsFromCueID(score, cue_id));
         printer.setElement(i.value());
         paintElement(p, i.value());
     }

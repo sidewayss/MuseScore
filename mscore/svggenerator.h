@@ -124,6 +124,7 @@ using EType = Ms::Element::Type; // It get used a lot, Type consts are long too
 
 #define SVG_PRESERVE_ASPECT " preserveAspectRatio=\""
 #define SVG_XYMIN_SLICE     "xMinYMin slice"
+#define SVG_POINTER_EVENTS  " pointer-events=\"visible\""
 
 #define SVG_FILL           " fill=\""
 #define SVG_STROKE         " stroke=\""
@@ -247,10 +248,13 @@ private:
 
 public:
     void setElement(const Ms::Element* e);
+    void setSMAWS();
     void setCueID(const QString& qs);
     void setScrollAxis(bool axis);
     void setNStaves(int n);
-    void setSMAWS();
+    void setCursorTop(qreal top);
+    void setCursorHeight(qreal height);
+    void setStartMSecs(int start);
     void freezeIt();
 };
 
