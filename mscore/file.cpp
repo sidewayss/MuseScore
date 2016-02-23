@@ -3369,9 +3369,6 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi)
         // the frozen pane to generate properly.
         QStringList keys = mapFrozen.uniqueKeys();
         for (QStringList::iterator c = keys.begin(); c != keys.end(); ++c) {
-            if (c != keys.begin())
-                printer.freezeIt(); // Complete the previous frozen pane def
-
             printer.setCueID(*c);
             QList<const Element*> values = mapFrozen.values(*c);
             for (int i = values.size() - 1; i > -1; i--) {

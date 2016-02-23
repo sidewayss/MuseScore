@@ -151,7 +151,7 @@ using EType = Ms::Element::Type; // It get used a lot, Type consts are long too
 //#define SVG_COMMENT_BEGIN   "<!--"
 //#define SVG_COMMENT_END     "-->"
 
-#define XLINK_HREF "xlink:href=\"#"
+#define XLINK_HREF " xlink:href=\"#"
 
 // For extended characters in MScore font (unicode Private Use Area)
 #define XML_ENTITY_BEGIN "&#x"
@@ -166,19 +166,18 @@ using EType = Ms::Element::Type; // It get used a lot, Type consts are long too
 // Custom SVG attributes (and some default settings)
 #define SVG_CLASS  " class=\""
 #define SVG_ID     " id=\""
-#define SVG_CURSOR " cursor=\"default\""
-#define SVG_SCROLL " data-scroll=\""
-#define SVG_CUE    " data-cue=\""
+#define SVG_CURSOR " cursor=\"default\""  // to avoid pesky I-Beam cursor
+#define SVG_SCROLL " data-scroll=\""      // "x" or "y", horizontal or vertical
+#define SVG_STAVES " data-staves=\""      // number of staves for the score
 #define SVG_ATTR   " data-attr=\"fill\""  // the only animated attribute so far
+#define SVG_CUE    " data-cue=\""         // the cue id
+#define SVG_START  " data-start=\""       // cue start time in milliseconds
+#define SVG_STAFF  " data-staff=\""       // staff index for this element
 //#define SVG_HI     " data-hi=\"#0000bb\"" // medium-bright blue
 //#define SVG_LO     " data-lo=\"#000000\"" // black
-#define SVG_STAVES " data-staves=\""
-#define SVG_STAFF  " data-staff=\""
-#define SVG_TEMPO  " data-tempo="
-#define SVG_START  " data-start=\"" // cue start time in milliseconds
+//#define SVG_TEMPO  " data-tempo="
 
 #define CLASS_CLEF_COURTESY "ClefCourtesy"
-#define CLASS_SIGNATURES    "Signatures"
 #define CLASS_CURSOR        "cursor"
 #define CLASS_GRAY          "gray"
 
