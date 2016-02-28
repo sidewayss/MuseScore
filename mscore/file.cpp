@@ -85,6 +85,7 @@
 #include "libmscore/mscore.h"
 #include "thirdparty/qzip/qzipreader_p.h"
 
+//////////////////////////////////
 // SMAWS/MAB includes and defines
 #include "libmscore/tie.h"
 #include "libmscore/tempo.h"
@@ -98,6 +99,7 @@
 #define EXT_SVG ".svg"
 #define EXT_VTT ".vtt"
 #define FILTER_SMAWS        "SMAWS SVG+VTT"
+#define FILTER_SMAWS_MULTI  "SMAWS Multi-Staff"
 #define FILTER_SMAWS_RULERS "SMAWS Rulers"
 #define FILTER_MIX_TREE     "MAB MixTree VTT"
 
@@ -109,7 +111,9 @@
 #define WIDTH_KEY_SIG   5
 #define WIDTH_TIME_SIG 10
 #define X_OFF_TIME_SIG  3
-// SMAWS end
+
+// SMAWS/MAB end
+//////////////////////////////////
 
 extern Ms::Score::FileError importOve(Ms::Score*, const QString& name);
 
@@ -1597,6 +1601,7 @@ void MuseScore::exportFile()
       fl.append(tr("Uncompressed MuseScore File (*.mscx)"));
 // SMAWS/MAB options
       fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS).arg(EXT_VTT));
+      fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS_MULTI).arg(EXT_VTT));
       fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS_RULERS).arg(EXT_VTT));
       fl.append(tr("%1 (*%2)").arg(FILTER_MIX_TREE).arg(EXT_VTT));
 // SMAWS/MAB end
@@ -1653,7 +1658,9 @@ void MuseScore::exportFile()
       if (fn.right(4) == EXT_VTT) {
             cs->switchToPageMode();
             if (selectedFilter.contains(FILTER_SMAWS))
-                  saveSMAWS(cs, &fi);
+                  saveSMAWS_Multi(cs, &fi, false);
+            else if (selectedFilter.contains(FILTER_SMAWS_MULTI))
+                  saveSMAWS_Multi(cs, &fi, true);
             else if (selectedFilter.contains(FILTER_SMAWS_RULERS))
                   saveSMAWS_Rulers(cs, &fi);
             else if (selectedFilter.contains(FILTER_MIX_TREE))
@@ -2570,16 +2577,66 @@ QString MuseScore::getWallpaper(const QString& caption)
 ///////////////////////////////////////////////////////////////////////////////
 // paintStaffLines() - consolidates shared code in saveSVG() and saveSMAWS()
 //                     for MuseScore master, no harm, no gain, 100% neutral
-static void paintStaffLines(Score* score, Page* page, QPainter* p, SvgGenerator* printer)
+static void paintStaffLines(Score*        score,
+                            QPainter*     p,
+                            SvgGenerator* printer,
+                            Page*         page,
+                            QVector<int>* pVisibleStaves =  0,
+                            int           idxStaff       = -1, // element.staffIdx()
+                            bool          isMulti        = false,
+                            QStringList*  pINames        =  0,
+                            QList<qreal>* pStaffTops     =  0)
 {
+    if (isMulti && idxStaff > -1 && pINames != 0) {
+///!!!next line of code crashes for piano-style dual-staff (linked staves?)!!!
+        QString qs = score->systems()->first()->staff(idxStaff)->instrumentNames.first()->xmlText();
+        pINames->append(qs.replace(SVG_SPACE, SVG_DASH));
+        printer->beginMultiGroup(pINames);
+        printer->setCueID("");
+    }
+
     bool  isFirst   = true;
     qreal cursorTop = -1;
-    qreal cursorBot = -1;
+    qreal cursorBot;
 
     foreach (System* s, *(page->systems())) {
         for (int i = 0, n = s->staves()->size(); i < n; i++) {
+            qreal staffTop;
+            StaffLines* sl;
+
+            // Ignore invisible staves
             if (score->staff(i)->invisible())
-                continue;  // ignore invisible staves
+                continue;
+
+            if (idxStaff > -1)
+                i = idxStaff; // Only one staff's lines being drawn
+
+            if (pVisibleStaves != 0)
+                printer->setStaffIndex(pVisibleStaves->value(i));
+
+            // SMAWS scores need the top y-coord and height of the first system
+            // for the highlight cursor. This is the best place to calculate it,
+            // especially for vertical scores. It assumes all systems are the
+            // same height. Systems and staves are in top-to-bottom order here.
+            if (isFirst) {
+                sl = s->firstMeasure()->staffLines(i);
+
+                staffTop  = sl->bbox().top()+ sl->pagePos().y();
+                if (cursorTop == -1)
+                    cursorTop = staffTop - (Ms::SPATIUM20 / 2);
+
+                // The bottom of the last visible staff in the first system
+                cursorBot = sl->bbox().top()
+                          + sl->pagePos().y()
+                          + score->staff(i)->height() // bbox().bottom() includes margins
+                          + (Ms::SPATIUM20 / 2);
+            }
+
+            if (isMulti && pStaffTops != 0) {
+                // Offset between this staff and the first visible staff
+                pStaffTops->append(staffTop);
+                printer->setYOffset(pStaffTops->value(0) - staffTop);
+            }
 
             // The goal here is to draw SVG staff lines more efficiently.
             // MuseScore draws staff lines by measure, but for SVG they can
@@ -2602,7 +2659,7 @@ static void paintStaffLines(Score* score, Page* page, QPainter* p, SvgGenerator*
                 for (MeasureBase* mb = s->firstMeasure(); mb != 0; mb = s->nextMeasure(mb)) {
                     Measure* m = static_cast<Measure*>(mb);
                     if (m->visible(i)) {
-                        StaffLines* sl = m->staffLines(i);
+                        sl = m->staffLines(i);
                         printer->setElement(sl);
                         paintElement(*p, sl);
                     }
@@ -2618,22 +2675,8 @@ static void paintStaffLines(Score* score, Page* page, QPainter* p, SvgGenerator*
                 paintElement(*p, firstSL);
             }
 
-            // SMAWS scores need the top y-coord and height of the first system
-            // for the highlight cursor. This is the best place to calculate it,
-            // especially for vertical scores. It assumes all systems are the
-            // same height. Systems and staves are in top-to-bottom order here.
-            if (isFirst) {
-                StaffLines* sl = s->firstMeasure()->staffLines(i);
-                if (i == 0)
-                    cursorTop = sl->bbox().top()
-                              + sl->pagePos().y()
-                              - (Ms::SPATIUM20 / 2);
-                // The bottom of the last visible staff in the first system
-                cursorBot = sl->bbox().top()
-                          + sl->pagePos().y()
-                          + score->staff(i)->height() // bbox().bottom() includes margins
-                          + (Ms::SPATIUM20 / 2);
-            }
+            if (idxStaff != -1)
+                break;
         } // for each Staff
         isFirst = false;
     } //for each System
@@ -2704,7 +2747,7 @@ bool MuseScore::saveSvg(Score* score, const QString& saveName)
     // Print/paint/draw/whatever-you-want-to-call-it
     foreach (Page* page, score->pages()) {
         // 1st pass: StaffLines
-        paintStaffLines(score, page, &p, &printer);
+        paintStaffLines(score, &p, &printer, page);
 
         // 2nd pass: the rest of the elements
         QList<const Element*> pel = page->elements();
@@ -2919,6 +2962,524 @@ static bool saveVTT(Score*              score,
     return true;
 }
 
+// Paints the animated elements specified in the SVGMaps
+static void paintStaffSMAWS(Score*        score,
+                            QPainter*     p,
+                            SvgGenerator* printer,
+                            SVGMap*       mapFrozen,
+                            SVGMap*       mapSVG,
+                            int           idxStaff = -1, // visible-staff index, not Element::staffIdx()
+                            bool          isMulti  = false)
+{
+    QString cue_id;
+
+    // 2nd pass: Animated elements
+    // Animated elements are sorted in playback order by their QMaps.
+    // mapFrozen goes first, if it has any contents
+    if (mapFrozen->size() > 0) {
+        // Iterate by key, then by value in reverse order. This recreates the
+        // MuseScore draw order within the key/cue_id. This is required for
+        // the frozen pane to generate properly.
+        QStringList keys = mapFrozen->uniqueKeys();
+        for (QStringList::iterator c = keys.begin(); c != keys.end(); ++c) {
+            printer->setCueID(*c);
+            QList<const Element*> values = mapFrozen->values(*c);
+            for (int i = values.size() - 1; i > -1; i--) {
+                printer->setElement(values[i]);
+                paintElement(*p, values[i]);
+            }
+            // Complete one frozen pane def: if (idxStaff == -1) by cue_id
+            //                               else      by staff, by cue_id
+            printer->freezeIt(idxStaff);
+        }
+    }
+
+    // mapSVG (in reverse draw order, not a problem for these element types)
+    for (SVGMap::iterator i = mapSVG->begin(); i != mapSVG->end(); ++i) {
+        cue_id = i.key();
+        printer->setCueID(cue_id);
+        printer->setStartMSecs(startMSecsFromCueID(score, cue_id));
+        printer->setElement(i.value());
+        paintElement(*p, i.value());
+    }
+
+    // Close any pending Multi-Select Staves group element
+    if (isMulti)
+        printer->endMultiGroup();
+}
+
+// Helps sort elements on a page by element type, by staff
+static bool elementLessThanByStaff(const Element* const e1, const Element* const e2)
+{
+    return e1->staffIdx() <= e2->staffIdx();
+}
+// MuseScore::saveSMAWS() - one SVG file: with Cue IDs in data-cue attribute
+//                          one VTT file: linked to the score SVG file and
+//                          also linked to Bars and Markers (rulers) SVG files.
+//    + if scroll-axis = x: one Frozen Pane SVG file: qfi->filePath()_frz.svg
+//
+// ¡¡¡Warning!!!
+// With the page settings option for points/pixels, rounding is not an issue.
+// But you must choose that option, otherwise rounding errors persist due
+// to the default templates being in mm (or inches, either way).
+//
+bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi)
+{
+    // qfi is a VTT file, this needs an SVG file
+    const QString fileRoot = qfi->filePath().left(qfi->filePath().size() - 4);
+    const QString fileSVG  = QString("%1%2").arg(fileRoot).arg(EXT_SVG);
+
+    // Initialize MuseScore SVG Export variables
+    SvgGenerator printer;
+    QPainter p;
+    if (!svgInit(score, fileSVG, &printer, &p, true))
+        return false;
+
+    // Custom SMAWS header, including proper reference to MuseScore
+    const QString SMAWS_VERSION = "2.1";
+    printer.setDescription(QString(
+            "&#x00A9;%1 ~ sidewayss.com, generated by MuseScore %2 + SMAWS %3")
+            .arg(QDate::currentDate().year()).arg(VERSION).arg(SMAWS_VERSION));
+
+    // The link between an SVG elements and a VTT cue. See getCueID().
+    QString cue_id;
+
+    // setVTT    - a chronologically sorted set of unique cue_ids
+    QStringList setVTT; // QSet is unordered, I need sorting.
+
+    // mapSVG    - a real map: key = cue_id; value = list of elements.
+    // mapFrozen - ditto, but for frozen pane elements
+    SVGMap  mapSVG;
+    SVGMap  mapFrozen;
+
+    // Animated elements in a multi-page file? It's unnecessary IMO.
+    // + saveSvg() handles pages in SVG with a simple horizontal offset.
+    // + SVG doesn't even have support for pages, per se (yet?).
+    // So this code only exports the score's first page. At least for now...
+    // also note: MuseScore plans to export each page as a separate file.
+    Page* page = score->pages()[0];
+
+    printer.setSMAWS();
+    printer.setCueID("");
+    printer.setNStaves(score->nstaves());
+    bool isScrollVertical = score->pageFormat()->twosided(); // A hack for now:
+    printer.setScrollAxis(isScrollVertical);                 //  true = y axis
+
+    // 0th pass MuseScore SVG: an entire pass just for staff lines
+    paintStaffLines(score, &p, &printer, page);
+
+    // 1st pass MuseScore SVG: Exclude animated elements, except Ruler elements
+    // (Barlines and the VTT for RehearsalMarks). But collect the animated
+    // elements into setVTT, mapSVG, and (optionally) mapFrozen.
+    QList<const Element*> pel = page->elements();
+    qStableSort(pel.begin(), pel.end(), elementLessThan);
+
+    EType         eType; // Everything is determined by element type.
+    const ChordRest* cr; // It has start and end ticks for highlighting.
+
+    foreach (const Element* e, pel) {
+        // Always exclude invisible elements from this pass, except TEMPO_TEXT.
+        if (!e->visible() && eType != EType::TEMPO_TEXT)
+                continue;
+
+        eType = e->type();
+        switch (eType) {
+        case EType::STAFF_LINES :       /// Not animated, but handled above.
+            continue;
+            break;
+                                        /// Highlighted Elements:
+        case EType::REST       : //                = ChordRest subclass Rest
+        case EType::LYRICS     : //         parent = ChordRest
+        case EType::NOTE       : //         parent = ChordRest subclass Chord
+        case EType::NOTEDOT    : //   grand-parent = ChordRest subclass Chord
+        case EType::ACCIDENTAL : //   grand-parent = ChordRest subclass Chord
+            switch (eType) {
+            case EType::REST :
+                cr = static_cast<const ChordRest*>(e);
+                break;
+            case EType::LYRICS :
+            case EType::NOTE   :
+                cr = static_cast<const ChordRest*>(e->parent());
+                break;
+            case EType::NOTEDOT    :
+            case EType::ACCIDENTAL :
+                cr = static_cast<const ChordRest*>(e->parent()->parent());
+                break;
+            default:
+                break; // should never happen
+            }
+            cue_id = getCueID(cr->tick(),
+                              cr->tick() + cr->actualTicks());
+            setVTT.append(cue_id);
+            mapSVG.insert(cue_id, e);
+            continue;
+            break;
+
+        case EType::HARMONY :    // Highlighted until next HARMONY
+            cue_id = getAnnCueID(score, e, eType);
+            setVTT.append(cue_id);
+            mapSVG.insert(cue_id, e);
+            continue;
+            break;
+
+        case EType::TEMPO_TEXT        : /// Frozen Pane elements
+        case EType::INSTRUMENT_NAME   :
+        case EType::INSTRUMENT_CHANGE :
+        case EType::CLEF    :
+        case EType::KEYSIG  :
+        case EType::TIMESIG :
+            if (!isScrollVertical) {
+                // Zero-duration cue
+                cue_id = getScrollCueID(score, e);
+                // insert into mapSVG and setVTT
+                setVTT.append(cue_id);
+                mapFrozen.insert(cue_id, e);
+                continue;
+            }
+            else
+                cue_id = ""; // vertical scrolling: these elements not animated
+            break;
+
+        case EType::BAR_LINE       :    /// Ruler elements
+        case EType::REHEARSAL_MARK :
+            // Add the cue ID to the VTT set.
+            cue_id = getScrollCueID(score, e);
+            setVTT.append(cue_id);
+            break;
+
+        default:                        /// Un-animated (inanimate?) elements
+            cue_id = "";
+            break;
+        }
+
+        // Set the Element pointer inside SvgGenerator/SvgPaintEngine
+        printer.setElement(e);
+
+        // Elements with the onClick event need this (yes, it semi-duplicates the cue id...)
+        // RehearsalMarks happen to be one of those elements, and though it may
+        // not make sense to you, I prefer not to highlight them in the score. (for now...)
+        printer.setStartMSecs(startMSecsFromCueID(score, cue_id));
+
+        // RehearsalMarks only animate in the Ruler, not in the score.
+        // Same VTT file, different SVG file. See saveSMAWS_Rulers().
+        if (eType == EType::REHEARSAL_MARK)
+            cue_id = "";
+
+        // Set the cue_id, even if it's empty (especially if it's empty)
+        printer.setCueID(cue_id);
+
+        // Paint the (un-animated) element
+        paintElement(p, e);
+    }
+
+    // The bars ruler is based around the concept of start-of-bar lines, so it
+    // has a line for the imaginary bar on the other side of the final BarLine.
+    // That ruler line has this Cue ID:
+    setVTT.append(getCueID(score->lastSegment()->tick()));
+
+    // 2nd pass: Animated elements
+    // Animated elements are sorted in playback order by their QMaps.
+    // mapFrozen goes first, if it has any contents
+    if (mapFrozen.size() > 0) {
+        // Iterate by key, then by value in reverse order. This recreates the
+        // MuseScore draw order within the key/cue_id. This is required for
+        // the frozen pane to generate properly.
+        QStringList keys = mapFrozen.uniqueKeys();
+        for (QStringList::iterator c = keys.begin(); c != keys.end(); ++c) {
+            printer.setCueID(*c);
+            QList<const Element*> values = mapFrozen.values(*c);
+            for (int i = values.size() - 1; i > -1; i--) {
+                printer.setElement(values[i]);
+                paintElement(p, values[i]);
+            }
+            printer.freezeIt(-1); // Complete the last frozen pane def
+        }
+    }
+    // mapSVG (in reverse draw order, not a problem for these element types)
+    for (SVGMap::iterator i = mapSVG.begin(); i != mapSVG.end(); ++i) {
+        cue_id = i.key();
+        printer.setCueID(cue_id);
+        printer.setStartMSecs(startMSecsFromCueID(score, cue_id));
+        printer.setElement(i.value());
+        paintElement(p, i.value());
+    }
+
+    // Write the VTT file
+    if (!saveVTT(score, fileRoot, setVTT))
+        return false;
+
+    // Clean up and return
+    score->setPrinting(false);
+    MScore::pdfPrinting = false;
+    p.end(); // Writes MuseScore (and Frozen) SVG file(s) to disk, finally
+    return true;
+}
+
+// MuseScore::saveSMAWS_Multi()
+// - one SVG file: Cue IDs in data-cue attribute
+// - one VTT file: linked to the score and rulers SVG files
+// - one Frozen Pane SVG file: this function assumes horizontal scrolling.
+//
+bool MuseScore::saveSMAWS_Multi(Score* score, QFileInfo* qfi, bool isMulti)
+{
+    // qfi is a VTT file, this needs an SVG file
+    const QString fileRoot = qfi->filePath().left(qfi->filePath().size() - 4);
+    const QString fileSVG  = QString("%1%2").arg(fileRoot).arg(EXT_SVG);
+
+    // Initialize MuseScore SVG Export variables
+    SvgGenerator printer;
+    QPainter p;
+    if (!svgInit(score, fileSVG, &printer, &p, true))
+        return false;
+
+    // Custom SMAWS header, including proper reference to MuseScore
+    const QString SMAWS_VERSION = "2.1";
+    printer.setDescription(QString(
+            "&#x00A9;%1 ~ sidewayss.com, generated by MuseScore %2 + SMAWS %3")
+            .arg(QDate::currentDate().year()).arg(VERSION).arg(SMAWS_VERSION));
+
+    // The link between an SVG elements and a VTT cue. See getCueID().
+    QString cue_id;
+
+    // QSet is unordered, QStringList::removeDuplicates() creates a unique set.
+    // setVTT     - a chronologically sorted set of unique cue_ids
+    QStringList setVTT;
+
+    // mapSVG    - a real map: key = cue_id; value = list of elements.
+    // mapFrozen - ditto, but for frozen pane elements
+    // mapMulti  - ditto, but for multi-select staves: tempos, chords, markers
+    SVGMap mapSVG;
+    SVGMap mapFrozen;
+    SVGMap mapMulti;
+
+    // Animated elements in a multi-page file? It's unnecessary IMO.
+    // + saveSvg() handles pages in SVG with a simple horizontal offset.
+    // + SVG doesn't even have support for pages, per se (yet?).
+    // So this code only exports the score's first page. At least for now...
+    // also note: MuseScore plans to export each page as a separate file.
+    Page* page = score->pages()[0];
+
+    // General SMAWS
+    printer.setSMAWS();
+    printer.setCueID("");
+
+    // isScrollVertical determines the data-scroll attribute value:
+    //   true: data-scroll="y"   false: data-scroll="x"
+    // Using PageFormat::twosided() is a hack, but it causes no conflicts.
+    // MuseScore's landscape vs. portrait is purely based on page dimensions
+    // and doesn't exist outside of the pagesettings.ui window.
+    const bool isScrollVertical = score->pageFormat()->twosided();
+    printer.setScrollAxis(isScrollVertical);
+
+    // visibleStaves - Frozen Panes and Multi-Select Staves deal with visible
+    // staves only. This vector is the same size as score->nstaves(). If a
+    // staff is invisible its value in the vector is -1, else it contains the
+    // visible-staff index for that staff.
+    QVector<int> visibleStaves;
+    visibleStaves.resize(score->nstaves());
+    int nVisible = 0;
+    for (int i = 0; i < score->nstaves(); i++)
+        visibleStaves[i] = score->staff(i)->invisible() ? -1 : nVisible++;
+    printer.setNStaves(nVisible);
+
+    // The sort order for elmPtrs is critical: if (isMulti) by type, by staff;
+    //                                         else         by type;
+    QList<const Element*> elmPtrs = page->elements();
+    std::stable_sort(elmPtrs.begin(), elmPtrs.end(), elementLessThan);
+    if (isMulti) {
+        std::stable_sort(elmPtrs.begin(), elmPtrs.end(), elementLessThanByStaff);
+        printer.streamDefs(); // Multi-Select Staves = all content inside defs
+    }
+    else // Paint staff lines once, prior to painting anything else
+        paintStaffLines(score, &p, &printer, page, &visibleStaves);
+
+    QStringList      iNames;    // Only used by Multi-Select Staves.
+    QList<qreal>     staffTops; // ditto
+    int              idxStaff;  // Everything is grouped by staff.
+    EType            eType;     // Everything is determined by element type.
+    const ChordRest* cr;        // It has start and end ticks for highlighting.
+
+    idxStaff = -1;
+    foreach (const Element* e, elmPtrs) {
+        // Always exclude invisible elements from this pass, except TEMPO_TEXT.
+        if (!e->visible() && eType != EType::TEMPO_TEXT)
+                continue;
+
+        const int idx = e->staffIdx();
+        if (isMulti && idxStaff != idx) {
+            if (idxStaff > -1) {
+                // Paint the previous staff's animated elements
+                paintStaffSMAWS(score, &p, &printer, &mapFrozen, &mapSVG,
+                                visibleStaves[idxStaff], isMulti);
+                mapFrozen.clear();
+                   mapSVG.clear();
+            }
+            // We're starting s new staff, paint its staff lines
+            paintStaffLines(score, &p, &printer, page, &visibleStaves,
+                            idx, isMulti, &iNames, &staffTops);
+            idxStaff = idx;
+        }
+
+        // Paint inanimate elements and collect animated elements.
+        // Ruler elements (BarLines and RehearsalMarks) get special treatment.
+        eType = e->type();
+        switch (eType) {
+        case EType::STAFF_LINES :   /// Not animated, but handled previously.
+            continue;
+            break;
+                                    /// Highlighted Elements:
+        case EType::REST       : //                = ChordRest subclass Rest
+        case EType::LYRICS     : //         parent = ChordRest
+        case EType::NOTE       : //         parent = ChordRest subclass Chord
+        case EType::NOTEDOT    : //   grand-parent = ChordRest subclass Chord
+        case EType::ACCIDENTAL : //   grand-parent = ChordRest subclass Chord
+            switch (eType) {
+            case EType::REST :
+                cr = static_cast<const ChordRest*>(e);
+                break;
+            case EType::LYRICS :
+            case EType::NOTE   :
+                cr = static_cast<const ChordRest*>(e->parent());
+                break;
+            case EType::NOTEDOT    :
+            case EType::ACCIDENTAL :
+                cr = static_cast<const ChordRest*>(e->parent()->parent());
+                break;
+            default:
+                break; // should never happen
+            }
+            cue_id = getCueID(cr->tick(),
+                              cr->tick() + cr->actualTicks());
+            setVTT.append(cue_id);
+            mapSVG.insert(cue_id, e);
+            continue;
+            break;
+
+        case EType::HARMONY :    // Highlighted until next HARMONY
+            cue_id = getAnnCueID(score, e, eType);
+            setVTT.append(cue_id);
+            if (isMulti)
+                mapMulti.insert(cue_id, e);
+            else
+                mapSVG.insert(cue_id, e);
+            continue;
+            break;
+
+        case EType::TEMPO_TEXT        : /// Frozen Pane elements
+        case EType::INSTRUMENT_NAME   :
+        case EType::INSTRUMENT_CHANGE :
+        case EType::CLEF    :
+        case EType::KEYSIG  :
+        case EType::TIMESIG :
+            if (!isScrollVertical) {
+                // Zero-duration cue
+                cue_id = getScrollCueID(score, e);
+                // insert into mapSVG and setVTT
+                setVTT.append(cue_id);
+                if (isMulti && eType == EType::TEMPO_TEXT)
+                    mapMulti.insert(cue_id, e);
+                else
+                    mapFrozen.insert(cue_id, e);
+                continue;
+            }
+            else
+                cue_id = ""; // vertical scrolling: these elements not animated
+            break;
+
+        case EType::BAR_LINE       :    /// Ruler elements
+        case EType::REHEARSAL_MARK :
+            // Add the cue ID to the VTT set.
+            cue_id = getScrollCueID(score, e);
+            setVTT.append(cue_id);
+            if (isMulti && eType == EType::REHEARSAL_MARK) {
+                mapMulti.insert(cue_id, e);
+                continue;
+            }
+            break;
+
+        case EType::TEXT : {
+            TextStyleType t = static_cast<const Text*>(e)->textStyleType();
+            if (isMulti && (t == TextStyleType::MEASURE_NUMBER
+                         || t == TextStyleType::SYSTEM)) {
+                cue_id = "";
+                mapMulti.insert(cue_id, e);
+                continue;
+            }
+            break;}
+
+        default:                        /// Un-animated (inanimate?) elements
+            cue_id = "";
+            break;
+        }
+
+        // Set the Element pointer inside SvgGenerator/SvgPaintEngine
+        printer.setElement(e);
+
+        // Custom data-start attribute = start time in whole milliseconds.
+        // Elements with the onClick event need it. Yes, it semi-duplicates
+        // the cue id, but not totally. Some elements have a cue_id, but no
+        // data-start attribute, because they are not clickable in the score.
+        // RehearsalMarks have a data-start, but no cue id, because I prefer
+        // not to highlight them in the score (at least for now), but they
+        // are clickable in the Markers timeline ruler.
+        printer.setStartMSecs(startMSecsFromCueID(score, cue_id));
+
+        // RehearsalMarks only animate in the Ruler, not in the score.
+        // Same VTT file, different SVG file. See saveSMAWS_Rulers().
+        if (eType == EType::REHEARSAL_MARK)
+            cue_id = "";
+
+        // Set the cue_id, even if it's empty (especially if it's empty)
+        printer.setCueID(cue_id);
+
+        // Paint the (un-animated) element
+        paintElement(p, e);
+    }
+
+    if (isMulti) {
+        // Paint the last staff's animated elements
+        paintStaffSMAWS(score, &p, &printer, &mapFrozen, &mapSVG,
+                        visibleStaves[idxStaff], isMulti);
+
+        // Paint the staff-independent elements
+        iNames.append("system");
+        printer.setStaffIndex(nVisible); // only affects fancy formatting
+        printer.setYOffset(0);
+        printer.beginMultiGroup(&iNames);
+        for (SVGMap::iterator i = mapMulti.begin(); i != mapMulti.end(); ++i) {
+            cue_id = i.key();
+            printer.setCueID(cue_id);
+            printer.setStartMSecs(startMSecsFromCueID(score, cue_id));
+            printer.setElement(i.value());
+            paintElement(p, i.value());
+        }
+        printer.endMultiGroup();
+
+        // Multi-Select Staves has <use> elements, one per staff, in the body
+        staffTops.append(staffTops[0]); // For the staff-independent elements
+        printer.streamBody();
+        for (int i = 0; i < iNames.size(); i++)
+            printer.createMultiUse(iNames[i], staffTops[i] - staffTops[0]);
+    }
+    else // Paint everything all at once, not by staff
+        paintStaffSMAWS(score, &p, &printer, &mapFrozen, &mapSVG);
+
+    // The bars ruler is based around the concept of start-of-bar lines, so it
+    // has a line for the imaginary bar on the other side of the final BarLine.
+    // That ruler line has this Cue ID:
+    setVTT.append(getCueID(score->lastSegment()->tick()));
+
+    // Write the VTT file
+    if (!saveVTT(score, fileRoot, setVTT))
+        return false;
+
+    // Clean up and return
+    score->setPrinting(false);
+    MScore::pdfPrinting = false;
+    p.end(); // Writes MuseScore (and Frozen) SVG file(s) to disk, finally
+    return true;
+}
+
 // MuseScore::saveSMAWS_Rulers()
 //-Generates the BarLine and RehearsalMarker rulers for the playback timeline.
 //-This is best generated from a single-staff, horizontally scrolling, one-page
@@ -2929,10 +3490,9 @@ static bool saveVTT(Score*              score,
 // file for the ruler cues might be useful in the future.
 bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
 {
-    // This is a long, tedious function, with lots of constant values.
-    // The SVG is two files, generated once per composition by this function.
-    // The VTT is generated by saveSMAWS() for each and every part and score
-    // exported to SVG, for that one composition.
+    // This is a long, tedious function, with lots of constant values. It
+    // generates two SVG files, once per composition. The VTT is generated by
+    // saveSMAWS() when exporting each part and/or score for that composition.
     //
     // In MuseScore, a Measure's Barline is the line at the end of the bar.
     // No one thinks of bar numbers as the end-barline. If I click on a barline
@@ -3192,209 +3752,6 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
     streamMarks.flush();
     fileBars.close();
     fileMarks.close();
-    return true;
-}
-
-// MuseScore::saveSMAWS() - one SVG file: with Cue IDs in data-cue attribute
-//                          one VTT file: linked to the score SVG file and
-//                          also linked to Bars and Markers (rulers) SVG files.
-//    + if scroll-axis = x: one Frozen Pane SVG file: qfi->filePath()_frz.svg
-//
-// ¡¡¡Warning!!!
-// With the page settings option for points/pixels, rounding is not an issue.
-// But you must choose that option, otherwise rounding errors persist due
-// to the default templates being in mm (or inches, either way).
-//
-bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi)
-{
-    // qfi is a VTT file, this needs an SVG file
-    const QString fileRoot = qfi->filePath().left(qfi->filePath().size() - 4);
-    const QString fileSVG  = QString("%1%2").arg(fileRoot).arg(EXT_SVG);
-
-    // Initialize MuseScore SVG Export variables
-    SvgGenerator printer;
-    QPainter p;
-    if (!svgInit(score, fileSVG, &printer, &p, true))
-        return false;
-
-    // Custom SMAWS header, including proper reference to MuseScore
-    const QString SMAWS_VERSION = "2.1";
-    printer.setDescription(QString(
-            "&#x00A9;%1 ~ sidewayss.com, generated by MuseScore %2 + SMAWS %3")
-            .arg(QDate::currentDate().year()).arg(VERSION).arg(SMAWS_VERSION));
-
-    // The link between an SVG elements and a VTT cue. See getCueID().
-    QString cue_id;
-
-    // setVTT    - a chronologically sorted set of unique cue_ids
-    QStringList setVTT; // QSet is unordered, I need sorting.
-
-    // mapSVG    - a real map: key = cue_id; value = list of elements.
-    // mapFrozen - ditto, but for frozen pane elements
-    using SVGMap = QMultiMap<QString, const Element*>;
-    SVGMap  mapSVG;
-    SVGMap  mapFrozen;
-
-    // Animated elements in a multi-page file? It's unnecessary IMO.
-    // + saveSvg() handles pages in SVG with a simple horizontal offset.
-    // + SVG doesn't even have support for pages, per se (yet?).
-    // So this code only exports the score's first page. At least for now...
-    // also note: MuseScore plans to export each page as a separate file.
-    Page* page = score->pages()[0];
-
-    printer.setSMAWS();
-    printer.setCueID("");
-    printer.setNStaves(score->nstaves());
-    bool isScrollVertical = score->pageFormat()->twosided();
-    printer.setScrollAxis(isScrollVertical); // true = y axis, a hack for now.
-
-    // 0th pass MuseScore SVG: an entire pass just for staff lines
-    paintStaffLines(score, page, &p, &printer);
-
-    // 1st pass MuseScore SVG: Exclude animated elements, except Ruler elements
-    // (Barlines and the VTT for RehearsalMarks). But collect the animated
-    // elements into setVTT, mapSVG, and (optionally) mapFrozen.
-    QList<const Element*> pel = page->elements();
-    qStableSort(pel.begin(), pel.end(), elementLessThan);
-
-    EType         eType; // Everything is determined by element type.
-    const ChordRest* cr; // It has start and end ticks for highlighting.
-
-    foreach (const Element* e, pel) {
-        // Always exclude invisible elements from this pass, except TEMPO_TEXT.
-        if (!e->visible() && eType != EType::TEMPO_TEXT)
-                continue;
-
-        eType = e->type();
-        switch (eType) {
-        case EType::STAFF_LINES :       /// Not animated, but handled above.
-            continue;
-            break;
-                                        /// Highlighted Elements:
-        case EType::REST       : //                = ChordRest subclass Rest
-        case EType::LYRICS     : //         parent = ChordRest
-        case EType::NOTE       : //         parent = ChordRest subclass Chord
-        case EType::NOTEDOT    : //   grand-parent = ChordRest subclass Chord
-        case EType::ACCIDENTAL : //   grand-parent = ChordRest subclass Chord
-            switch (eType) {
-            case EType::REST :
-                cr = static_cast<const ChordRest*>(e);
-                break;
-            case EType::LYRICS :
-            case EType::NOTE   :
-                cr = static_cast<const ChordRest*>(e->parent());
-                break;
-            case EType::NOTEDOT    :
-            case EType::ACCIDENTAL :
-                cr = static_cast<const ChordRest*>(e->parent()->parent());
-                break;
-            default:
-                break; // should never happen
-            }
-            cue_id = getCueID(cr->tick(),
-                              cr->tick() + cr->actualTicks());
-            setVTT.append(cue_id);
-            mapSVG.insert(cue_id, e);
-            continue;
-            break;
-
-        case EType::HARMONY :    // Highlighted until next HARMONY
-            cue_id = getAnnCueID(score, e, eType);
-            setVTT.append(cue_id);
-            mapSVG.insert(cue_id, e);
-            continue;
-            break;
-
-        case EType::TEMPO_TEXT        : /// Frozen Pane elements
-        case EType::INSTRUMENT_NAME   :
-        case EType::INSTRUMENT_CHANGE :
-        case EType::CLEF    :
-        case EType::KEYSIG  :
-        case EType::TIMESIG :
-            if (!isScrollVertical) {
-                // Zero-duration cue
-                cue_id = getScrollCueID(score, e);
-                // insert into mapSVG and setVTT
-                setVTT.append(cue_id);
-                mapFrozen.insert(cue_id, e);
-                continue;
-            }
-            else
-                cue_id = ""; // vertical scrolling: these elements not animated
-            break;
-
-        case EType::BAR_LINE       :    /// Ruler elements
-        case EType::REHEARSAL_MARK :
-            // Add the cue ID to the VTT set.
-            cue_id = getScrollCueID(score, e);
-            setVTT.append(cue_id);
-            break;
-
-        default:                        /// Un-animated (inanimate?) elements
-            cue_id = "";
-            break;
-        }
-
-        // Set the Element pointer inside SvgGenerator/SvgPaintEngine
-        printer.setElement(e);
-
-        // Elements with the onClick event need this (yes, it semi-duplicates the cue id...)
-        // RehearsalMarks happen to be one of those elements, and though it may
-        // not make sense to you, I prefer not to highlight them in the score. (for now...)
-        printer.setStartMSecs(startMSecsFromCueID(score, cue_id));
-
-        // RehearsalMarks only animate in the Ruler, not in the score.
-        // Same VTT file, different SVG file. See saveSMAWS_Rulers().
-        if (eType == EType::REHEARSAL_MARK)
-            cue_id = "";
-
-        // Set the cue_id, even if it's empty (especially if it's empty)
-        printer.setCueID(cue_id);
-
-        // Paint the (un-animated) element
-        paintElement(p, e);
-    }
-
-    // The bars ruler is based around the concept of start-of-bar lines, so it
-    // has a line for the imaginary bar on the other side of the final BarLine.
-    // That ruler line has this Cue ID:
-    setVTT.append(getCueID(score->lastSegment()->tick()));
-
-    // 2nd pass: Animated elements
-    // Animated elements are sorted in playback order by their QMaps.
-    // mapFrozen goes first, if it has any contents
-    if (mapFrozen.size() > 0) {
-        // Iterate by key, then by value in reverse order. This recreates the
-        // MuseScore draw order within the key/cue_id. This is required for
-        // the frozen pane to generate properly.
-        QStringList keys = mapFrozen.uniqueKeys();
-        for (QStringList::iterator c = keys.begin(); c != keys.end(); ++c) {
-            printer.setCueID(*c);
-            QList<const Element*> values = mapFrozen.values(*c);
-            for (int i = values.size() - 1; i > -1; i--) {
-                printer.setElement(values[i]);
-                paintElement(p, values[i]);
-            }
-            printer.freezeIt(); // Complete the last frozen pane def
-        }
-    }
-    // mapSVG (in reverse draw order, but that is not a problem)
-    for (SVGMap::iterator i = mapSVG.begin(); i != mapSVG.end(); ++i) {
-        cue_id = i.key();
-        printer.setCueID(cue_id);
-        printer.setStartMSecs(startMSecsFromCueID(score, cue_id));
-        printer.setElement(i.value());
-        paintElement(p, i.value());
-    }
-
-    // Write the VTT file
-    if (!saveVTT(score, fileRoot, setVTT))
-        return false;
-
-    // Clean up and return
-    score->setPrinting(false);
-    MScore::pdfPrinting = false;
-    p.end(); // Writes MuseScore (and Frozen) SVG file(s) to disk, finally
     return true;
 }
 
