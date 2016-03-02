@@ -166,15 +166,18 @@ using SVGMap = QMultiMap<QString, const Ms::Element*>; // (SMAWS) A convenience
 #define XML_XLINK      "     xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n"
 #define VTT_HEADER     "WEBVTT\n\nNOTE\n    SMAWS  - Sheet Music Animation w/Sound -\n    This file links to one or more SVG files via the\n    cue ids, which are in this format: 0000000_1234567\nNOTE\n\n";
 
+// Boilerplate onclick() event
+#define SVG_ONCLICK " onclick=\"top.clickMusic(evt)\""
+
 #define SMAWS "SMAWS" // SMAWS
 
 // Custom SVG attributes (and some default settings)
+#define SVG_ATTR   " data-attr=\"fill\""  // the only animated attribute so far
 #define SVG_SCROLL " data-scroll=\""      // "x" or "y", horizontal or vertical
 #define SVG_STAVES " data-staves=\""      // number of staves for the score
-#define SVG_ATTR   " data-attr=\"fill\""  // the only animated attribute so far
 #define SVG_CUE    " data-cue=\""         // the cue id
 #define SVG_START  " data-start=\""       // cue start time in milliseconds
-#define SVG_STAFF  " data-staff=\""       // staff index for this element
+#define SVG_INAME  " data-iname=\""       // full instrument name == MuseScore "short" instrument name
 
 #define CLASS_CLEF_COURTESY "ClefCourtesy"
 #define CLASS_CURSOR        "cursor"
@@ -185,6 +188,7 @@ using SVGMap = QMultiMap<QString, const Ms::Element*>; // (SMAWS) A convenience
 
 //#define SVG_HI     " data-hi=\"#0000bb\"" // medium-bright blue
 //#define SVG_LO     " data-lo=\"#000000\"" // black
+//#define SVG_STAFF  " data-staff=\""       // staff index for this element
 //#define SVG_TEMPO  " data-tempo="
 //#define BPS2BPM 60 // Beats per Second to Beats per Minute conversion factor
 //#define SVG_COMMENT_BEGIN  "<!--"
@@ -261,7 +265,7 @@ public:
     void freezeIt(int idxStaff);
     void streamDefs();
     void streamBody();
-    void beginMultiGroup(QStringList* pINames);
+    void beginMultiGroup(QStringList* pINames, const QString& fullName, qreal height, qreal top);
     void endMultiGroup();
     void setYOffset(qreal y);
     void createMultiUse(const QString& qs, qreal y);

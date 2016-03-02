@@ -236,17 +236,21 @@ protected:
 
     // Begin and End Multi-Select Staves group element.
     // Called by SvgGenerator functions of the same name.
-    void beginMultiGroup(const QString& iName) {
-                          *d_func()->stream << SVG_4SPACES  << SVG_GROUP_BEGIN
-                                               << SVG_X << SVG_QUOTE  << 0
-                                               << SVG_QUOTE << SVG_ID << iName
-                                               << SVG_QUOTE << SVG_GT << endl;}
-    void endMultiGroup() {*d_func()->stream << SVG_4SPACES  << SVG_GROUP_END << endl;}
+    void beginMultiGroup(const QString& iName, const QString& fullName, qreal height, qreal top)
+    {
+                          *d_func()->stream << SVG_4SPACES   << SVG_GROUP_BEGIN
+                                               << SVG_HEIGHT << height           << SVG_QUOTE
+                                               << SVG_X      << SVG_QUOTE << 0   << SVG_QUOTE
+                                               << SVG_Y      << SVG_QUOTE << top << SVG_QUOTE
+                                               << SVG_ID     << iName            << SVG_QUOTE
+                                               << SVG_INAME  << fullName         << SVG_QUOTE
+                                               << SVG_GT                         << endl;}
+    void endMultiGroup() {*d_func()->stream << SVG_4SPACES   << SVG_GROUP_END    << endl;}
 
     // Streams the <use> elements for Multi-Select Staves
     void createMultiUse(const QString& qs, qreal y) {
         const QString idValue = QString("Staff%1")
-                                 .arg(_multiUse.size() + 1, 2, 10, QChar('0'));
+                                 .arg(_multiUse.size(), 2, 10, QChar('0'));
         _multiUse.append(QString("%1%2%3%4%5%6")
                           .arg(SVG_USE).arg(SVG_ID).arg(idValue).arg(SVG_QUOTE)
                           .arg(fixedFormat(SVG_Y, y, d_func()->yDigits, true))
@@ -266,14 +270,14 @@ public:
         _e  = NULL;
         _et = Ms::Element::Type::INVALID;
 
-        _prevDef       =  0; // FDef*
-        _iNames        =  0; // QStringList*
-        _nStaves       =  0; // int
-        _xLeft         =  0; // qreal
-        _cursorTop     = -1; // qreal
-        _cursorHeight  =  0; // qreal
-        _yOffset       =  0; // qreal
-        xOffsetTimeSig =  0; // qreal
+        _prevDef       = 0; // FDef*
+        _iNames        = 0; // QStringList*
+        _nStaves       = 0; // int
+        _xLeft         = 0; // qreal
+        _cursorTop     = 0; // qreal
+        _cursorHeight  = 0; // qreal
+        _yOffset       = 0; // qreal
+        xOffsetTimeSig = 0; // qreal
 
         _isScrollVertical = false;
         _isMulti          = false;
@@ -393,12 +397,15 @@ bool SvgPaintEngine::end()
                                  << d->viewBox.height()      << SVG_QUOTE
                 << SVG_WIDTH     << d->size.width()          << SVG_QUOTE
                 << SVG_HEIGHT    << d->size.height()         << SVG_QUOTE  << endl;
-    if (_isSMAWS)
+    if (_isSMAWS) {
         stream()<< SVG_4SPACES   << SVG_PRESERVE_XYMIN_SLICE               << endl
                 << SVG_4SPACES   << SVG_POINTER_EVENTS       << SVG_CURSOR << endl
                 << SVG_4SPACES   << SVG_CLASS  << SMAWS      << SVG_QUOTE
                                  << SVG_SCROLL << scrollAxis << SVG_QUOTE
                                  << SVG_ATTR;
+        if (_isMulti)
+            stream()             << SVG_STAVES << _nStaves   << SVG_QUOTE;
+    }
 
     stream() << SVG_GT << endl
     // Document attributes:
@@ -574,7 +581,7 @@ void SvgPaintEngine::updateState(const QPaintEngineState &state)
 
     qts << SVG_CLASS;
     _classValue = getClass();
-    if (_cue_id.isEmpty() || _et == EType::BAR_LINE) {
+    if ((_cue_id.isEmpty() || _et == EType::BAR_LINE) && !(_isMulti && _idxStaff == _nStaves)) {
         // No cue id or BarLine = no fancy formatting
         qts << _classValue << SVG_QUOTE;
         if (!_cue_id.isEmpty())
@@ -594,7 +601,8 @@ void SvgPaintEngine::updateState(const QPaintEngineState &state)
         qts << QString("%1%2").arg(_classValue).arg(SVG_QUOTE);
         qts.setFieldWidth(0);
         // Then stream the Cue ID
-        qts << SVG_CUE << _cue_id << SVG_QUOTE;
+        if (!_cue_id.isEmpty())
+            qts << SVG_CUE << _cue_id << SVG_QUOTE;
     }
 
     // Translations, SVG transform="translate()", are handled separately from
@@ -829,8 +837,8 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     if (_isMulti)
         stream() << SVG_8SPACES;
 
-    // Rehearsal mark frame is rect or circle, no need for a long, complex path
-    if (_et == EType::REHEARSAL_MARK) {
+    if (_isSMAWS && _et == EType::REHEARSAL_MARK) {
+        // Rehearsal mark frame is rect or circle, no need for a complex path.
         // I can't find a way to determine if it's a rect or a circle here, so
         // I hardcode to the rect style that I like. The size of the rect in
         // MuseScore is wrong to begin with, so this looks the best in the end.
@@ -839,12 +847,12 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
         _textFrame.setWidth(qMax(_e->width() + 2, 16.0));
         _textFrame.setHeight(13);
 
-        stream() << SVG_RECT << classState << styleState;
-
-        streamXY(_textFrame.x(), _textFrame.y());
-        stream() << SVG_WIDTH  << _textFrame.width()  << SVG_QUOTE
-                 << SVG_HEIGHT << _textFrame.height() << SVG_QUOTE
-                 << SVG_RX << SVG_RY << SVG_ELEMENT_END  << endl;
+        stream() << SVG_RECT    << classState << styleState;
+        streamXY(_textFrame.x(),_textFrame.y());
+        stream() << SVG_ONCLICK << SVG_START  << _startMSecs << SVG_QUOTE
+                 << SVG_WIDTH   << _textFrame.width()        << SVG_QUOTE
+                 << SVG_HEIGHT  << _textFrame.height()       << SVG_QUOTE
+                 << SVG_RX      << SVG_RY     << SVG_ELEMENT_END  << endl;
         return; // That's right, we're done here, no path to draw
     }
 
@@ -1039,8 +1047,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     case EType::NOTEDOT        :
     case EType::REST           :
     case EType::REHEARSAL_MARK :
-        stream() << " onclick=\"top.clickMusic(evt)\""
-                 << SVG_START << _startMSecs << SVG_QUOTE;
+        stream() << SVG_ONCLICK << SVG_START << _startMSecs << SVG_QUOTE;
         break;
     default:
         break;
@@ -1785,7 +1792,7 @@ void SvgGenerator::setStaffIndex(int idx) {
 void SvgGenerator::setCursorTop(qreal top) {
     SvgPaintEngine* pe = static_cast<SvgPaintEngine*>(paintEngine());
 
-    if (pe->_cursorTop >= 0 && top < pe->_cursorTop)
+    if (pe->_cursorTop == 0 || top < pe->_cursorTop)
         pe->_cursorTop = top;
 }
 
@@ -1844,12 +1851,12 @@ void SvgGenerator::streamBody() {
     beginning of a new staff, so it reinitializes the _prevDef pointer.
     Called by saveSMAWS() in mscore/file.cpp.
 */
-void SvgGenerator::beginMultiGroup(QStringList* pINames) {
+void SvgGenerator::beginMultiGroup(QStringList* pINames, const QString& fullName, qreal height, qreal top) {
     SvgPaintEngine* pe = static_cast<SvgPaintEngine*>(paintEngine());
     pe->_isMulti = true;
     pe->_prevDef = 0;
     pe->_iNames = pINames;
-    pe->beginMultiGroup(pINames->last());
+    pe->beginMultiGroup(pINames->last(), fullName, height, top);
 }
 
 /*!
