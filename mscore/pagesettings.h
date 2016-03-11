@@ -22,6 +22,7 @@
 #define __PAGESETTINGS_H__
 
 #include "ui_pagesettings.h"
+#include "libmscore/mscore.h"
 
 namespace Ms {
 
@@ -35,8 +36,15 @@ class Navigator;
 class PageSettings : public QDialog, private Ui::PageSettingsBase {
       Q_OBJECT
 
+      static const int PREVIEW_WIDTH  = 0; // This is really NON_HEIGHT, but WIDTH makes it a nice pair
+      static const int PREVIEW_HEIGHT = 1;
+      Ms::Units _units;
+
+      double convertToUser(double);
+      double convertToPx(double);
+      double convertBy();
+
       Navigator* preview;
-      bool mmUnit;
       Score* cs;
       void updateValues();
       void updatePreview(int);
@@ -44,8 +52,9 @@ class PageSettings : public QDialog, private Ui::PageSettingsBase {
       void applyToScore(Score*);
 
    private slots:
-      void mmClicked();
       void inchClicked();
+      void mmClicked();
+      void pxClicked();
       void pageFormatSelected(int);
 
       void apply();

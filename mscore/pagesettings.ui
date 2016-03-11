@@ -94,7 +94,7 @@
            </sizepolicy>
           </property>
           <property name="maximum">
-           <double>2000.000000000000000</double>
+           <double>200000.000000000000000</double>
           </property>
          </widget>
         </item>
@@ -227,6 +227,13 @@
          <widget class="QRadioButton" name="mmButton">
           <property name="text">
            <string>mm</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QRadioButton" name="pxButton">
+          <property name="text">
+           <string>Points (pt) / Pixels (px)</string>
           </property>
          </widget>
         </item>

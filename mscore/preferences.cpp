@@ -1886,7 +1886,7 @@ void PreferenceDialog::printShortcutsClicked()
       QPrinter printer(QPrinter::HighResolution);
       MStyle* s = MScore::defaultStyle();
       const PageFormat* pf = s->pageFormat();
-      printer.setPaperSize(pf->size(), QPrinter::Inch);
+      printer.setPaperSize(pf->size(), QPrinter::Point);
 
       printer.setCreator("MuseScore Version: " VERSION);
       printer.setFullPage(true);
@@ -1898,7 +1898,7 @@ void PreferenceDialog::printShortcutsClicked()
       pd.setWindowTitle(tr("Print Shortcuts"));
       if (!pd.exec())
             return;
-      qreal dpmm = printer.logicalDpiY() / 25.4;
+      qreal dpmm = printer.logicalDpiY() / MMPI;
       qreal ph   = printer.height();
       qreal tm   = dpmm * 15;
       qreal bm   = dpmm * 15;
