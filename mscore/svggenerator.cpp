@@ -153,8 +153,6 @@ private:
 ////////////////////
 // for Frozen Pane:
 //
-    using Str2IntMap = QMap<QString, int>;
-    using StrPtrList = QList<QString*>;
     using FDef  = QMap<QString, StrPtrList*>;       // Key    = idxStaff-EType
     using FDefs = QMap<QString, FDef*>; //by cue_id // Values = <text> elements
 
@@ -206,11 +204,6 @@ protected:
     int     _idxStaff; // Number of staves in the current score
 
     // These vary by Staff:
-    using RealList     = QList<qreal>;
-    using RealVectList = QVector<RealList>;
-    using RealVect     = QVector<qreal>;
-    using StrPtrVect   = QVector<QString*>;
-
     StrPtrVect   frozenLines; // vector by staff, frozen pane staff/system lines
     RealVectList frozenKeyY;  // vector by staff, list = y-coords left-to-right
     RealVectList frozenTimeY; // vector by staff, list = y-coords top-to-bot
@@ -396,10 +389,11 @@ bool SvgPaintEngine::end()
                                  << d->viewBox.width()       << SVG_SPACE
                                  << d->viewBox.height()      << SVG_QUOTE
                 << SVG_WIDTH     << d->size.width()          << SVG_QUOTE
-                << SVG_HEIGHT    << d->size.height()         << SVG_QUOTE  << endl;
+                << SVG_HEIGHT    << d->size.height()         << SVG_QUOTE
+                << endl;
     if (_isSMAWS) {
-        stream()<< SVG_4SPACES   << SVG_PRESERVE_XYMIN_SLICE               << endl
-                << SVG_4SPACES   << SVG_POINTER_EVENTS       << SVG_CURSOR << endl
+        stream()<< SVG_4SPACES   << SVG_PRESERVE_XYMIN_SLICE << SVG_CURSOR << endl
+                << SVG_4SPACES   << SVG_POINTER_EVENTS       << endl
                 << SVG_4SPACES   << SVG_CLASS  << SMAWS      << SVG_QUOTE
                                  << SVG_SCROLL << scrollAxis << SVG_QUOTE
                                  << SVG_ATTR;
@@ -466,14 +460,13 @@ bool SvgPaintEngine::end()
         // Standard SVG headers plus XLink
         qts << XML_STYLESHEET
             << SVG_BEGIN  << XML_NAMESPACE << XML_XLINK          << SVG_4SPACES
-               << SVG_PRESERVE_XYMIN_SLICE << SVG_CURSOR << endl << SVG_4SPACES
                << SVG_VIEW_BOX <<   0                    << SVG_SPACE
                                <<   0                    << SVG_SPACE
                                << 100                    << SVG_SPACE //!!! literal value: max keysig width (7-flats) + etc. - it works for me for now.
                                << d->viewBox.height()    << SVG_QUOTE
                << SVG_WIDTH    << 100                    << SVG_QUOTE
-               << SVG_HEIGHT   << d->size.height()       << SVG_QUOTE
-               << SVG_GT       << endl
+               << SVG_HEIGHT   << d->size.height()       << SVG_QUOTE  << endl << SVG_4SPACES
+               << SVG_PRESERVE_XYMIN_SLICE << SVG_CURSOR << SVG_GT     << endl
             << SVG_TITLE_BEGIN << "frozen pane for "
                                << d->attributes.title << SVG_TITLE_END << endl
             << SVG_DESC_BEGIN  << d->attributes.desc  << SVG_DESC_END  << endl;
@@ -625,7 +618,7 @@ void SvgPaintEngine::updateState(const QPaintEngineState &state)
                           << _transformer.m21() << SVG_COMMA
                           << _transformer.m22() << SVG_COMMA
                           << _transformer.m31() << SVG_COMMA
-                          << _transformer.m32() << SVG_TRANSFORM_END;
+                          << _transformer.m32() << SVG_RPAREN_QUOTE;
     }
 
     // Set attributes for element types not styled by CSS
@@ -852,7 +845,9 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
         stream() << SVG_ONCLICK << SVG_START  << _startMSecs << SVG_QUOTE
                  << SVG_WIDTH   << _textFrame.width()        << SVG_QUOTE
                  << SVG_HEIGHT  << _textFrame.height()       << SVG_QUOTE
-                 << SVG_RX      << SVG_RY     << SVG_ELEMENT_END  << endl;
+                 << SVG_RX      << SVG_ONE                   << SVG_QUOTE
+                 << SVG_RY      << SVG_ONE                   << SVG_QUOTE
+                 << SVG_ELEMENT_END                          << endl;
         return; // That's right, we're done here, no path to draw
     }
 

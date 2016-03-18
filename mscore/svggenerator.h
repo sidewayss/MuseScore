@@ -52,6 +52,14 @@
 #include "libmscore/element.h"   // for Element class
 using EType = Ms::Element::Type; // It get used a lot, Type consts are long too
 using SVGMap = QMultiMap<QString, const Ms::Element*>; // (SMAWS) A convenience
+// More SMAWS conveniences
+using StrPtrVect     = QVector<QString*>;
+using StrPtrList     = QList<QString*>;
+using StrPtrListVect = QList<StrPtrVect*>;
+using Str2IntMap     = QMap<QString, int>;
+using RealList       = QList<qreal>;
+using RealVect       = QVector<qreal>;
+using RealVectList   = QVector<RealList>;
 
 ///////////////////////////////////////////////////////////////////////////////
 // SVG and SMAWS constants
@@ -95,8 +103,8 @@ using SVGMap = QMultiMap<QString, const Ms::Element*>; // (SMAWS) A convenience
 #define SVG_Y1       " y1=\""
 #define SVG_Y2       " y2=\""
 
-#define SVG_RX       " rx=\"1\"" // for now these are constant values
-#define SVG_RY       " ry=\"1\"" // only used once for rehearsal mark rects
+#define SVG_RX       " rx=\""
+#define SVG_RY       " ry=\""
 
 #define SVG_POINTS   " points=\""
 #define SVG_D        " d=\""
@@ -104,7 +112,9 @@ using SVGMap = QMultiMap<QString, const Ms::Element*>; // (SMAWS) A convenience
 #define SVG_L        'L' // Line
 #define SVG_C        'C' // Curve
 
-#define SVG_ELEMENT_END "/>"
+#define SVG_ELEMENT_END  "/>"
+#define SVG_RPAREN_QUOTE ")\""
+
 
 #define SVG_DEFS_BEGIN  "<defs>\n"
 #define SVG_DEFS_END    "</defs>\n"
@@ -135,6 +145,7 @@ using SVGMap = QMultiMap<QString, const Ms::Element*>; // (SMAWS) A convenience
 #define SVG_CURSOR         " cursor=\"default\""  // to avoid pesky I-Beam cursor
 
 #define SVG_FILL           " fill=\""
+#define SVG_FILL_URL       " fill=\"url(#"
 #define SVG_FILL_RULE      " fill-rule=\"evenodd\""
 #define SVG_FILL_OPACITY   " fill-opacity=\""
 #define SVG_OPACITY        " opacity=\""
@@ -154,22 +165,26 @@ using SVGMap = QMultiMap<QString, const Ms::Element*>; // (SMAWS) A convenience
 
 #define SVG_TRANSLATE      " transform=\"translate("
 #define SVG_MATRIX         " transform=\"matrix("
-#define SVG_TRANSFORM_END  ")\""
+#define SVG_ROTATE         " transform=\"rotate("
 
 // For extended characters in MScore font (unicode Private Use Area)
 #define XML_ENTITY_BEGIN "&#x"
 #define XML_ENTITY_END   ';'
 
 // Boilerplate header text
-#define XML_NAMESPACE  " xmlns=\"http://www.w3.org/2000/svg\"\n"
 #define XML_STYLESHEET "<?xml-stylesheet type=\"text/css\" href=\"MuseScore.svg.css\"?>\n"
+#define XML_STYLEDRUMS "<?xml-stylesheet type=\"text/css\" href=\"SMAWS-Drums.svg.css\"?>\n"
+#define XML_NAMESPACE  " xmlns=\"http://www.w3.org/2000/svg\"\n"
 #define XML_XLINK      "     xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n"
-#define VTT_HEADER     "WEBVTT\n\nNOTE\n    SMAWS  - Sheet Music Animation w/Sound -\n    This file links to one or more SVG files via the\n    cue ids, which are in this format: 0000000_1234567\nNOTE\n\n";
+#define VTT_HEADER     "WEBVTT\n\nNOTE\n    SMAWS  - Sheet Music Animation w/Sound -\n    This file links to one or more SVG files via the\n    cue ids, which are in this format: 0000000_1234567\nNOTE\n\n"
+#define HTML_HEADER    "<!DOCTYPE html>\n<!-- SMAWS HTML Tables -->\n<html>\n<head>\n    <meta charset=\"utf-8\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">\n    <link rel=\"stylesheet\" href=\"SMAWS_21.css\">\n</head>\n\n<body onload=\"onLoadHTMLTables()\">\n\n"
 
 // Boilerplate onclick() event
 #define SVG_ONCLICK " onclick=\"top.clickMusic(evt)\""
 
-#define SMAWS "SMAWS" // SMAWS
+// SMAWS
+#define SMAWS         "SMAWS"
+#define SMAWS_VERSION "2.2"
 
 // Custom SVG attributes (and some default settings)
 #define SVG_ATTR   " data-attr=\"fill\""  // the only animated attribute so far
@@ -182,6 +197,8 @@ using SVGMap = QMultiMap<QString, const Ms::Element*>; // (SMAWS) A convenience
 #define CLASS_CLEF_COURTESY "ClefCourtesy"
 #define CLASS_CURSOR        "cursor"
 #define CLASS_GRAY          "gray"
+#define CLASS_TITLE         "title"       // for HTML drum machine tables
+#define CLASS_INSTRUMENT    "instrument"  // ditto
 
 #define NATURAL_SIGN 57953 // 0xE261, natural signs excluded from frozen panes
 #define CUE_ID_ZERO "0000000_0000000"
@@ -193,6 +210,39 @@ using SVGMap = QMultiMap<QString, const Ms::Element*>; // (SMAWS) A convenience
 //#define BPS2BPM 60 // Beats per Second to Beats per Minute conversion factor
 //#define SVG_COMMENT_BEGIN  "<!--"
 //#define SVG_COMMENT_END    "-->"
+
+// HTML constants for SMAWS Tables
+#define HTML_BEGIN       "<html"
+#define HTML_END         "</html>"
+#define HTML_BODY_BEGIN  "<body"
+#define HTML_BODY_END    "</body>"
+#define HTML_TABLE_BEGIN "<table"
+#define HTML_TABLE_END   "</table>"
+#define HTML_COL_BEGIN   "<col"
+#define HTML_TR_BEGIN    "<tr"
+#define HTML_TR_END      "</tr>"
+#define HTML_TH_BEGIN    "<th"
+#define HTML_TH_END      "</th>"
+#define HTML_TD_BEGIN    "<td"
+#define HTML_TD_END      "</td>"
+#define HTML_COLSPAN     " colspan=\""
+
+#define UNICODE_DOT "&#x1D16D;"
+
+// This array links TDuration::DurationType to unicode characters down to 128th
+static const char32_t durationUnicode[] = {
+    0x1D1B7, // V_LONG
+    0x1D15C, // V_BREVE
+    0x1D15D, // V_WHOLE
+    0x1D15E, // V_HALF
+    0x2669,  // V_QUARTER 16-bit, more fonts available for these two chars
+    0x266A,  // V_EIGHTH  16-bit, ditto
+    0x1D161, // V_16TH
+    0x1D162, // V_32ND
+    0x1D163, // V_64TH
+    0x1D164  // V_128TH
+};
+
 ///////////////////////////////////////////////////////////////////////////////
 
 class SvgGeneratorPrivate;
