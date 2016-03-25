@@ -52,120 +52,124 @@
 #include "libmscore/element.h"   // for Element class
 using EType = Ms::Element::Type; // It get used a lot, Type consts are long too
 using SVGMap = QMultiMap<QString, const Ms::Element*>; // (SMAWS) A convenience
+
 // More SMAWS conveniences
-using StrPtrVect     = QVector<QString*>;
 using StrPtrList     = QList<QString*>;
-using StrPtrListVect = QList<StrPtrVect*>;
+using StrPtrVect     = QVector<QString*>;
+using StrPtrVectList = QList<StrPtrVect*>;
 using Str2IntMap     = QMap<QString, int>;
-using RealList       = QList<qreal>;
 using RealVect       = QVector<qreal>;
-using RealVectList   = QVector<RealList>;
+using RealList       = QList<qreal>;
+using RealListVect   = QVector<RealList>;
 
 ///////////////////////////////////////////////////////////////////////////////
 // SVG and SMAWS constants
 
-// SVG floating point precision
+// SVG floating point precision - if >8k monitors become the norm, increase it.
 #define SVG_PRECISION 2
 
-// SVG strings as constants
-#define SVG_QUOTE    '"'
-#define SVG_COMMA    ','
-#define SVG_DOT      '.'
-#define SVG_DASH     '-'
-#define SVG_GT       '>'
-#define SVG_ZERO     '0'
-#define SVG_ONE      "1"
-#define SVG_SPACE    ' '
-#define SVG_4SPACES  "    "
-#define SVG_8SPACES  "        "
-#define SVG_PX       "px"
-#define SVG_NONE     "none"
-#define SVG_EVENODD  "evenodd"
-#define SVG_BUTT     "butt"
-#define SVG_SQUARE   "square"
-#define SVG_ROUND    "round"
-#define SVG_MITER    "miter"
-#define SVG_BEVEL    "bevel"
-#define SVG_BLACK    "#000000"
+// SVG chars/strings as constants
+// Chars
+#define SVG_QUOTE     '"'
+#define SVG_COMMA     ','
+#define SVG_DOT       '.'
+#define SVG_SEMICOLON ';'
+#define SVG_DASH      '-'
+#define SVG_GT        '>'
+#define SVG_ZERO      '0'
+#define SVG_ONE       "1"
+#define SVG_SPACE     ' '
 
-#define SVG_BEGIN    "<svg"
-#define SVG_END      "</svg>"
-
-#define SVG_WIDTH    " width=\""
-#define SVG_HEIGHT   " height=\""
-#define SVG_VIEW_BOX " viewBox=\""
-
-#define SVG_X        " x="
-#define SVG_Y        " y="
-
-#define SVG_X1       " x1=\""
-#define SVG_X2       " x2=\""
-#define SVG_Y1       " y1=\""
-#define SVG_Y2       " y2=\""
-
-#define SVG_RX       " rx=\""
-#define SVG_RY       " ry=\""
-
-#define SVG_POINTS   " points=\""
-#define SVG_D        " d=\""
-#define SVG_M        'M' // Move
-#define SVG_L        'L' // Line
-#define SVG_C        'C' // Curve
-
+// Strings
+#define SVG_4SPACES      "    "
+#define SVG_8SPACES      "        "
 #define SVG_ELEMENT_END  "/>"
 #define SVG_RPAREN_QUOTE ")\""
 
+// SVG elements
+#define SVG_BEGIN       "<svg"
+#define SVG_END         "</svg>"
 
-#define SVG_DEFS_BEGIN  "<defs>\n"
-#define SVG_DEFS_END    "</defs>\n"
 #define SVG_TITLE_BEGIN "<title>"
 #define SVG_TITLE_END   "</title>"
 #define SVG_DESC_BEGIN  "<desc>"
 #define SVG_DESC_END    "</desc>"
-
+#define SVG_DEFS_BEGIN  "<defs>\n"
+#define SVG_DEFS_END    "</defs>\n"
 #define SVG_GROUP_BEGIN "<g"
 #define SVG_GROUP_END   "</g>"
 #define SVG_TEXT_BEGIN  "<text"
 #define SVG_TEXT_END    "</text>"
 
-#define SVG_IMAGE       "<image"
-#define SVG_PATH        "<path"
-#define SVG_POLYLINE    "<polyline"
+#define SVG_USE         "<use"
 #define SVG_LINE        "<line"
 #define SVG_RECT        "<rect"
-#define SVG_USE         "<use"
+#define SVG_PATH        "<path"
+#define SVG_POLYLINE    "<polyline"
+#define SVG_IMAGE       "<image"
 
-#define SVG_CLASS       " class=\""
-#define SVG_ID          " id=\""
-#define XLINK_HREF      " xlink:href=\"#"
-
+// SVG element attributes
+#define SVG_VIEW_BOX             " viewBox=\""
 #define SVG_PRESERVE_XYMIN_SLICE " preserveAspectRatio=\"xMinYMin slice\""
+#define SVG_POINTER_EVENTS       " pointer-events=\"visible\""
+#define SVG_CURSOR               " cursor=\"default\""  // to avoid pesky I-Beam cursor
 
-#define SVG_POINTER_EVENTS " pointer-events=\"visible\""
-#define SVG_CURSOR         " cursor=\"default\""  // to avoid pesky I-Beam cursor
+#define SVG_WIDTH  " width=\""
+#define SVG_HEIGHT " height=\""
 
-#define SVG_FILL           " fill=\""
-#define SVG_FILL_URL       " fill=\"url(#"
-#define SVG_FILL_RULE      " fill-rule=\"evenodd\""
-#define SVG_FILL_OPACITY   " fill-opacity=\""
-#define SVG_OPACITY        " opacity=\""
-#define SVG_STROKE_OPACITY " stroke-opacity=\""
-#define SVG_STROKE         " stroke=\""
-#define SVG_STROKE_WIDTH   " stroke-width=\""
-#define SVG_STROKE_LINECAP " stroke-linecap=\""
-#define SVG_STROKE_LINEJOIN " stroke-linejoin=\""
-#define SVG_STROKE_DASHARRAY " stroke-dasharray=\""
+#define SVG_X  " x=" // No quote char due to floating point formatting
+#define SVG_Y  " y=" // ditto
+#define SVG_X1 " x1=\""
+#define SVG_X2 " x2=\""
+#define SVG_Y1 " y1=\""
+#define SVG_Y2 " y2=\""
+#define SVG_RX " rx=\""
+#define SVG_RY " ry=\""
+
+#define XLINK_HREF " xlink:href=\"#"
+#define SVG_CLASS  " class=\""
+#define SVG_ID     " id=\""
+
+#define SVG_FILL         " fill=\""
+#define SVG_FILL_URL     " fill=\"url(#"
+#define SVG_FILL_RULE    " fill-rule=\"evenodd\"" // rarely used, default is ok
+#define SVG_FILL_OPACITY " fill-opacity=\""
+
+#define SVG_STROKE            " stroke=\""
+#define SVG_STROKE_URL        " stroke=\"url(#"
+#define SVG_STROKE_WIDTH      " stroke-width=\""
+#define SVG_STROKE_OPACITY    " stroke-opacity=\""
+#define SVG_STROKE_LINECAP    " stroke-linecap=\""
+#define SVG_STROKE_LINEJOIN   " stroke-linejoin=\""
+#define SVG_STROKE_DASHARRAY  " stroke-dasharray=\""
 #define SVG_STROKE_DASHOFFSET " stroke-dashoffset=\""
 #define SVG_STROKE_MITERLIMIT " stroke-miterlimit=\""
 
-#define SVG_VECTOR_EFFECT  " vector-effect=\"non-scaling-stroke\""
+#define SVG_VECTOR_EFFECT " vector-effect=\"non-scaling-stroke\""
 
-#define SVG_FONT_FAMILY    " font-family=\""
-#define SVG_FONT_SIZE      " font-size=\""
+#define SVG_FONT_FAMILY " font-family=\""
+#define SVG_FONT_SIZE   " font-size=\""
 
-#define SVG_TRANSLATE      " transform=\"translate("
-#define SVG_MATRIX         " transform=\"matrix("
-#define SVG_ROTATE         " transform=\"rotate("
+#define SVG_POINTS " points=\""
+#define SVG_D      " d=\""
+#define SVG_M      'M' // Move
+#define SVG_L      'L' // Line
+#define SVG_C      'C' // Curve
+
+#define SVG_TRANSLATE " transform=\"translate("
+#define SVG_MATRIX    " transform=\"matrix("
+#define SVG_ROTATE    " transform=\"rotate("
+
+// SVG element attribute values
+#define SVG_PX      "px"
+#define SVG_NONE    "none"
+#define SVG_EVENODD "evenodd"
+#define SVG_BUTT    "butt"
+#define SVG_SQUARE  "square"
+#define SVG_ROUND   "round"
+#define SVG_MITER   "miter"
+#define SVG_BEVEL   "bevel"
+#define SVG_BLACK   "#000000"
 
 // For extended characters in MScore font (unicode Private Use Area)
 #define XML_ENTITY_BEGIN "&#x"
@@ -194,14 +198,16 @@ using RealVectList   = QVector<RealList>;
 #define SVG_START  " data-start=\""       // cue start time in milliseconds
 #define SVG_INAME  " data-iname=\""       // full instrument name == MuseScore "short" instrument name
 
+// SMAWS class attribute values
 #define CLASS_CLEF_COURTESY "ClefCourtesy"
 #define CLASS_CURSOR        "cursor"
 #define CLASS_GRAY          "gray"
 #define CLASS_TITLE         "title"       // for HTML drum machine tables
 #define CLASS_INSTRUMENT    "instrument"  // ditto
 
-#define NATURAL_SIGN 57953 // 0xE261, natural signs excluded from frozen panes
+// Miscellaneous SMAWS constants
 #define CUE_ID_ZERO "0000000_0000000"
+#define NATURAL_SIGN 57953 // 0xE261, natural signs excluded from frozen panes
 
 //#define SVG_HI     " data-hi=\"#0000bb\"" // medium-bright blue
 //#define SVG_LO     " data-lo=\"#000000\"" // black

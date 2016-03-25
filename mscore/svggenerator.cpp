@@ -205,8 +205,8 @@ protected:
 
     // These vary by Staff:
     StrPtrVect   frozenLines; // vector by staff, frozen pane staff/system lines
-    RealVectList frozenKeyY;  // vector by staff, list = y-coords left-to-right
-    RealVectList frozenTimeY; // vector by staff, list = y-coords top-to-bot
+    RealListVect frozenKeyY;  // vector by staff, list = y-coords left-to-right
+    RealListVect frozenTimeY; // vector by staff, list = y-coords top-to-bot
     RealVect   yLineKeySig;   // vector by staff, clef's start "staff line" for first accidental (range = 0-9 top-to-bottom for 5-line staff)
     RealVect yOffsetKeySig;   // vector by staff, non-zero if clef changes
 
