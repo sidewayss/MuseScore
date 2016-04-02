@@ -54,13 +54,17 @@ using EType = Ms::Element::Type; // It get used a lot, Type consts are long too
 using SVGMap = QMultiMap<QString, const Ms::Element*>; // (SMAWS) A convenience
 
 // More SMAWS conveniences
-using StrPtrList     = QList<QString*>;
-using StrPtrVect     = QVector<QString*>;
-using StrPtrVectList = QList<StrPtrVect*>;
-using Str2IntMap     = QMap<QString, int>;
-using RealVect       = QVector<qreal>;
-using RealList       = QList<qreal>;
-using RealListVect   = QVector<RealList>;
+using StrPtrList      = QList<QString*>;
+using StrPtrVect      = QVector<QString*>;
+using StrPtrVectList  = QList<StrPtrVect*>;
+using Str2IntMap      = QMap<QString, int>;
+using BoolVect        = QVector<bool>;
+using RealVect        = QVector<qreal>;
+using RealList        = QList<qreal>;
+using RealListVect    = QVector<RealList>;
+using IntList         = QList<int>;
+using IntListVect     = QVector<IntList*>;
+using IntListVectList = QList<IntListVect*>;
 
 ///////////////////////////////////////////////////////////////////////////////
 // SVG and SMAWS constants
@@ -75,6 +79,11 @@ using RealListVect   = QVector<RealList>;
 #define SVG_DOT       '.'
 #define SVG_SEMICOLON ';'
 #define SVG_DASH      '-'
+#define SVG_HASH      '#'
+#define SVG_PERCENT   '%'
+#define SVG_DOLLARS   '$'
+#define SVG_ASTERISK  '*'
+#define SVG_RPAREN    ')'
 #define SVG_GT        '>'
 #define SVG_ZERO      '0'
 #define SVG_ONE       "1"
@@ -156,9 +165,10 @@ using RealListVect   = QVector<RealList>;
 #define SVG_L      'L' // Line
 #define SVG_C      'C' // Curve
 
-#define SVG_TRANSLATE " transform=\"translate("
 #define SVG_MATRIX    " transform=\"matrix("
-#define SVG_ROTATE    " transform=\"rotate("
+#define SVG_TRANSFORM " transform=\""
+#define SVG_TRANSLATE "translate("
+#define SVG_SCALE     "scale("
 
 // SVG element attribute values
 #define SVG_PX      "px"
@@ -177,14 +187,15 @@ using RealListVect   = QVector<RealList>;
 
 // Boilerplate header text
 #define XML_STYLESHEET "<?xml-stylesheet type=\"text/css\" href=\"MuseScore.svg.css\"?>\n"
-#define XML_STYLEDRUMS "<?xml-stylesheet type=\"text/css\" href=\"SMAWS-Drums.svg.css\"?>\n"
+#define XML_STYLEDRUMS "<?xml-stylesheet type=\"text/css\" href=\"SMAWS-Drums.svg.css\"?>\n<?xml-stylesheet type=\"text/css\" href=\"SMAWS-DrumButts.svg.css\"?>\n"
 #define XML_NAMESPACE  " xmlns=\"http://www.w3.org/2000/svg\"\n"
 #define XML_XLINK      "     xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n"
 #define VTT_HEADER     "WEBVTT\n\nNOTE\n    SMAWS  - Sheet Music Animation w/Sound -\n    This file links to one or more SVG files via the\n    cue ids, which are in this format: 0000000_1234567\nNOTE\n\n"
 #define HTML_HEADER    "<!DOCTYPE html>\n<!-- SMAWS HTML Tables -->\n<html>\n<head>\n    <meta charset=\"utf-8\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">\n    <link rel=\"stylesheet\" href=\"SMAWS_21.css\">\n</head>\n\n<body onload=\"onLoadHTMLTables()\">\n\n"
 
-// Boilerplate onclick() event
+// Boilerplate events
 #define SVG_ONCLICK " onclick=\"top.clickMusic(evt)\""
+#define SVG_ONLOAD   " onload=\"onLoadSVGGrid(evt)\""
 
 // SMAWS
 #define SMAWS         "SMAWS"
@@ -202,12 +213,17 @@ using RealListVect   = QVector<RealList>;
 #define CLASS_CLEF_COURTESY "ClefCourtesy"
 #define CLASS_CURSOR        "cursor"
 #define CLASS_GRAY          "gray"
-#define CLASS_TITLE         "title"       // for HTML drum machine tables
-#define CLASS_INSTRUMENT    "instrument"  // ditto
+#define CLASS_GRID          "grid"       // for HTML drum machine tables
+#define CLASS_TITLE         "title"      // ditto
+#define CLASS_INSTRUMENT    "instrument" // ditto
 
 // Miscellaneous SMAWS constants
 #define CUE_ID_ZERO "0000000_0000000"
 #define NATURAL_SIGN 57953 // 0xE261, natural signs excluded from frozen panes
+
+// Imaginary MIDI note values for rests and invisible "cells" in SVG "tables"
+#define MIDI_REST  -1
+#define MIDI_EMPTY -2
 
 //#define SVG_HI     " data-hi=\"#0000bb\"" // medium-bright blue
 //#define SVG_LO     " data-lo=\"#000000\"" // black
