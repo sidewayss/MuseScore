@@ -56,13 +56,17 @@ using SVGMap = QMultiMap<QString, const Ms::Element*>; // (SMAWS) A convenience
 // More SMAWS conveniences
 using StrPtrList      = QList<QString*>;
 using StrPtrVect      = QVector<QString*>;
+using StrPtrListList  = QList<StrPtrList*>;
 using StrPtrVectList  = QList<StrPtrVect*>;
+using StrPtrListVect  = QVector<StrPtrList*>;
+using StrPtrListVectList = QList<StrPtrListVect*>;
 using Str2IntMap      = QMap<QString, int>;
 using BoolVect        = QVector<bool>;
 using RealVect        = QVector<qreal>;
 using RealList        = QList<qreal>;
 using RealListVect    = QVector<RealList>;
 using IntList         = QList<int>;
+using IntListList     = QList<IntList*>;
 using IntListVect     = QVector<IntList*>;
 using IntListVectList = QList<IntListVect*>;
 
