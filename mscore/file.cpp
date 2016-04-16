@@ -4157,19 +4157,20 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                                 pil->append(p);
 
                             if (isPages) {
-                                // cue_id string for this cell
-                                pqs = (*dataCues[idxCol])[r];
-                                if (pqs == 0) {
-                                    pqs = new QString;
-                                    (*dataCues[idxCol])[r] = pqs;
+                                if (isChord) { // rests don't get highlight cues
+                                    // cue_id string for this cell
+                                    pqs = (*dataCues[idxCol])[r];
+                                    if (pqs == 0) {
+                                        pqs = new QString;
+                                        (*dataCues[idxCol])[r] = pqs;
+                                    }
+                                    qts.setString(pqs);
+                                    if (pqs->isEmpty())
+                                        qts << SVG_CUE;
+                                    else
+                                        qts << SVG_COMMA;
+                                    qts << cue_id;
                                 }
-                                qts.setString(pqs);
-                                if (pqs->isEmpty())
-                                    qts << SVG_CUE;
-                                else
-                                    qts << SVG_COMMA;
-                                qts << cue_id;
-
                                 // LED value for page cues
                                 spl = (*leds[idxCol])[r];
                                 if (spl == 0) {
@@ -4542,11 +4543,13 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                                 tableStream << *(*dataCues[c])[r];
 
                             spl  = (*leds[c])[r];
-                            pqs  = (*spl)[0];
+                            if (spl != 0)
+                                pqs  = (*spl)[0];
                             for (int p = 0; p < idxPage; p++) {
                                 if (hasPitches && !changesPitch && (*pil)[p] != pitch0)
                                     changesPitch = true;
-                                if (!changesLED && ((*spl)[p]->size() == 1 || (*spl)[p] != *pqs))
+                                if (!changesLED && spl != 0
+                                && ((*spl)[p]->size() == 1 || (*spl)[p] != *pqs))
                                     changesLED = true;
                                 if (changesPitch && changesLED)
                                     break;
@@ -4562,9 +4565,13 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                                     tableStream << pageIDs[p] << SVG_SEMICOLON;
 
                                     if (changesLED) {
-                                        if (hasPitches)
-                                            (*spl)[p]->replace(LED, MINI);
-                                        tableStream << *(*spl)[p];
+                                        if (spl->size() > p) {
+                                            if (hasPitches)
+                                                (*spl)[p]->replace(LED, MINI);
+                                            tableStream << *(*spl)[p];
+                                        }
+                                        else
+                                            tableStream << SVG_HASH;
                                     }
 
                                     if (changesPitch) {
