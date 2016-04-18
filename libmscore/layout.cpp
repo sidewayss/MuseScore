@@ -3082,7 +3082,7 @@ System* Score::collectSystem(LayoutContext& lc)
       qreal minWidth        = system->leftMargin();
       Measure* firstMeasure = 0;
       qreal measureSpacing  = styleD(StyleIdx::measureSpacing);
-      qreal systemWidth     = pageFormat()->printableWidth() * DPI;
+      qreal systemWidth     = pageFormat()->printableWidth();
 
       while (lc.curMeasure) {    // collect measure for system
             System* oldSystem = lc.curMeasure->system();
@@ -3653,8 +3653,6 @@ void Score::doLayout()
       getNextMeasure(lc);
 
       if (_layoutMode == LayoutMode::LINE) {
-            while (lc.curMeasure->isVBox())
-                  getNextMeasure(lc);
             layoutLinear(lc);
             }
       else {
