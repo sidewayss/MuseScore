@@ -114,7 +114,7 @@
         <item row="4" column="0" colspan="2">
          <widget class="QCheckBox" name="twosided">
           <property name="text">
-           <string>Two-Sided</string>
+           <string>Two-sided</string>
           </property>
          </widget>
         </item>
@@ -172,7 +172,7 @@
            <string>Distance between two lines on a standard 5-line staff</string>
           </property>
           <property name="text">
-           <string>Staff Space (sp):</string>
+           <string>Staff space (sp):</string>
           </property>
           <property name="textFormat">
            <enum>Qt::PlainText</enum>
@@ -233,7 +233,7 @@
         <item>
          <widget class="QRadioButton" name="pxButton">
           <property name="text">
-           <string>Points / Pixels (pt/px)</string>
+           <string>Points / pixels (pt/px)</string>
           </property>
          </widget>
         </item>
