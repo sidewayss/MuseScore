@@ -80,6 +80,9 @@ class PageFormat {
       bool _twosided;
 
    public:
+      // file storage uses PPI/DPI * 2 as the units, 144PPI/DPI
+      static constexpr qreal SCALE_XML = 2;
+
       PageFormat();
 
       const QSizeF& size() const    { return _size;          }    // size in inch
@@ -174,6 +177,8 @@ class Page : public Element {
       QList<Element*> elements();               ///< list of visible elements
       QRectF tbbox();                           // tight bounding box, excluding white space
       int endTick() const;
+
+      static const int SIZE_CUSTOM = 0;
       };
 
 extern const PaperSize paperSizes[];

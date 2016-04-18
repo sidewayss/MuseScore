@@ -1513,7 +1513,7 @@ void MuseScore::printFile()
       {
       QPrinter printerDev(QPrinter::HighResolution);
       const PageFormat* pf = cs->pageFormat();
-      printerDev.setPaperSize(pf->size(), QPrinter::Inch);
+      printerDev.setPaperSize(pf->size(), QPrinter::Point);
 
       printerDev.setCreator("MuseScore Version: " VERSION);
       printerDev.setFullPage(true);
@@ -1947,7 +1947,7 @@ bool MuseScore::savePdf(Score* cs, const QString& saveName)
       QPdfWriter printerDev(saveName);
       printerDev.setResolution(preferences.exportPdfDpi);
       const PageFormat* pf = cs->pageFormat();
-      printerDev.setPageSize(QPageSize(pf->size(), QPageSize::Inch));
+      printerDev.setPageSize(QPageSize(pf->size(), QPageSize::Point));
 
       printerDev.setCreator("MuseScore Version: " VERSION);
       if (!printerDev.setPageMargins(QMarginsF()))
@@ -1985,7 +1985,7 @@ bool MuseScore::savePdf(QList<Score*> cs, const QString& saveName)
 
       QPrinter printerDev(QPrinter::HighResolution);
       const PageFormat* pf = firstScore->pageFormat();
-      printerDev.setPaperSize(pf->size(), QPrinter::Inch);
+      printerDev.setPaperSize(pf->size(), QPrinter::Point);
 
       printerDev.setCreator("MuseScore Version: " VERSION);
       printerDev.setFullPage(true);
@@ -2014,7 +2014,7 @@ bool MuseScore::savePdf(QList<Score*> cs, const QString& saveName)
             MScore::pdfPrinting = true;
 
             const PageFormat* pf = s->pageFormat();
-            printerDev.setPaperSize(pf->size(), QPrinter::Inch);
+            printerDev.setPaperSize(pf->size(), QPrinter::Point);
 
             const QList<Page*> pl = s->pages();
             int pages    = pl.size();
@@ -2404,8 +2404,8 @@ bool MuseScore::savePng(Score* score, const QString& name, bool screenshot, bool
             int h = lrint(r.height() * convDpi / DPI);
 
             QImage printer(w, h, f);
-            printer.setDotsPerMeterX(lrint((convDpi * 1000) / INCH));
-            printer.setDotsPerMeterY(lrint((convDpi * 1000) / INCH));
+            printer.setDotsPerMeterX(lrint((convDpi * 1000) / MMPI));
+            printer.setDotsPerMeterY(lrint((convDpi * 1000) / MMPI));
 
             printer.fill(transparent ? 0 : 0xffffffff);
 
