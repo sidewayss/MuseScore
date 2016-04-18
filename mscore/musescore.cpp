@@ -4915,11 +4915,11 @@ int main(int argc, char* av[])
 
       MScore::init();                                      // initialize libmscore
       if (!MScore::testMode) {
-            QSizeF psf = QPrinter().paperSize(QPrinter::Inch);
+            QSizeF psf = QPrinter().paperSize(QPrinter::Point);
             PaperSize ps("system", psf.width(), psf.height());
             PageFormat pf;
             pf.setSize(&ps);
-            pf.setPrintableWidth(psf.width() - 20.0 / INCH);
+            pf.setPrintableWidth(psf.width() - 20.0 / MMPI);
             MScore::defaultStyle()->setPageFormat(pf);
             }
 
