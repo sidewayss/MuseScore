@@ -3852,8 +3852,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                                     isPageStart = true; //     only one page
                                 break;                  //     or  last page
                             }
-                            else if (mp->last()->isEndBarLineType()
-                                  && static_cast<BarLine*>(mp->last()->element(0))->barLineType() == BarLineType::DOUBLE) {
+                            else if (mp->endBarLineType() == BarLineType::DOUBLE) {
                                 isPages     = true;   // this table has pages
                                 isPageStart = true;   // this cr is start-of-page
                                 break;
