@@ -3697,6 +3697,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
     int idxBeat     = 0; // ditto, grid line index
     int nTables     = 0; // if (tableTitle.isEmpty()) unique, numbered titles;
 
+    Measure*   m1;       // the first measure in the table
     Measure*   m;        // this measure
     Segment*   s;        // this segment
     ChordRest* crGrid;   // this start tick's ChordRest from the grid staff
@@ -3713,17 +3714,17 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
     QString         page_id;    // ditto for page cue_id
     QString         tableTitle; // RehearsalMark at startTick==0 is the title
 
-    QStringList    tableCues;  // List of cue_ids for VTT file
-    StrPtrList     barLines;   // List of <line>s
-    StrPtrList     beatLines;  // Every whole beat (1/4 note in 4/4 time)
-    StrPtrList     gridUse;    // if (isPages) this is for grid staff
-    StrPtrList     gridText;   //  ditto
-    StrPtrVectList grid;       // List = columns/beats. Vector = rows/staves
-    StrPtrVectList dataCues;   // data-cue only in cells that have >0 cue_ids
+    QStringList    tableCues; // List of cue_ids for VTT file
+    StrPtrList     barLines;  // List of <line>s
+    StrPtrList     beatLines; // Every whole beat (1/4 note in 4/4 time)
+    StrPtrList     gridUse;   // if (isPages) this is for grid staff
+    StrPtrList     gridText;  //  ditto
+    StrPtrVectList grid;      // List = columns/beats. Vector = rows/staves
+    StrPtrVectList dataCues;  // data-cue only in cells that have >0 cue_ids
 
     // Bar and Beat Line x-coordinates per page:
-    IntListList    pageBars;     // for/by barline
-    IntListList    pageBeats;    // for/by beatline
+    IntListList    pageBars;  // for/by barline
+    IntListList    pageBeats; // for/by beatline
 
     // things by page:
     IntList        pageCols;     // active column count per page
@@ -3740,12 +3741,13 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
     // Pages are separated by double-barlines.
     // Pages are SVG only.
     // These variables are all part of multi-page functionality:
-    bool           isPages     = false;
-    bool           isPageStart = false;
-    Measure*       mp;         // temp variable for measure within a page
-    Measure*       mPageEnd;   // this page's end measure
-    QString        pageCues;   // page #: data-cue="id1,text1;id2,text2;etc."
-    QStringList    pageIDs;    // just the page_ids, in order, by page
+    bool isPages     = false;
+    bool isPageStart = false;
+    BoolVect    isStaffVisible(nStaves, true);
+    Measure*    mp;       // temp variable for measure within a page
+    Measure*    mPageEnd; // this page's end measure
+    QString     pageCues; // page #: data-cue="id1,text1;id2,text2;etc."
+    QStringList pageIDs;  // just the page_ids, in order, by page
 
     // Constants for SVG table cell dimensions, in pixels
     const int cellWidth  =  48;
@@ -3835,6 +3837,8 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                         }
                         if (tableTitle.isEmpty()) // Numerically indexed title
                             tableTitle = QString("%1%2").arg(idStub).arg(++nTables);
+
+                        m1 = m; // this is useful later
                     }
 
                     if (isHTML) { // One pages for all the tables, one file too
@@ -3922,26 +3926,28 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                 // Rows
                 // Iterate over all the staves and collect stuff
                 for (int r = 0; r < nStaves; r++) {
-                    const int  track    = r * VOICES;
-                    bool isStaffVisible = m->system()->staff(r)->show();
+                    const int track = r * VOICES;
+
+                    if (!isPages || isPageStart)
+                        isStaffVisible[r] = m->system()->staff(r)->show();
 
                     // Set instrument name for this row once per table
                     //                 and if (isPages) once per page
                     if (r != idxGrid
-                    && ((iNames[r] == 0 && isStaffVisible) || isPageStart)) { /// INSTRUMENT NAMES ///
-                        if (isPageStart && isStaffVisible) {
+                    && ((iNames[r] == 0 && isStaffVisible[r]) || isPageStart)) { /// INSTRUMENT NAMES ///
+                        if (isPageStart && isStaffVisible[r]) {
                             // Empty staff within a page is "invisible"
                             for (mp = m; mp; mp = mp->nextMeasureMM()) {
                                 if (!mp->isOnlyRests(track))
                                     break;
                                 if (mp == mPageEnd) { // empty staff for this page
-                                    isStaffVisible = false;
+                                    isStaffVisible[r] = false;
                                     break;
                                 }
                             }
                         }
                         if (iNames[r] == 0 || isPageStart) {
-                            const QString style = QString("inst%1").arg(isStaffVisible ? NO : LO);
+                            const QString style = QString("inst%1").arg(isStaffVisible[r] ? NO : LO);
                             if (iNames[r] == 0) {
                                 iNames[r] = new QString;
                                 pqs = iNames[r];
@@ -3960,8 +3966,8 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
 
                     // The ChordRest for this staff, using only Voice #1
                     crData = s->cr(track);
-                    if (!isStaffVisible || crData == 0 || !crData->visible()) {/// EMPTY CELL ///
-                        if (!isHTML && (isPages || isStaffVisible))
+                    if (!isStaffVisible[r] || crData == 0 || !crData->visible()) {/// EMPTY CELL ///
+                        if (!isHTML && (isPages || isStaffVisible[r]))
                             cellY += cellHeight;
                         if (isPages) {
                             if ((*pitches[idxCol])[r] != 0)
@@ -4426,6 +4432,20 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                         tableStream << SVG_GT
                                     << score->staff(r)->part()->longName(startOffset)
                                     << SVG_TEXT_END << endl;
+
+                        // Spacer below staff = instLine below staff in SVG
+                        // Spacer must be a down spacer in the first measure
+                        if (m1->mstaff(r)->_vspacerDown != 0) {
+                            const int y = cellHeight * (r + 1);
+                            const int xMargin = 3;
+                            tableStream << SVG_LINE
+                                        << SVG_X1    << xMargin         << SVG_QUOTE
+                                        << SVG_Y1    << y               << SVG_QUOTE
+                                        << SVG_X2    << cellX - xMargin << SVG_QUOTE
+                                        << SVG_Y2    << y               << SVG_QUOTE
+                                        << SVG_CLASS << "instLine"      << SVG_QUOTE
+                                        << SVG_ELEMENT_END;
+                        }
                     }
                 }
                 tableStream << endl;
@@ -4638,11 +4658,13 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
             for (int r = 0; r < nStaves; r++) {
                 iNames[r]   = 0;
                 pitchSet[r] = 0;
+                if (isPages)
+                    isStaffVisible[r] = 0;
             }
             if (isPages) {
                 isPages  = false;
-                pageTick = 0;
-                idxPage  = 0;
+                pageTick =  0;
+                idxPage  = -1;
                 leds.clear();
                 pageIDs.clear();
                 dataCues.clear();
