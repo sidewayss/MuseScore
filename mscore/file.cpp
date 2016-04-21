@@ -3038,9 +3038,11 @@ static QString formatInt(const QString& attr,
 }
 
 
-///////////////////////////////////////////////////////////////////////
-// 3 SMAWS file generators: saveVTT(), saveSMAWS(), saveSMAWS_Rulers()
-//
+///////////////////////////////////////////////////////////////////////////////
+// 4 SMAWS file generators: saveVTT()    saveSMAWS_Rulers()
+//                          saveSMAWS()  saveSMAWS_Tables()
+///////////////////////////////////////////////////////////////////////////////
+
 // saveVTT()
 // Private, static function called by saveSMAWS() (...and saveSMAWS_Rulers()?)
 // Generates the WebVTT file (.vtt) using the setVTT arg as the data source.

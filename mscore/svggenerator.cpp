@@ -1297,8 +1297,8 @@ void SvgPaintEngine::freezeDef(int idxStaff)
     if (!_isMulti) {
         key = QString("0%1%2").arg(SVG_DASH).arg(int(EType::TEMPO_TEXT));
         if (!def->contains(key)
-         && _prevDef->contains(key))                // Nothing new for this cue
-            def->insert(key, _prevDef->value(key)); // id, use the prevDef.
+         && _prevDef != 0 && _prevDef->contains(key)) // Nothing new for this cue
+            def->insert(key, _prevDef->value(key));   // id, use the prevDef.
     }
 
     for (idx = 0; idx < _nStaves; idx++) {
@@ -1307,12 +1307,12 @@ void SvgPaintEngine::freezeDef(int idxStaff)
 
         // InstrumentNames
         key = QString("%1%2%3").arg(idx).arg(SVG_DASH).arg(int(EType::INSTRUMENT_NAME));
-        if (!def->contains(key) && _prevDef->contains(key))
+        if (!def->contains(key) && _prevDef != 0 && _prevDef->contains(key))
             def->insert(key, _prevDef->value(key));
 
         // Clefs
         key = QString("%1%2%3").arg(idx).arg(SVG_DASH).arg(int(EType::CLEF));
-        if (!def->contains(key) && _prevDef->contains(key))
+        if (!def->contains(key) && _prevDef != 0 && _prevDef->contains(key))
             def->insert(key, _prevDef->value(key));
 
         // KeySigs
@@ -1324,7 +1324,7 @@ void SvgPaintEngine::freezeDef(int idxStaff)
         }
         for (i = 0; i < frozenKeyY[idx].size(); i++) {
             if (def->value(key)->size() == i) {
-                if (_prevDef->contains(key)
+                if (_prevDef != 0 && _prevDef->contains(key)
                  && _prevDef->value(key)->size() > i)
                 {                                             // Better than maintaining another vector by staff
                     elm     = _prevDef->value(key)->value(i); // EType::KEYSIG = 1 accidental = 1 XML element
@@ -1356,7 +1356,7 @@ void SvgPaintEngine::freezeDef(int idxStaff)
         }
         for (i = 0; i < frozenTimeY[idx].size(); i++) {
             if (def->value(key)->size() == i) {
-                if (_prevDef->contains(key)
+                if (_prevDef != 0 && _prevDef->contains(key)
                  && _prevDef->value(key)->size() > i)
                 {                                             // Better than maintaining another vector by staff
                     elm     = _prevDef->value(key)->value(i); // EType::TIMESIG = 1 char = 1 XML element (no support for sub-divided numerators, like 7/8 as 4+3/8. It's a frozen pane width issue too.)
@@ -1704,6 +1704,7 @@ int SvgGenerator::metric(QPaintDevice::PaintDeviceMetric metric) const
     case QPaintDevice::PdmPhysicalDpiY:
         return d->engine->resolution();
     case QPaintDevice::PdmDevicePixelRatio:
+    case QPaintDevice::PdmDevicePixelRatioScaled:
         return 1;
     default:
         qWarning("SvgGenerator::metric(), unhandled metric %d\n", metric);
