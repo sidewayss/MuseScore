@@ -2601,10 +2601,10 @@ static void paintStaffLines(Score*        score,
         QString qs = score->systems().first()->staff(idxStaff)->instrumentNames.first()->xmlText(); ///!!!this line of code crashes for piano-style dual-staff (linked staves?)!!!
         pINames->append(qs.replace(SVG_SPACE, SVG_DASH));
         SysStaff* ss = page->systems().value(0)->staff(idxStaff);
-//TODO: distanceDown() distanceUp()        printer->beginMultiGroup(pINames,
-//TODO: distanceDown() distanceUp()                                 score->staff(idxStaff)->part()->shortName(0),
-//TODO: distanceDown() distanceUp()                                 ss->bbox().height() + ss->distanceDown(),
-//TODO: distanceDown() distanceUp()                                 ss->distanceUp());
+        printer->beginMultiGroup(pINames,
+                                 score->staff(idxStaff)->part()->shortName(0),
+                                 ss->bbox().height(),
+                                 ss->y());
         printer->setCueID("");
     }
 
@@ -3152,10 +3152,8 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
     //                                         else         by type;
     QList<Element*> elmPtrs = page->elements();
     std::stable_sort(elmPtrs.begin(), elmPtrs.end(), elementLessThan);
-    if (isMulti) {
+    if (isMulti)
         std::stable_sort(elmPtrs.begin(), elmPtrs.end(), elementLessThanByStaff);
-        printer.streamDefs(); // Multi-Select Staves = all content inside defs
-    }
     else // Paint staff lines once, prior to painting anything else
         paintStaffLines(score, &p, &printer, page, &visibleStaves);
 

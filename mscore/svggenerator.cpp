@@ -225,29 +225,30 @@ protected:
     void streamBody() {d_func()->stream->setString(&(d_func()->body));
                        initStream(d_func()->stream);}
 
+////////////////////
+// for Multi-Select Staves:
+//
     // Begin and End Multi-Select Staves group element.
     // Called by SvgGenerator functions of the same name.
     void beginMultiGroup(const QString& iName, const QString& fullName, qreal height, qreal top)
     {
-                          *d_func()->stream << SVG_4SPACES   << SVG_GROUP_BEGIN
-                                               << SVG_HEIGHT << height           << SVG_QUOTE
-                                               << SVG_X      << SVG_QUOTE << 0   << SVG_QUOTE
-                                               << SVG_Y      << SVG_QUOTE << top << SVG_QUOTE
-                                               << SVG_ID     << iName            << SVG_QUOTE
-                                               << SVG_INAME  << fullName         << SVG_QUOTE
-                                               << SVG_GT                         << endl;}
-    void endMultiGroup() {*d_func()->stream << SVG_4SPACES   << SVG_GROUP_END    << endl;}
+                          *d_func()->stream << SVG_GROUP_BEGIN
+                                               << SVG_HEIGHT    << height        << SVG_QUOTE
+                                               << SVG_TRANSFORM << SVG_TRANSLATE << SVG_ZERO
+                                               << SVG_SPACE     << top           << SVG_RPAREN_QUOTE
+                                               << SVG_ID        << iName         << SVG_QUOTE
+                                               << SVG_INAME     << fullName      << SVG_QUOTE
+                                               << SVG_GT        << endl;}
+    void endMultiGroup() {*d_func()->stream << SVG_GROUP_END    << endl;}
 
-    // Streams the <use> elements for Multi-Select Staves
+    // Streams the <use> elements for Multi-Select Staves frozen pane file only
     void createMultiUse(const QString& qs, qreal y) {
         const QString idValue = QString("Staff%1")
                                  .arg(_multiUse.size(), 2, 10, QChar('0'));
         _multiUse.append(QString("%1%2%3%4%5%6")
                           .arg(SVG_USE).arg(SVG_ID).arg(idValue).arg(SVG_QUOTE)
                           .arg(fixedFormat(SVG_Y, y, d_func()->yDigits, true))
-                          .arg(XLINK_HREF));
-        *d_func()->stream << _multiUse.last() << qs << SVG_QUOTE
-                          << SVG_ELEMENT_END  << endl;}
+                          .arg(XLINK_HREF));}
 //
 ////////////////////
 
@@ -381,7 +382,7 @@ bool SvgPaintEngine::end()
 
     // The <svg> element:
     stream() << SVG_BEGIN
-                << XML_NAMESPACE << (_isMulti ? XML_XLINK : "") << SVG_4SPACES
+                << XML_NAMESPACE << SVG_4SPACES
                 << SVG_VIEW_BOX  << d->viewBox.left()        << SVG_SPACE
                                  << d->viewBox.top()         << SVG_SPACE
                                  << d->viewBox.width()       << SVG_SPACE
@@ -807,7 +808,7 @@ void SvgPaintEngine::drawImage(const QRectF &r, const QImage &image,
     Q_UNUSED(flags);
 
     if (_isMulti)
-        stream() << SVG_8SPACES;
+        stream() << SVG_4SPACES;
 
     stream() << SVG_IMAGE           << classState  << styleState
              << SVG_X << SVG_QUOTE  << r.x() + _dx            << SVG_QUOTE
@@ -827,7 +828,7 @@ void SvgPaintEngine::drawImage(const QRectF &r, const QImage &image,
 void SvgPaintEngine::drawPath(const QPainterPath &p)
 {
     if (_isMulti)
-        stream() << SVG_8SPACES;
+        stream() << SVG_4SPACES;
 
     if (_isSMAWS && _et == EType::REHEARSAL_MARK) {
         // Rehearsal mark frame is rect or circle, no need for a complex path.
@@ -910,7 +911,7 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
     Q_ASSERT(pointCount >= 2);
 
     if (mode == PolylineMode) {
-        if (_isMulti) stream() << SVG_8SPACES;
+        if (_isMulti) stream() << SVG_4SPACES;
 
         stream() << SVG_POLYLINE << classState << styleState << SVG_POINTS;
         for (int i = 0; i < pointCount; ++i) {
@@ -983,7 +984,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
                              ? font.pixelSize()
                              : font.pointSizeF());
     if (_isMulti)
-        stream() << SVG_8SPACES;
+        stream() << SVG_4SPACES;
 
     // Begin the <text>
     stream() << SVG_TEXT_BEGIN << classState;
