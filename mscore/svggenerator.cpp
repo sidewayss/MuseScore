@@ -233,9 +233,9 @@ protected:
     void beginMultiGroup(const QString& iName, const QString& fullName, qreal height, qreal top)
     {
                           *d_func()->stream << SVG_GROUP_BEGIN
-                                               << SVG_HEIGHT    << height        << SVG_QUOTE
                                                << SVG_TRANSFORM << SVG_TRANSLATE << SVG_ZERO
                                                << SVG_SPACE     << top           << SVG_RPAREN_QUOTE
+                                               << SVG_HEIGHT    << height        << SVG_QUOTE
                                                << SVG_ID        << iName         << SVG_QUOTE
                                                << SVG_INAME     << fullName      << SVG_QUOTE
                                                << SVG_GT        << endl;}

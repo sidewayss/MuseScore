@@ -2585,6 +2585,7 @@ static void paintStaffLines(Score*        score,
                             SvgGenerator* printer,
                             Page*         page,
                             QVector<int>* pVisibleStaves =  0,
+                            int           nVisible       =  0,
                             int           idxStaff       = -1, // element.staffIdx()
                             bool          isMulti        = false,
                             QStringList*  pINames        =  0,
@@ -2596,15 +2597,30 @@ static void paintStaffLines(Score*        score,
     qreal cursorTop;
     qreal cursorBot;
 
-    if (isMulti && idxStaff > -1 && pINames != 0) {
+    if (isMulti && idxStaff > -1 && pINames != 0  && pVisibleStaves != 0) {
         // isMulti requires a <g></g> wrapper around each staff's elements
         QString qs = score->systems().first()->staff(idxStaff)->instrumentNames.first()->xmlText(); ///!!!this line of code crashes for piano-style dual-staff (linked staves?)!!!
         pINames->append(qs.replace(SVG_SPACE, SVG_DASH));
-        SysStaff* ss = page->systems().value(0)->staff(idxStaff);
+
+        const System* s = page->systems().value(0);
+        const qreal top = s->staff(idxStaff)->y();
+        const int idxVisible = (*pVisibleStaves)[idxStaff];
+        qreal bot = -1;
+        if (idxVisible < nVisible - 1) {
+            for (int i = idxStaff + 1; i < pVisibleStaves->size(); i++) {
+                if ((*pVisibleStaves)[i] > 0) {
+                    bot = s->staff(i)->y();
+                    break;
+                }
+            }
+        }
+        if (bot < 0)
+            bot = page->height();
+
         printer->beginMultiGroup(pINames,
                                  score->staff(idxStaff)->part()->shortName(0),
-                                 ss->bbox().height(),
-                                 ss->y());
+                                 bot - top,
+                                 top);
         printer->setCueID("");
     }
 
@@ -3179,7 +3195,7 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
                    mapSVG.clear();
             }
             // We're starting s new staff, paint its staff lines
-            paintStaffLines(score, &p, &printer, page, &visibleStaves,
+            paintStaffLines(score, &p, &printer, page, &visibleStaves, nVisible,
                             idx, isMulti, &iNames, &staffTops);
             idxStaff = idx;
         }
@@ -3320,7 +3336,7 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
         }
         printer.endMultiGroup();
 
-        // Multi-Select Staves has <use> elements, one per staff, in the body
+        // Multi-Select Staves frozen pane has <use> elements, one per staff
         staffTops.append(staffTops[0]); // For the staff-independent elements
         printer.streamBody();
         for (int i = 0; i < iNames.size(); i++)
