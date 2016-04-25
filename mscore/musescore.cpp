@@ -4973,7 +4973,7 @@ int main(int argc, char* av[])
             qDebug() << "  Physical DPI:" << screen->physicalDotsPerInch();
             qDebug() << "  Physical DPI X:" << screen->physicalDotsPerInchX();
             qDebug() << "  Physical DPI Y:" << screen->physicalDotsPerInchY();
-            qDebug() << "  Physical size:" << screen->physicalSize().width() << "x" << screen->physicalSize().height() << "mm";
+            qDebug() << "  Physical size:" << screen->physicalSize().width() << "x" << screen->physicalSize().height() << unitSuffixes[(int)Units::MM];
             qDebug() << "  Refresh rate:" << screen->refreshRate() << "Hz";
             qDebug() << "  Size:" << screen->size().width() << "x" << screen->size().height();
             qDebug() << "  Virtual geometry:" << screen->virtualGeometry().x() << screen->virtualGeometry().y() << screen->virtualGeometry().width() << "x" << screen->virtualGeometry().height();
