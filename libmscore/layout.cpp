@@ -3655,6 +3655,8 @@ void Score::doLayout()
       getNextMeasure(lc);
 
       if (_layoutMode == LayoutMode::LINE) {
+            while (lc.curMeasure->isVBox())
+                  getNextMeasure(lc);
             layoutLinear(lc);
             }
       else {
