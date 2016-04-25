@@ -2615,7 +2615,7 @@ static void paintStaffLines(Score*        score,
             }
         }
         if (bot < 0)
-            bot = page->height();
+            bot = page->height() - page->bm();
 
         printer->beginMultiGroup(pINames,
                                  score->staff(idxStaff)->part()->shortName(0),
