@@ -421,6 +421,12 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       void updateNewWizard();
       void updateViewModeCombo();
 
+///// SMAWS/MAB ///////////////////////////////////////////////////////////////
+      bool saveSMAWS       (Score* score, QFileInfo* qfi, bool isMulti);
+      bool saveSMAWS_Rulers(Score* score, QFileInfo* qfi);
+      bool saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML);
+      bool saveMAB_MixTree (Score* score, QFileInfo* qfi);
+///////////////////////////////////////////////////////////////////////////////
    private slots:
       void cmd(QAction* a, const QString& cmd);
       void autoSaveTimerTimeout();
@@ -574,7 +580,7 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       QList<LanguageItem>& languages() { return _languages; }
 
       QStringList getOpenScoreNames(const QString& filter, const QString& title);
-      QString getSaveScoreName(const QString& title, QString& name, const QString& filter, bool folder = false);
+      QString getSaveScoreName(const QString& title, QString& name, const QString& filter, bool folder = false, QString *selectedFilter = 0);
       QString getStyleFilename(bool open, const QString& title = QString());
       QString getFotoFilename(QString& filter, QString *selectedFilter);
       QString getChordStyleFilename(bool open);
