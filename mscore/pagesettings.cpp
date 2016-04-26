@@ -20,7 +20,6 @@
 
 #include "globals.h"
 #include "pagesettings.h"
-#include "libmscore/page.h"
 #include "libmscore/style.h"
 #include "libmscore/score.h"
 #include "navigator.h"
@@ -88,7 +87,7 @@ void PageSettings::setScore(MasterScore* s)
       MasterScore* sl = s->clone();
       preview->setScore(sl);
 
-      const PageFormat* pf = s->pageFormat();
+      pf = preview->score()->pageFormat();
       pageGroup->clear();
       int index = 0;
       const PaperSize* ps = pf->paperSize();
@@ -139,7 +138,6 @@ void PageSettings::updateValues()
       double converter = convertBy();
 
       Score*      sc = preview->score();
-      PageFormat* pf = sc->pageFormat();
       QString suffix = unitSuffixes[(int)pf->units()];
 
       double singleStepSize;
@@ -248,7 +246,6 @@ void PageSettings::updateValues()
 
 void PageSettings::inchClicked()
       {
-      PageFormat* pf = preview->score()->pageFormat();
       pf->setUnits(Units::INCH);
       updateValues();
       }
@@ -259,7 +256,6 @@ void PageSettings::inchClicked()
 
 void PageSettings::mmClicked()
       {
-      PageFormat* pf = preview->score()->pageFormat();
       pf->setUnits(Units::MM);
       updateValues();
       }
@@ -270,7 +266,6 @@ void PageSettings::mmClicked()
 
 void PageSettings::pxClicked()
       {
-      PageFormat* pf = preview->score()->pageFormat();
       pf->setUnits(Units::PX);
       updateValues();
       }
@@ -281,7 +276,6 @@ void PageSettings::pxClicked()
 
 void PageSettings::landscapeToggled(bool flag)
       {
-      PageFormat* pf = preview->score()->pageFormat();
       if (flag ^ (pf->width() > pf->height()))
             pf->setSize(QSizeF(pf->height(), pf->width()));
       pf->setPrintableWidth(pf->width() - (pf->oddLeftMargin() + pf->oddRightMargin()));
@@ -295,7 +289,7 @@ void PageSettings::landscapeToggled(bool flag)
 
 void PageSettings::twosidedToggled(bool flag)
       {
-      preview->score()->pageFormat()->setTwosided(flag);
+      pf->setTwosided(flag);
       updateValues();
       updatePreview(PREVIEW_HEIGHT);
       }
@@ -317,7 +311,7 @@ void PageSettings::apply()
 void PageSettings::applyToScore(Score* s)
       {
       s->startCmd();
-      s->undoChangePageFormat(preview->score()->pageFormat(),
+      s->undoChangePageFormat(pf,
                               preview->score()->spatium(),
                               pageOffsetEntry->value()-1);
       s->endCmd();
@@ -360,7 +354,6 @@ void PageSettings::done(int val)
 void PageSettings::pageFormatSelected(int size)
       {
       if (size != Page::SIZE_CUSTOM) { // Custom maintains the size of the page
-            PageFormat* pf = preview->score()->pageFormat();
             pf->setSize(&paperSizes[size]);
             pf->setPrintableWidth(pf->width() - (pf->oddLeftMargin() + pf->oddRightMargin()));
             updateValues();
@@ -374,7 +367,7 @@ void PageSettings::pageFormatSelected(int size)
 
 void PageSettings::otmChanged(double val)
       {
-      preview->score()->pageFormat()->setOddTopMargin(convertToPx(val));
+      pf->setOddTopMargin(convertToPx(val));
       updatePreview(PREVIEW_HEIGHT);
       }
 
@@ -394,7 +387,6 @@ void PageSettings::olmChanged(double val)
             evenPageLeftMargin->setValue(val);
             evenPageLeftMargin->blockSignals(false);
             }
-      PageFormat* pf = preview->score()->pageFormat();
       double   pxVal = convertToPx(val);
       pf->setPrintableWidth(pf->width() - pf->oddRightMargin() - pxVal);
       pf->setOddLeftMargin(pxVal);
@@ -408,7 +400,6 @@ void PageSettings::olmChanged(double val)
 
 void PageSettings::ormChanged(double val)
       {
-      PageFormat* pf = preview->score()->pageFormat();
       double   pxVal = convertToPx(val);
 
       if (twosided->isChecked()) {
@@ -432,7 +423,7 @@ void PageSettings::ormChanged(double val)
 
 void PageSettings::obmChanged(double val)
       {
-      preview->score()->pageFormat()->setOddBottomMargin(convertToPx(val));
+      pf->setOddBottomMargin(convertToPx(val));
       updatePreview(PREVIEW_HEIGHT);
       }
 
@@ -442,7 +433,7 @@ void PageSettings::obmChanged(double val)
 
 void PageSettings::etmChanged(double val)
       {
-      preview->score()->pageFormat()->setEvenTopMargin(convertToPx(val));
+      pf->setEvenTopMargin(convertToPx(val));
       updatePreview(PREVIEW_HEIGHT);
       }
 
@@ -457,7 +448,6 @@ void PageSettings::elmChanged(double val)
             oddPageRightMargin->setValue(val);
             oddPageRightMargin->blockSignals(false);
             }
-      PageFormat* pf = preview->score()->pageFormat();
       double   pxVal = convertToPx(val);
       pf->setPrintableWidth(pf->width() - pf->evenRightMargin() - pxVal);
       pf->setEvenLeftMargin(pxVal);
@@ -476,7 +466,6 @@ void PageSettings::ermChanged(double val)
             oddPageLeftMargin->setValue(val);
             oddPageLeftMargin->blockSignals(false);
             }
-      PageFormat* pf = preview->score()->pageFormat();
       double   pxVal = convertToPx(val);
       pf->setPrintableWidth(pf->width() - pf->evenLeftMargin() - pxVal);
       pf->setOddLeftMargin(pxVal);
@@ -489,7 +478,7 @@ void PageSettings::ermChanged(double val)
 
 void PageSettings::ebmChanged(double val)
       {
-      preview->score()->pageFormat()->setEvenBottomMargin(convertToPx(val));
+      pf->setEvenBottomMargin(convertToPx(val));
       updatePreview(PREVIEW_HEIGHT);
       }
 
@@ -523,7 +512,7 @@ void PageSettings::pageOffsetChanged(int val)
 void PageSettings::pageHeightChanged(double val)
       {
       pageGroup->setCurrentIndex(Page::SIZE_CUSTOM);
-      preview->score()->pageFormat()->setSize(QSizeF(convertToPx(pageWidth->value()),
+      pf->setSize(QSizeF(convertToPx(pageWidth->value()),
                                                      convertToPx(val)));
       updatePreview(PREVIEW_HEIGHT);
       }
@@ -535,8 +524,7 @@ void PageSettings::pageHeightChanged(double val)
 void PageSettings::pageWidthChanged(double val)
       {
       pageGroup->setCurrentIndex(Page::SIZE_CUSTOM);
-      preview->score()->pageFormat()->setSize(QSizeF(convertToPx(val),
-                                                     convertToPx(pageHeight->value())));
+      pf->setSize(QSizeF(convertToPx(val), convertToPx(pageHeight->value())));
       oddPageLeftMargin->setMaximum(val);
       oddPageRightMargin->setMaximum(val);
       evenPageLeftMargin->setMaximum(val);
@@ -584,7 +572,6 @@ double PageSettings::convertToPx(double val)
 //
 double PageSettings::convertBy()
 {
-    PageFormat* pf = preview->score()->pageFormat();
     switch (pf->units()) {
     case Units::MM :
         return DPMM;

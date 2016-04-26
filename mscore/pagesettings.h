@@ -23,6 +23,7 @@
 
 #include "ui_pagesettings.h"
 #include "libmscore/mscore.h"
+#include "libmscore/page.h"
 
 namespace Ms {
 
@@ -46,6 +47,7 @@ class PageSettings : public QDialog, private Ui::PageSettingsBase {
 
       Navigator* preview;
       MasterScore* cs;
+      PageFormat* pf;
       void updateValues();
       void updatePreview(int);
       void blockSignals(bool);
