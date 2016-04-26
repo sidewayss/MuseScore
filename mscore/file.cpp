@@ -3400,14 +3400,14 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
     const QString yBars       = " y=\"18\"";
     const QString yMarks      = " y=\"17\"";
 
-    QString anchor; // only anchorEnd is used for now
+    QString anchor; // anchor is always empty at this time!!!
     const QString anchorStart = " style=\"text-anchor:start\"";
     const QString anchorEnd   = " style=\"text-anchor:end\"";
 
     // Boilerplate headers, borders, and cursors
-    const QString hdrBars     = "<?xml-stylesheet type=\"text/css\" href=\"SMAWS_21.css\" ?>\n<svg width=\"1360\" height=\"20\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\">\n\n";
-    const QString hdrMarks    = "<?xml-stylesheet type=\"text/css\" href=\"SMAWS_21.css\" ?>\n<svg width=\"1360\" height=\"20\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\"\n data-attr=\"fill\">\n\n";
-    const QString border      = "<rect class=\"border\" x=\"0.5\" y=\"0.5\" width=\"1359\" height=\"19\"/>\n";
+    const QString hdrBars     = "<?xml-stylesheet type=\"text/css\" href=\"SMAWS_22.css\" ?>\n<svg width=\"1780\" height=\"20\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\">\n\n";
+    const QString hdrMarks    = "<?xml-stylesheet type=\"text/css\" href=\"SMAWS_22.css\" ?>\n<svg width=\"1780\" height=\"20\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\"\n data-attr=\"fill\">\n\n";
+    const QString border      = "<rect class=\"border\" x=\"0.5\" y=\"0.5\" width=\"1779\" height=\"19\"/>\n";
     const QString grayRect    = "<rect class=\"gray\"   x=\"0\"   y=\"1\"   width=   \"0\" height=\"18\" fill=\"none\"/>\n";
     const QString cursorBars  = "<polygon class=\"cursor\" points=\"-6,1 6,1 0,12\" transform=\"translate(8,0)\"/>\n";
     const QString cursorMarks = "<polygon class=\"cursor\" points=\"-6,19 6,19 0,7\" transform=\"translate(8,0)\"/>\n";
@@ -3421,8 +3421,8 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
     // Event handler for clicking on ruler lines/text
     const QString onClick = " onclick=\"top.clickRuler(evt)\"";
 
-    // Default width of rulers = 1600 - 240 for counters (1600x900 = 16:9)
-    const int wRuler = 1360;
+    // Default width of rulers = 1920(HD width) - 120(staves column) -20(safety?)
+    const int wRuler = 1780;
     // Ruler lines don't start at zero or end at wRuler, left=right margin
     const int margin = 8;
     // Score::duration() returns # of seconds as an int, I need more accuracy
