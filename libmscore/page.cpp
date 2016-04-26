@@ -293,20 +293,21 @@ void Page::scanElements(void* data, void (*func)(void*, Element*), bool all)
 
 PageFormat::PageFormat()
       {
-    const int   marginMM  = 10;              // Default margin in millimeters
-    const qreal marginPX  = marginMM * DPMM; //                in pixels/points
-    const qreal marginPX2 = marginPX * 2;    // Double margin  in pixels/points
+      const int   marginMM  = 10;              // Default margin in millimeters
+      const qreal marginPX  = marginMM * DPMM; //                in pixels/points
+      const qreal marginPX2 = marginPX * 2;    // Double margin  in pixels/points
 
-    _size             = QSizeF(210 * DPMM, 297 * DPMM); // A4
-    _evenLeftMargin   = marginPX;
-    _oddLeftMargin    = marginPX;
-    _printableWidth   = _size.width() - marginPX2;
+      _size             = QSizeF(210 * DPMM, 297 * DPMM); // A4 - very hardcoded!!! global preferences
+      _evenLeftMargin   = marginPX;
+      _oddLeftMargin    = marginPX;
+      _printableWidth   = _size.width() - marginPX2;
 // ??? Why no printableHeight???
-    _evenTopMargin    = marginPX;
-    _evenBottomMargin = marginPX2;
-    _oddTopMargin     = marginPX;
-    _oddBottomMargin  = marginPX2;
+      _evenTopMargin    = marginPX;
+      _evenBottomMargin = marginPX2;
+      _oddTopMargin     = marginPX;
+      _oddBottomMargin  = marginPX2;
       _twosided         = true;
+      _units            = Units::MM; //!!!global preferences - why not preferences for all these settings? or is that solved by templates?
       }
 
 //---------------------------------------------------------
@@ -324,6 +325,7 @@ void PageFormat::copy(const PageFormat& p)
       _oddTopMargin       = p._oddTopMargin;
       _oddBottomMargin    = p._oddBottomMargin;
       _twosided           = p._twosided;
+      _units              = p._units;
       }
 
 //---------------------------------------------------------
@@ -405,9 +407,11 @@ void PageFormat::read(XmlReader& e, Score* score)
                         }
                   }
             else if (tag == "page-height")
-                _size.rheight() = e.readDouble() / SCALE_XML;
-          else if (tag == "page-width")
-                _size.rwidth() = e.readDouble() / SCALE_XML;
+                  _size.rheight() = e.readDouble() / SCALE_XML;
+            else if (tag == "page-width")
+                  _size.rwidth() = e.readDouble() / SCALE_XML;
+            else if (tag == "page-units")
+                  _units = (Ms::Units)e.readInt();
             else if (tag == "page-offset") {           // obsolete, moved to Score
                   QString val(e.readElementText());
                   if(score)
@@ -432,6 +436,7 @@ void PageFormat::write(Xml& xml) const
       xml.stag("page-layout");
       xml.tag("page-height", _size.height() * SCALE_XML);
       xml.tag("page-width",  _size.width()  * SCALE_XML);
+      xml.tag("page-units", (int)_units);
 
       const char* type = "both";
       if (_twosided) {

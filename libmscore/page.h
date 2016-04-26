@@ -78,6 +78,7 @@ class PageFormat {
       qreal _oddTopMargin;
       qreal _oddBottomMargin;
       bool _twosided;
+      Ms::Units _units;
 
    public:
       // file storage uses PPI/DPI * 2 as the units, 144PPI/DPI
@@ -112,6 +113,9 @@ class PageFormat {
 
       bool twosided() const               { return _twosided; }
       void setTwosided(bool val)          { _twosided = val;  }
+
+      Ms::Units units()                   { return _units; }
+      void setUnits(Ms::Units val)        { _units = val;  }
 
       // convenience functions
       qreal evenRightMargin() const       { return _size.width() - _printableWidth - _evenLeftMargin; }

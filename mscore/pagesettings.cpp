@@ -47,20 +47,6 @@ PageSettings::PageSettings(QWidget* parent)
 
       static_cast<QVBoxLayout*>(previewGroup->layout())->insertWidget(0, sa);
 
-      _units = Units::MM; // should be made a global configuration item
-
-      switch (_units) {
-      case Units::MM :
-            mmButton->setChecked(true);
-            break;
-      case Units::INCH :
-            inchButton->setChecked(true);
-            break;
-      default:
-            pxButton->setChecked(true);
-            break;
-      }
-
       connect(inchButton,           SIGNAL(clicked()),            SLOT(inchClicked()));
       connect(mmButton,             SIGNAL(clicked()),            SLOT(mmClicked()));
       connect(pxButton,             SIGNAL(clicked()),            SLOT(pxClicked()));
@@ -151,22 +137,28 @@ void PageSettings::updateValues()
       blockSignals(true);
 
       double converter = convertBy();
-      const QString suffix = unitSuffixes[(int)_units];
+
+      Score*      sc = preview->score();
+      PageFormat* pf = sc->pageFormat();
+      QString suffix = unitSuffixes[(int)pf->units()];
 
       double singleStepSize;
       double singleStepScale;
-      switch (_units) {
-      case Units::MM :
-            singleStepSize  = 1.0;
-            singleStepScale = 0.2;
+      switch (pf->units()) {
+      case Units::PX :
+            singleStepSize  = 1; // no fractional points/pixels for now
+            singleStepScale = 1;
+            pxButton->setChecked(true);
             break;
       case Units::INCH :
             singleStepSize  = 0.05;
             singleStepScale = 0.005;
+            inchButton->setChecked(true);
             break;
-      default: // Units::PX
-            singleStepSize  = 1; // no fractional points/pixels for now
-            singleStepScale = 1;
+      default : // Units:MM - the default since the inception of MuseScore
+            singleStepSize  = 1.0;
+            singleStepScale = 0.2;
+            mmButton->setChecked(true);
             break;
       }
 
@@ -194,8 +186,6 @@ void PageSettings::updateValues()
       spatiumEntry->setSuffix(suffix);
       spatiumEntry->setSingleStep(singleStepScale);
 
-      const Score* sc = preview->score();
-      const PageFormat* pf = sc->pageFormat();
       landscape->setChecked(pf->width() > pf->height());
       pageOffsetEntry->setValue(sc->pageNumberOffset() + 1);
 
@@ -258,7 +248,8 @@ void PageSettings::updateValues()
 
 void PageSettings::inchClicked()
       {
-      _units = Units::INCH;
+      PageFormat* pf = preview->score()->pageFormat();
+      pf->setUnits(Units::INCH);
       updateValues();
       }
 
@@ -268,7 +259,8 @@ void PageSettings::inchClicked()
 
 void PageSettings::mmClicked()
       {
-      _units = Units::MM;
+      PageFormat* pf = preview->score()->pageFormat();
+      pf->setUnits(Units::MM);
       updateValues();
       }
 
@@ -278,7 +270,8 @@ void PageSettings::mmClicked()
 
 void PageSettings::pxClicked()
       {
-      _units = Units::PX;
+      PageFormat* pf = preview->score()->pageFormat();
+      pf->setUnits(Units::PX);
       updateValues();
       }
 
@@ -591,7 +584,8 @@ double PageSettings::convertToPx(double val)
 //
 double PageSettings::convertBy()
 {
-    switch (_units) {
+    PageFormat* pf = preview->score()->pageFormat();
+    switch (pf->units()) {
     case Units::MM :
         return DPMM;
         break;

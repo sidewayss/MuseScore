@@ -39,7 +39,6 @@ class PageSettings : public QDialog, private Ui::PageSettingsBase {
 
       static const int PREVIEW_WIDTH  = 0; // This is really NON_HEIGHT, but WIDTH makes it a nice pair
       static const int PREVIEW_HEIGHT = 1;
-      Ms::Units _units;
 
       double convertToUser(double);
       double convertToPx(double);
