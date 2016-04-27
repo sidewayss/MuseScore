@@ -21,6 +21,7 @@
 #include "textprop.h"
 #include "libmscore/text.h"
 #include "libmscore/score.h"
+#include "pagesettings.h"
 #include "icons.h"
 
 namespace Ms {
@@ -96,8 +97,8 @@ void TextProp::setScore(bool onlyStyle, Score* score)
 
 void TextProp::mmToggled(bool val)
       {
-    QString unit(val ? tr(unitSuffixes[(int)Units::MM], "millimeter unit")
-                     : tr(unitSuffixes[(int)Units::SP], "spatium unit"));
+      QString unit(val ? tr(unitSuffixes[(int)Units::MM], "millimeter unit")
+                       : tr(unitSuffixes[(int)Units::SP], "spatium unit"));
       xOffset->setSuffix(unit);
       yOffset->setSuffix(unit);
       curUnit = val ? 0 : 1;

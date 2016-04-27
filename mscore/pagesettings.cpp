@@ -556,7 +556,7 @@ void PageSettings::updatePreview(int val)
 //
 double PageSettings::convertToUser(double val)
 {
-    return val / convertBy();
+      return val / convertBy();
 }
 
 //
@@ -564,7 +564,7 @@ double PageSettings::convertToUser(double val)
 //
 double PageSettings::convertToPx(double val)
 {
-    return val * convertBy();
+      return val * convertBy();
 }
 
 //
@@ -572,17 +572,17 @@ double PageSettings::convertToPx(double val)
 //
 double PageSettings::convertBy()
 {
-    switch (pf->units()) {
-    case Units::MM :
-        return DPMM;
-        break;
-    case Units::INCH :
-        return DPI;
-        break;
-    default: // Units::PX
-        return 1; // No conversion
-        break;
-    }
+      switch (pf->units()) {
+      case Units::MM :
+            return DPMM;
+            break;
+      case Units::INCH :
+            return DPI;
+            break;
+      default: // Units::PX
+            return 1; // No conversion
+            break;
+      }
 }
 
 } //namespace Ms

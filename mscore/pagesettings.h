@@ -31,6 +31,9 @@ class MasterScore;
 class Score;
 class Navigator;
 
+// For converting from Ms::Units to a two-char string used as a suffix
+static const char* unitSuffixes[] = {"px", "mm", "in", "sp"};
+
 //---------------------------------------------------------
 //   PageSettings
 //---------------------------------------------------------

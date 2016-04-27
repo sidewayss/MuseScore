@@ -26,6 +26,16 @@ class Xml;
 class Score;
 class MeasureBase;
 
+//-----------------------------------------------------------
+//   PageFormat Units, including Staff Space
+//-----------------------------------------------------------
+enum class Units : unsigned int {
+      PX = 0, // Pixels/Points
+      MM,     // Millimeters
+      INCH,   // Inches
+      SP      // Staff Spaces
+};
+
 //---------------------------------------------------------
 //   PaperSize
 //---------------------------------------------------------

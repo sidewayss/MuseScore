@@ -84,13 +84,6 @@ static constexpr qreal SPATIUM20 =  5;
 // This constant also doubles as the base scaling factor for a score:
 // 5 = 100% scaling, 6 = 120% scaling, 4.5 = 90% scaling, etc.
 //
-enum class Units : unsigned int {
-    PX = 0, // Pixels/Points
-    MM,     // Millimeters
-    INCH,   // Inches
-    SP      // Staff Spaces
-};
-static const char* unitSuffixes[] = {"px", "mm", "in", "sp"};
 
 static constexpr int MAX_STAVES  = 4;
 
