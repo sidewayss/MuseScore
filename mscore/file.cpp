@@ -104,6 +104,7 @@
 #define FILE_DRUM_DEFS  "SMAWS_DrumDefs.svg.txt"
 #define FILE_DRUM_BUTTS "SMAWS_DrumButts.svg.txt"
 #define FILE_PAGE_BUTTS "SMAWS_DrumPageButts.svg.txt"
+#define FILE_DRUM_CTRLS "SMAWS_DrumCtrls.svg.txt"
 
 #define FILTER_SMAWS        "SMAWS SVG+VTT"
 #define FILTER_SMAWS_MULTI  "SMAWS Multi-Staff"
@@ -3970,8 +3971,8 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                                 pqs = iNames[r];
                                 qts.setString(pqs);
                                 qts << SVG_TEXT_BEGIN
-                                    << formatInt(SVG_X, cellX,                 maxDigits, true)
-                                    << formatInt(SVG_Y, cellY+(cellHeight-14), maxDigits, true)
+                                    << formatInt(SVG_X, cellX,         maxDigits, true)
+                                    << formatInt(SVG_Y, cellHeight-14, maxDigits, true)
                                     << SVG_CLASS << style << SVG_QUOTE;
                             }
                             if (isPageStart) {
@@ -3984,8 +3985,9 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                     // The ChordRest for this staff, using only Voice #1
                     crData = s->cr(track);
                     if (!isStaffVisible[r] || crData == 0 || !crData->visible()) {/// EMPTY CELL ///
-                        if (!isHTML && (isPages || isStaffVisible[r]))
-                            cellY += cellHeight;
+                        if (!isHTML && (isPages || isStaffVisible[r])) {
+                            cellY += cellHeight; // !!! Necessary for height calculation
+                        }
                         if (isPages) {
                             if ((*pitches[idxCol])[r] != 0)
                                 (*pitches[idxCol])[r]->append(MIDI_EMPTY);
@@ -4409,64 +4411,6 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                 }
                 tableStream << endl;
 
-                // Stream the instrument names (left-most column) - similar loop to bar/beatlines
-                for (int r = 0; r < nStaves; r++) {
-                    if (r != idxGrid && iNames[r] != 0) {
-                        tableStream << *iNames[r];
-                        if (isPages) {
-                            bool changesName  = false;
-                            pqs = (*pageNames[0])[r];
-                            for (int p = 1; p < idxPage; p++) {
-                                 if (*(*pageNames[p])[r] != *pqs) {
-                                    changesName = true;
-                                    break;
-                                }
-                            }
-                            bool changesStyle = false;
-                            pqs = (*pageStyles[0])[r];
-                            for (int p = 1; p < idxPage; p++) {
-                                if (*(*pageStyles[p])[r] != *pqs) {
-                                    changesStyle = true;
-                                    break;
-                                }
-                            }
-                            if (changesName || changesStyle) { // page cues required
-                                tableStream << SVG_CUE;
-                                for (int p = 0; p < idxPage; p++) {
-                                    if (p > 0)
-                                        tableStream << SVG_COMMA;
-                                    tableStream << pageIDs[p] << SVG_SEMICOLON;
-                                    if (changesName)
-                                        tableStream << *(*pageNames[p])[r];
-                                    if (changesStyle)
-                                        tableStream << SVG_SEMICOLON
-                                                    << *(*pageStyles[p])[r];
-                                }
-                                tableStream << SVG_QUOTE;
-                            }
-                        }
-                        // Stream the >content</text>
-                        tableStream << SVG_GT
-                                    << score->staff(r)->part()->longName(startOffset)
-                                    << SVG_TEXT_END << endl;
-
-                        // Spacer below staff = instLine below staff in SVG
-                        // Spacer must be a down spacer in the first measure
-                        if (m1->mstaff(r)->_vspacerDown != 0) {
-                            const int y = cellHeight * (r + 1);
-                            const int xMargin = 3;
-                            tableStream << SVG_LINE
-                                        << SVG_X1    << xMargin         << SVG_QUOTE
-                                        << SVG_Y1    << y               << SVG_QUOTE
-                                        << SVG_X2    << cellX - xMargin << SVG_QUOTE
-                                        << SVG_Y2    << y               << SVG_QUOTE
-                                        << SVG_CLASS << "instLine"      << SVG_QUOTE
-                                        << SVG_ELEMENT_END;
-                        }
-                    }
-                }
-                tableStream << endl;
-
                 const int colCount = grid.size(); // max # of columns per page
                 if (isPages) {
                     // Stream the grid staff separately
@@ -4517,7 +4461,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                     }
                     tableStream << endl;
 
-                    // ...on a side note - this needs termination:
+                    // ...on a side note, this needs termination:
                     pageCues += SVG_QUOTE;
                 }
 
@@ -4545,17 +4489,104 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                     pitchSet[r] = pil;
                 }
 
-                // Stream the cells by column by row (by page)
-                for (int c = 0; c < grid.size(); c++) {
-                    cellY = 0;
-                    for (int r = 0; r < nStaves; r++) {
-                        if ((*grid[c])[r] == 0 || (isPages && r == idxGrid)) {
-                            if (isPages)
-                                cellY += cellHeight;
-                            continue;
+                // Stream the cells by row by column (by page).
+                // Rows are streamed left-to-right.
+                QString name;
+                QString id;
+
+                cellY = 0;
+                for (int r = 0; r < nStaves; r++) {
+                    // Stream the instrument names - similar loop to bar/beatlines
+                    if (r != idxGrid && iNames[r] != 0) {
+                        // Display name (text element's innerHTML)
+                        name = score->staff(r)->part()->longName(startOffset);
+
+                        // This id value works best with only alphanumeric chars.
+                        id = name;
+                        id.remove(QRegExp("[^a-zA-Z\\d]"));
+
+                        // Each staff (row) is wrapped in a group, even the grid - why not reorder it too? because page numbers might have to move too
+                        tableStream << SVG_GROUP_BEGIN
+                                       << SVG_ID        << id            << SVG_QUOTE
+                                       << SVG_CLASS     << "staff"       << SVG_QUOTE
+                                       << SVG_TRANSFORM << SVG_TRANSLATE << SVG_ZERO
+                                       << SVG_SPACE     << cellY         << SVG_RPAREN_QUOTE
+                                    << SVG_GT << endl;
+
+                        // Import the row header controls (solo, gain, pan).
+                        qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_DRUM_CTRLS));
+                        qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
+                        qts.setDevice(&qf);
+                        tableStream << qts.readAll().replace("%1", id);
+
+                        tableStream << SVG_4SPACES << *iNames[r] << SVG_ID << id << SVG_QUOTE;
+                        if (isPages) {
+                            bool changesName  = false;
+                            pqs = (*pageNames[0])[r];
+                            for (int p = 1; p < idxPage; p++) {
+                                 if (*(*pageNames[p])[r] != *pqs) {
+                                    changesName = true;
+                                    break;
+                                }
+                            }
+                            bool changesStyle = false;
+                            pqs = (*pageStyles[0])[r];
+                            for (int p = 1; p < idxPage; p++) {
+                                if (*(*pageStyles[p])[r] != *pqs) {
+                                    changesStyle = true;
+                                    break;
+                                }
+                            }
+                            if (changesName || changesStyle) { // page cues required
+                                tableStream << SVG_CUE;
+                                for (int p = 0; p < idxPage; p++) {
+                                    if (p > 0)
+                                        tableStream << SVG_COMMA;
+                                    tableStream << pageIDs[p] << SVG_SEMICOLON;
+                                    if (changesName)
+                                        tableStream << *(*pageNames[p])[r];
+                                    if (changesStyle)
+                                        tableStream << SVG_SEMICOLON
+                                                    << *(*pageStyles[p])[r];
+                                }
+                                tableStream << SVG_QUOTE;
+                            }
                         }
+                        // Stream the >content</text>
+                        tableStream << SVG_GT << name << SVG_TEXT_END << endl;
+
+                        // Spacer below staff = instLine below staff in SVG
+                        // Spacer must be a down spacer in the first measure
+                        if (m1->mstaff(r)->_vspacerDown != 0) {
+                            const int y = cellHeight; // * (r + 1);
+                            const int xMargin = 3;
+                            if (isPages)
+                                tableStream << SVG_4SPACES; // indentation inside group
+
+                            tableStream << SVG_LINE
+                                        << SVG_X1      << xMargin         << SVG_QUOTE
+                                        << SVG_Y1      << y               << SVG_QUOTE
+                                        << SVG_X2      << cellX - xMargin << SVG_QUOTE
+                                        << SVG_Y2      << y               << SVG_QUOTE
+                                        << SVG_CLASS   << "instLine"      << SVG_QUOTE
+                                        << SVG_ELEMENT_END;
+                        }
+                        tableStream << endl;
+                    }
+
+                    // The data cells (and grid cells if isPage == false)
+                    if (isPages && r != idxGrid) {
+                        tableStream << SVG_4SPACES  << SVG_GROUP_BEGIN
+                                       << SVG_ID    << id      << SVG_QUOTE
+                                       << SVG_CLASS << "notes" << SVG_QUOTE
+                                    << SVG_GT << endl;
+                    }
+                    for (int c = 0; c < grid.size(); c++) {
+                        if ((*grid[c])[r] == 0 || (isPages && r == idxGrid))
+                            continue;
+
                         int  pitch0;
-                        qreal y = cellY;
+                        qreal y = 0;
                         const bool hasPitches = (pitchSet[r] != 0
                                               && pitchSet[r]->size() > 1);
                         pqs = (*grid[c])[r];
@@ -4563,12 +4594,15 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                         if (hasPitches) {
                             pitch0 = (*pil)[0];
                             const int idx = pitchSet[r]->indexOf(pitch0);
-                            y += (idx >= 0 ? intervals[r] * idx : restOffset);
+                            y = (idx >= 0 ? intervals[r] * idx : restOffset);
                             pqs->replace(LED, MINI);
                         }
                         pqs->replace(QString("%1%2")    .arg(SVG_Y).arg(SVG_PERCENT),
                                      QString("%1%2%3%4").arg(SVG_Y).arg(SVG_QUOTE)
                                                         .arg(y)    .arg(SVG_QUOTE));
+                        if (isPages && r != idxGrid)
+                            tableStream << SVG_4SPACES; // indentation inside group
+
                         tableStream << *pqs;
 
                         if (isPages) {                        // ¿Page Cues?
@@ -4616,21 +4650,28 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                                         if (pitch == MIDI_EMPTY)
                                             tableStream << -100;  // effectively invisible
                                         else if (pitch == MIDI_REST)
-                                            tableStream << cellY + (hasPitches ? restOffset : 0);
+                                            tableStream << (hasPitches ? restOffset : 0);
                                         else
-                                            tableStream << cellY +
-                                                          (intervals[r] * pitchSet[r]->indexOf(pitch));
+                                            tableStream << (intervals[r] * pitchSet[r]->indexOf(pitch));
                                     }
                                 }
                             }
                             if (hasCues || hasPageCues)
                                 tableStream << SVG_QUOTE;
                             tableStream << SVG_ELEMENT_END << endl;
-                        }
-                        cellY += cellHeight;
+                        } // if isPages
+                    } // for each column
+
+                    if (r != idxGrid) {
+                        if (isPages)
+                            tableStream << SVG_4SPACES << SVG_GROUP_END << endl
+                                                       << SVG_GROUP_END << endl;
+
+                        tableStream << endl;
                     }
-                    tableStream << endl; // Separates each column/group-of-rows
-                }
+                    cellY += cellHeight;
+
+                } // for each row
 
                 // Import and vertically position the buttons/title.
                 // This file includes the reference to the external javascript,

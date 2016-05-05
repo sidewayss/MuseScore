@@ -130,6 +130,9 @@ using IntListVectList = QList<IntListVect*>;
 #define SVG_WIDTH  " width=\""
 #define SVG_HEIGHT " height=\""
 
+#define SVG_VISIBLE "visibility=\"visible\""
+#define SVG_HIDDEN  "visibility=\"hidden\""
+
 #define SVG_X  " x=" // No quote char due to floating point formatting
 #define SVG_Y  " y=" // ditto
 #define SVG_X1 " x1=\""
