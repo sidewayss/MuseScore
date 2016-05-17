@@ -3740,11 +3740,19 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
     StrPtrVectList grid;      // List = columns/beats. Vector = rows/staves
     StrPtrVectList dataCues;  // data-cue only in cells that have >0 cue_ids
 
+    // Tempo
+    qreal   initialBPM;     // initial tempo in BPM
+    qreal   prevTempo;      // previous tempo in BPS
+    int     prevTempoPage;  // previous tempo in BPS
+    QString tempoCues;      // data-cue="id1;BPM1,id2:BPM2,..." for tempo changes
+
+    const TempoMap* tempoMap = score->tempomap(); // a convenience
+
     // Bar and Beat Line x-coordinates per page:
     IntListList    pageBars;  // for/by barline
     IntListList    pageBeats; // for/by beatline
 
-    // things by page:
+    // By page
     IntList        pageCols;     // active column count per page
     StrPtrListList pageGridText; // grid row innerHTML, by column
     StrPtrVectList pageNames;    // instrument name text, by row
@@ -3777,6 +3785,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
     int cellX  = iNameWidth;    // fixed offset for instrument name row headers
     int cellY  = 0;
     int height = 0;
+    int width  = 0;
 
     // These are only used for barLines <rect>s and beatLines <line>s
     const int   gridMargin =  8;
@@ -3856,6 +3865,11 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                         if (tableTitle.isEmpty()) // Numerically indexed title
                             tableTitle = QString("%1%2").arg(idStub).arg(++nTables);
 
+                        // The initial bpm
+                        prevTempo     = tempoMap->tempo(m->tick());
+                        initialBPM    = prevTempo * 60;
+                        prevTempoPage = 0;
+
                         m1 = m; // this is useful later
                     }
 
@@ -3881,7 +3895,8 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                             }
                         }
                         if (isPageStart) {                                     /// NEW PAGE ///
-                            cellX = iNameWidth; // reset horizontal position
+                            width = qMax(width, cellX); // accumulate max width
+                            cellX = iNameWidth;         // reset horizontal position
 
                             // This page's last measure and endTick
                             mPageEnd = mp;
@@ -4013,7 +4028,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                                 << crGrid->lyrics(0)->xmlText()
                                 << HTML_TH_END;
                         else {
-                            // Required if the idxGrid is not the first staff
+                            // Required if the idxGrid is not the first staff (which may not be plausible anyway...)
                             cue_id = getCueID(startTick, startTick + gridTicks);
 
                             QString ref = "grid";
@@ -4050,7 +4065,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                                 qts << SVG_TEXT_BEGIN
                                     << formatInt(SVG_X, cellX + (cellWidth  / 2), maxDigits, true)
                                     << formatInt(SVG_Y, cellY + (cellHeight / 2), maxDigits, true)
-                                    << SVG_CLASS << ref    << SVG_QUOTE
+                                    << SVG_CLASS << "grid" << NO << SVG_QUOTE // grid <text> LO = invisible = >empty content<
                                     << SVG_CUE   << cue_id;
 
                                 if (!isPages)
@@ -4068,6 +4083,27 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                                 pageCols[idxPage]++;
                                 pqs = new QString(lyrics);
                                 pageGridText[idxPage]->append(pqs);
+                            }
+
+                            // Tempo change?
+                            if (prevTempo != tempoMap->tempo(gridTick)) {
+                                qts.setString(&tempoCues);
+
+                                // Is this the first tempo change?
+                                if (tempoCues.isEmpty()) {
+                                    qts << SVG_CUE       << CUE_ID_ZERO
+                                        << SVG_SEMICOLON << initialBPM << TEXT_BPM;
+                                }
+
+                                // Any missing page cues
+                                while (idxPage > prevTempoPage)
+                                    qts << SVG_COMMA     << pageIDs[prevTempoPage++]
+                                        << SVG_SEMICOLON << prevTempo * 60 << TEXT_BPM;
+
+                                // This tempo change's cue
+                                prevTempo  = tempoMap->tempo(gridTick);
+                                qts << SVG_COMMA     << getCueID(startTick)
+                                    << SVG_SEMICOLON << prevTempo * 60 << TEXT_BPM;
                             }
 
                             // Grid <line> for whole beats e,g, 1/4 note in 4/4 time
@@ -4236,7 +4272,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
             } // if (crGrid->type() == EType::CHORD) - it's a live grid column
 
             if (isPageStart) {
-                isPageStart = false;   // page start is always on measure start
+                isPageStart = false;     // page start is always on measure start
                 pageIDs.append(page_id); // this page's cue_id
             }
 
@@ -4300,9 +4336,9 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                        << XML_NAMESPACE << XML_XLINK << SVG_4SPACES
                        << SVG_VIEW_BOX  << SVG_ZERO  << SVG_SPACE
                                         << SVG_ZERO  << SVG_SPACE
-                                        << cellX     << SVG_SPACE
+                                        << width     << SVG_SPACE
                                         << height    << SVG_QUOTE
-                       << SVG_WIDTH     << cellX     << SVG_QUOTE
+                       << SVG_WIDTH     << width     << SVG_QUOTE
                        << SVG_HEIGHT    << height    << SVG_QUOTE
                                                            << endl << SVG_4SPACES
                        << SVG_PRESERVE_XYMIN_SLICE         << endl << SVG_4SPACES
@@ -4326,14 +4362,14 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                 tableStream << SVG_RECT
                             << SVG_X << SVG_QUOTE   << SVG_ZERO << SVG_QUOTE
                             << SVG_Y << SVG_QUOTE   << SVG_ZERO << SVG_QUOTE
-                            << SVG_WIDTH            << cellX    << SVG_QUOTE
+                            << SVG_WIDTH            << width    << SVG_QUOTE
                             << SVG_HEIGHT           << height   << SVG_QUOTE
                             << SVG_FILL_URL         << "gradBg" << SVG_RPAREN_QUOTE
                             << SVG_ELEMENT_END      << endl
                             << SVG_RECT
                             << SVG_X << SVG_QUOTE   << SVG_ZERO << SVG_QUOTE
                             << SVG_Y << SVG_QUOTE   << SVG_ZERO << SVG_QUOTE
-                            << SVG_WIDTH            << cellX    << SVG_QUOTE
+                            << SVG_WIDTH            << width    << SVG_QUOTE
                             << SVG_HEIGHT           << height   << SVG_QUOTE
                             << SVG_FILL_URL         << "pattBg" << SVG_RPAREN_QUOTE
                             << SVG_CLASS            << "background"    << SVG_QUOTE
@@ -4566,7 +4602,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                             tableStream << SVG_LINE
                                         << SVG_X1      << xMargin         << SVG_QUOTE
                                         << SVG_Y1      << y               << SVG_QUOTE
-                                        << SVG_X2      << cellX - xMargin << SVG_QUOTE
+                                        << SVG_X2      << width - xMargin << SVG_QUOTE
                                         << SVG_Y2      << y               << SVG_QUOTE
                                         << SVG_CLASS   << "instLine"      << SVG_QUOTE
                                         << SVG_ELEMENT_END;
@@ -4646,13 +4682,17 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
 
                                     if (changesPitch) {
                                         tableStream << SVG_SEMICOLON;
-                                        const int pitch = (*pil)[p];
-                                        if (pitch == MIDI_EMPTY)
-                                            tableStream << -100;  // effectively invisible
-                                        else if (pitch == MIDI_REST)
-                                            tableStream << (hasPitches ? restOffset : 0);
+                                        if (pil->size() > p) {
+                                            const int pitch = (*pil)[p];
+                                            if (pitch == MIDI_EMPTY)
+                                                tableStream << -100;  // effectively invisible
+                                            else if (pitch == MIDI_REST)
+                                                tableStream << (hasPitches ? restOffset : 0);
+                                            else
+                                                tableStream << (intervals[r] * pitchSet[r]->indexOf(pitch));
+                                        }
                                         else
-                                            tableStream << (intervals[r] * pitchSet[r]->indexOf(pitch));
+                                            tableStream << -100; // effectively invisible
                                     }
                                 }
                             }
@@ -4673,9 +4713,18 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
 
                 } // for each row
 
+                // Terminate this string if it exists
+                if (!tempoCues.isEmpty()) {
+                    while (idxPage > prevTempoPage) // Complete any missing page cues
+                        qts << SVG_COMMA << pageIDs[prevTempoPage++] << SVG_SEMICOLON << prevTempo * 60 << TEXT_BPM;
+
+                    tempoCues.append(SVG_QUOTE);
+                }
+
                 // Import and vertically position the buttons/title.
                 // This file includes the reference to the external javascript,
                 // as well as the audio and vtt files.
+                // This text file is very small, QString.replace() = no problem
                 qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(isPages ? FILE_PAGE_BUTTS
                                                                              : FILE_DRUM_BUTTS));
                 qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
@@ -4684,10 +4733,11 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                                             .replace("%2", QString::number(height - 10.5))
                                             .replace("%3", tableTitle)
                                             .replace("%4", qfi->completeBaseName())
-                                            .replace("%5", pageCues) // if (isPages)
-                                            .replace("%6", QString("%1")
-                                                           .arg(idxPage, 2, 10,
-                                                                QLatin1Char(SVG_ZERO)));
+                                            .replace("%5", QString::number(width - 8))
+                                            .replace("%6", tempoCues)
+                                            .replace("%7", QString::number(initialBPM))
+                                            .replace("%8", pageCues) // if (isPages)
+                                            .replace("%9", QString("%1").arg(idxPage, 2, 10, QLatin1Char(SVG_ZERO)));
                 // </svg>
                 tableStream << SVG_END;
 
@@ -4704,6 +4754,8 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
             }
 
             // Reset for next table
+            width     = 0;
+            height    = 0;
             cellY     = 0;
             gridTicks = 0;
             grid.clear();
@@ -4713,6 +4765,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
             beatLines.clear();
             tableCues.clear();
             pitches.clear();
+            tempoCues.clear();
             for (int r = 0; r < nStaves; r++) {
                 iNames[r]   = 0;
                 pitchSet[r] = 0;
@@ -4736,7 +4789,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
             }
         } // if(Repeat::END)
         else {
-            const int x = cellX * (isPages && idxPage > 0 ? -1 : 1);
+            const int x = (isPages && idxPage > 0 ? -100 : cellX - barRound);
             if (!isHTML
             && (!isPages || (idxBar == barLines.size() && m != mPageEnd))) {
                 // End-of-Bar lines for the all but the last bar of the pattern.
@@ -4744,7 +4797,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                 pqs = new QString;
                 qts.setString(pqs);
                 qts << SVG_RECT
-                       << SVG_X << SVG_QUOTE << x - barRound       << SVG_QUOTE
+                       << SVG_X << SVG_QUOTE << x                  << SVG_QUOTE
                        << SVG_Y << SVG_QUOTE << barMargin - 2      << SVG_QUOTE
                        << SVG_WIDTH          << barWidth           << SVG_QUOTE
                        << SVG_HEIGHT         << height - cellHeight
@@ -4763,8 +4816,8 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                     pageBars.append(pil);
                 }
                 while (pageBars[idxBar]->size() < idxPage)
-                    pageBars[idxBar]->append(x); // This barline is initially invisible
-                pageBars[idxBar]->append(cellX);
+                    pageBars[idxBar]->append(-100); // This barline is initially invisible
+                pageBars[idxBar]->append(cellX - barRound);
                 idxBar++;
             }
         }

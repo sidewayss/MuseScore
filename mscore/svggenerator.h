@@ -227,6 +227,7 @@ using IntListVectList = QList<IntListVect*>;
 // Miscellaneous SMAWS constants
 #define CUE_ID_ZERO "0000000_0000000"
 #define NATURAL_SIGN 57953 // 0xE261, natural signs excluded from frozen panes
+#define TEXT_BPM "bpm"
 
 // Imaginary MIDI note values for rests and invisible "cells" in SVG "tables"
 #define MIDI_REST  -1
