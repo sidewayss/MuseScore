@@ -345,7 +345,7 @@ public:
     void freezeIt(int idxStaff);
     void streamDefs();
     void streamBody();
-    void beginMultiGroup(QStringList* pINames, const QString& fullName, qreal height, qreal top);
+    void beginMultiGroup(QStringList* pINames, const QString& fullName, qreal height, qreal top, const QString& cues);
     void endMultiGroup();
     void setYOffset(qreal y);
     void createMultiUse(const QString& qs, qreal y);

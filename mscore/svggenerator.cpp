@@ -230,16 +230,18 @@ protected:
 //
     // Begin and End Multi-Select Staves group element.
     // Called by SvgGenerator functions of the same name.
-    void beginMultiGroup(const QString& iName, const QString& fullName, qreal height, qreal top)
+    void beginMultiGroup(const QString& iName, const QString& fullName, qreal height, qreal top, const QString& cues)
     {
-                          *d_func()->stream << SVG_GROUP_BEGIN
-                                               << SVG_TRANSFORM << SVG_TRANSLATE << SVG_ZERO
-                                               << SVG_SPACE     << top           << SVG_RPAREN_QUOTE
-                                               << SVG_HEIGHT    << height        << SVG_QUOTE
-                                               << SVG_ID        << iName         << SVG_QUOTE
-                                               << SVG_INAME     << fullName      << SVG_QUOTE
-                                               << SVG_GT        << endl;}
-    void endMultiGroup() {*d_func()->stream << SVG_GROUP_END    << endl;}
+        *d_func()->stream << SVG_GROUP_BEGIN
+                          << SVG_TRANSFORM << SVG_TRANSLATE << SVG_ZERO
+                          << SVG_SPACE     << top           << SVG_RPAREN_QUOTE
+                          << SVG_HEIGHT    << height        << SVG_QUOTE
+                          << SVG_ID        << iName         << SVG_QUOTE
+                          << SVG_INAME     << fullName      << SVG_QUOTE
+                          << cues          << SVG_GT        << endl;
+    }
+
+    void endMultiGroup() {*d_func()->stream << SVG_GROUP_END << endl;}
 
     // Streams the <use> elements for Multi-Select Staves frozen pane file only
     void createMultiUse(const QString& qs, qreal y) {
@@ -398,6 +400,8 @@ bool SvgPaintEngine::end()
                                  << SVG_ATTR;
         if (_isMulti)
             stream()             << SVG_STAVES << _nStaves   << SVG_QUOTE;
+        else
+            stream()             << _cue_id; // Here it is a full data-cue="" string of comma-separated cue ids
     }
 
     stream() << SVG_GT << endl
@@ -1847,12 +1851,12 @@ void SvgGenerator::streamBody() {
     beginning of a new staff, so it reinitializes the _prevDef pointer.
     Called by saveSMAWS() in mscore/file.cpp.
 */
-void SvgGenerator::beginMultiGroup(QStringList* pINames, const QString& fullName, qreal height, qreal top) {
+void SvgGenerator::beginMultiGroup(QStringList* pINames, const QString& fullName, qreal height, qreal top, const QString& cues) {
     SvgPaintEngine* pe = static_cast<SvgPaintEngine*>(paintEngine());
     pe->_isMulti = true;
     pe->_prevDef = 0;
     pe->_iNames = pINames;
-    pe->beginMultiGroup(pINames->last(), fullName, height, top);
+    pe->beginMultiGroup(pINames->last(), fullName, height, top, cues);
 }
 
 /*!

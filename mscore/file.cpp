@@ -2580,6 +2580,177 @@ QString MuseScore::getWallpaper(const QString& caption)
 //   getAnnCueID()     gets Annotation Cue ID (Harmony and RehearsalMark)
 //   getScrollCueID()  gets Cue ID for scrolling cues and RehearsalMarks
 ///////////////////////////////////////////////////////////////////////////////
+
+// 3 Cue ID generators: getCueID(), getAnnCueID(), getScrollCueID()
+// Cue IDs -> Start & End | Ticks & Time:
+// VTT needs start & end times, and I need ticks to calculate time.
+// cue_id is what links the SVG elements to the VTT cues.
+// It is a unique id because it is in this format:
+//     "startTick_endTick"
+// and startTick + endTick (duration) is unique to each cue, which links
+// to one or more SVG Notes, BarLines, etc., across staves/voices.
+
+// startMSecsFromCueID()
+// Returns the Start Milliseconds for a Cue ID
+static int startMSecsFromCueID(Score* score, QString& cue_id)
+{   if (!cue_id.isEmpty())
+        return qRound(score->tempomap()->tick2time(cue_id.left(CUE_ID_FIELD_WIDTH).toInt()) * 1000);
+    else
+        return 0;
+}
+
+// getCueID()
+// Creates a cue ID string from a start/end tick value pair
+static QString getCueID(int startTick, int endTick = -1)
+{
+    // For cue_id formatting: 1234567_0000007
+    const int   base       = 10;
+    const QChar fillChar   = '0';
+
+    // Missing endTick means zero duration cue, only one value required
+    if (endTick < 0)
+        endTick = startTick;
+
+    return QString("%1_%2").arg(startTick, CUE_ID_FIELD_WIDTH, base, fillChar)
+                             .arg(endTick, CUE_ID_FIELD_WIDTH, base, fillChar);
+}
+// getAnnCueID()
+// Gets the cue ID for an annotation, such as rehearsal mark or chord symbol,
+// where the cue duration lasts until the next element of the same type.
+static QString getAnnCueID(Score* score, const Element* e, EType eType)
+{
+    Segment* segStart = static_cast<Segment*>(e->parent());
+    int     startTick = segStart->tick();
+
+    for (Segment* seg = segStart->next1MM(Segment::Type::ChordRest);
+                  seg; seg = seg->next1MM(Segment::Type::ChordRest)) {
+        for (Element* eAnn : seg->annotations()) {
+            if (eAnn->type() == eType)
+                return getCueID(startTick, seg->tick());
+        }
+    }
+
+    // If there's no "next" annotation, this is the last one in the score
+    return getCueID(startTick, score->lastSegment()->tick());
+}
+// getScrollCueID()
+// Gets the cue ID for zero-duration (scrolling) cues + rehearsal marks:
+//  - ruler: BarLine or RehearsalMark
+//  - frozen pane: Clef, KeySig, TimeSig, Tempo, InstrumentName, InstrumentChange
+static QString getScrollCueID(Score* score, const Element* e)
+{
+    QString cue_id = "";
+    EType   eType  = e->type();
+
+    // Always exclude invisible elements, except TEMPO_TEXT + INSTRUMENT_CHANGE
+    if (!e->visible() && (eType != EType::TEMPO_TEXT
+                       || eType != EType::INSTRUMENT_CHANGE))
+        return cue_id;
+
+    Element* p = e->parent();
+    switch (eType) {
+    case EType::BAR_LINE       :
+        // There are N + 1 BarLines per System
+        //     where N = number-of-measures-in-this-system
+        //    (# of barlines/system is variable, not fixed)
+        // Each Measure has only 1 BarLine, at its right edge (end-of-measure)
+        // Each System's first BarLine is a System BarLine  (parent == System)
+        switch (p->type()) {
+        case EType::SYSTEM  :
+            // System BarLines only used for scrolling = zero duration
+            // System::firstMeasure() has the tick we need
+            cue_id = getCueID(static_cast<System*>(p)->firstMeasure()->tick());
+            break;
+        case EType::SEGMENT :
+            // Measure BarLines are also zero duration, used for scrolling
+            // and the rulers' playback position cursors.
+            // RehearsalMarks only animate in the ruler, not in the score,
+            // and they have full-duration cues, marker-to-marker.
+            cue_id = getCueID(static_cast<Measure*>(p->parent())->tick());
+            break;
+        default:
+            break; // Should never happen
+        }
+        break;
+    case EType::REHEARSAL_MARK :
+        cue_id = getAnnCueID(score, e, eType);
+        break;
+    case EType::TEMPO_TEXT :
+    case EType::CLEF       :
+    case EType::KEYSIG     :
+    case EType::TIMESIG    :
+        cue_id = getCueID(static_cast<Segment*>(p)->tick());
+        break;
+    case EType::INSTRUMENT_NAME :
+        cue_id = CUE_ID_ZERO;
+        break;
+    case EType::INSTRUMENT_CHANGE :
+        cue_id = getCueID(static_cast<const InstrumentChange*>(e)->segment()->tick());
+        break;
+    default: // Non-scrolling element types return an empty cue_id
+        break;
+    }
+
+    return cue_id;
+}
+
+// Returns a full data-cue="cue1,cue2,..." string of comma-separated cue ids
+static QString getGrayOutCues(Score* score, int idxStaff, QStringList* pVTT)
+{
+    int  startTick;
+    bool hasCues    = false;
+    bool isPrevRest = false;
+
+    QString     cue_id;
+    QString     cues;
+    QTextStream qts(&cues);
+
+    for (Measure* m = score->firstMeasure(); m; m = m->nextMeasureMM())
+    {
+        // Empty measure = all rests
+        if (m->isMeasureRest(idxStaff)) {
+            if (!isPrevRest) {         // Start of gray-out cue
+                isPrevRest = true;
+                startTick  = m->tick();
+            }
+
+            if (!m->nextMeasureMM()) { // Final measure is empty
+                if (hasCues)
+                    qts << SVG_COMMA;
+                else  {
+                    qts << SVG_CUE;
+                    hasCues = true;
+                }
+
+                cue_id = getCueID(startTick, m->tick() + m->ticks());
+                qts << cue_id;
+                pVTT->append(cue_id);
+            }
+        }
+        else {
+            if (isPrevRest) {          // Complete any pending gray-out cue
+                if (hasCues)
+                    qts << SVG_COMMA;
+                else  {
+                    qts << SVG_CUE;
+                    hasCues = true;
+                }
+
+                cue_id = getCueID(startTick, m->tick());
+                qts << cue_id;
+                pVTT->append(cue_id);
+            }
+
+            isPrevRest = false;
+        }
+    }
+
+    if (hasCues)
+        qts << SVG_QUOTE;
+
+    return(cues);
+}
+
 // paintStaffLines() - consolidates shared code in saveSVG() and saveSMAWS()
 //                     for MuseScore master, no harm, no gain, 100% neutral
 static void paintStaffLines(Score*        score,
@@ -2591,7 +2762,8 @@ static void paintStaffLines(Score*        score,
                             int           idxStaff       = -1, // element.staffIdx()
                             bool          isMulti        = false,
                             QStringList*  pINames        =  0,
-                            QList<qreal>* pStaffTops     =  0)
+                            QList<qreal>* pStaffTops     =  0,
+                            QStringList*  pVTT         =  0)
 {
     const qreal cursorOverlap = Ms::SPATIUM20 / 2; // 1/2 spatium top + bottom
 
@@ -2617,12 +2789,13 @@ static void paintStaffLines(Score*        score,
             }
         }
         if (bot < 0)
-            bot = page->height() - page->bm();
+            bot = page->height() - pStaffTops->value(0) - page->bm();
 
         printer->beginMultiGroup(pINames,
                                  score->staff(idxStaff)->part()->shortName(0),
                                  bot - top,
-                                 top);
+                                 top,
+                                 getGrayOutCues(score, idxStaff, pVTT));
         printer->setCueID("");
     }
 
@@ -2831,124 +3004,11 @@ bool MuseScore::saveSvg(Score* score, const QString& saveName)
 ///////////////////////////////////////////////////////////////////////////////
 
 // Static helper functions. They all return QString except startMSecFromCueID()
-// 3 Cue ID generators: getCueID(), getAnnCueID(), getScrollCueID()
 // 1 VTT Cue generator: getVTTCueTwo()
 // 1 Extractor of Start Milliseconds from a string Cue ID: startMSecFromCueID()
 // 1 Painter of SMAWS staff/staves: paintStaffSMAWS()
 // 1 sort-by-staff function for std::stable_sort(): elementLessThanByStaff()
 //
-// Cue IDs -> Start & End | Ticks & Time:
-// VTT needs start & end times, and I need ticks to calculate time.
-// cue_id is what links the SVG elements to the VTT cues.
-// It is a unique id because it is in this format:
-//     "startTick_endTick"
-// and startTick + endTick (duration) is unique to each cue, which links
-// to one or more SVG Notes, BarLines, etc., across staves/voices.
-
-// startMSecsFromCueID()
-// Returns the Start Milliseconds for a Cue ID
-static int startMSecsFromCueID(Score* score, QString& cue_id)
-{   if (!cue_id.isEmpty())
-        return qRound(score->tempomap()->tick2time(cue_id.left(CUE_ID_FIELD_WIDTH).toInt()) * 1000);
-    else
-        return 0;
-}
-
-// getCueID()
-// Creates a cue ID string from a start/end tick value pair
-static QString getCueID(int startTick, int endTick = -1)
-{
-    // For cue_id formatting: 1234567_0000007
-    const int   base       = 10;
-    const QChar fillChar   = '0';
-
-    // Missing endTick means zero duration cue, only one value required
-    if (endTick < 0)
-        endTick = startTick;
-
-    return QString("%1_%2").arg(startTick, CUE_ID_FIELD_WIDTH, base, fillChar)
-                             .arg(endTick, CUE_ID_FIELD_WIDTH, base, fillChar);
-}
-// getAnnCueID()
-// Gets the cue ID for an annotation, such as rehearsal mark or chord symbol,
-// where the cue duration lasts until the next element of the same type.
-static QString getAnnCueID(Score* score, const Element* e, EType eType)
-{
-    Segment* segStart = static_cast<Segment*>(e->parent());
-    int     startTick = segStart->tick();
-
-    for (Segment* seg = segStart->next1MM(Segment::Type::ChordRest);
-                  seg; seg = seg->next1MM(Segment::Type::ChordRest)) {
-        for (Element* eAnn : seg->annotations()) {
-            if (eAnn->type() == eType)
-                return getCueID(startTick, seg->tick());
-        }
-    }
-
-    // If there's no "next" annotation, this is the last one in the score
-    return getCueID(startTick, score->lastSegment()->tick());
-}
-// getScrollCueID()
-// Gets the cue ID for zero-duration (scrolling) cues + rehearsal marks:
-//  - ruler: BarLine or RehearsalMark
-//  - frozen pane: Clef, KeySig, TimeSig, Tempo, InstrumentName, InstrumentChange
-static QString getScrollCueID(Score* score, const Element* e)
-{
-    QString cue_id = "";
-    EType   eType  = e->type();
-
-    // Always exclude invisible elements, except TEMPO_TEXT + INSTRUMENT_CHANGE
-    if (!e->visible() && (eType != EType::TEMPO_TEXT
-                       || eType != EType::INSTRUMENT_CHANGE))
-        return cue_id;
-
-    Element* p = e->parent();
-    switch (eType) {
-    case EType::BAR_LINE       :
-        // There are N + 1 BarLines per System
-        //     where N = number-of-measures-in-this-system
-        //    (# of barlines/system is variable, not fixed)
-        // Each Measure has only 1 BarLine, at its right edge (end-of-measure)
-        // Each System's first BarLine is a System BarLine  (parent == System)
-        switch (p->type()) {
-        case EType::SYSTEM  :
-            // System BarLines only used for scrolling = zero duration
-            // System::firstMeasure() has the tick we need
-            cue_id = getCueID(static_cast<System*>(p)->firstMeasure()->tick());
-            break;
-        case EType::SEGMENT :
-            // Measure BarLines are also zero duration, used for scrolling
-            // and the rulers' playback position cursors.
-            // RehearsalMarks only animate in the ruler, not in the score,
-            // and they have full-duration cues, marker-to-marker.
-            cue_id = getCueID(static_cast<Measure*>(p->parent())->tick());
-            break;
-        default:
-            break; // Should never happen
-        }
-        break;
-    case EType::REHEARSAL_MARK :
-        cue_id = getAnnCueID(score, e, eType);
-        break;
-    case EType::TEMPO_TEXT :
-    case EType::CLEF       :
-    case EType::KEYSIG     :
-    case EType::TIMESIG    :
-        cue_id = getCueID(static_cast<Segment*>(p)->tick());
-        break;
-    case EType::INSTRUMENT_NAME :
-        cue_id = CUE_ID_ZERO;
-        break;
-    case EType::INSTRUMENT_CHANGE :
-        cue_id = getCueID(static_cast<const InstrumentChange*>(e)->segment()->tick());
-        break;
-    default: // Non-scrolling element types return an empty cue_id
-        break;
-    }
-
-    return cue_id;
-}
-
 // getVTTCueTwo()
 // Gets the first two lines of a VTT cue. The minimum valid cue requires only
 // an additional newline. Some cues have cue text in addition to that.
@@ -3198,7 +3258,7 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
             }
             // We're starting s new staff, paint its staff lines
             paintStaffLines(score, &p, &printer, page, &visibleStaves, nVisible,
-                            idx, isMulti, &iNames, &staffTops);
+                            idx, isMulti, &iNames, &staffTops, &setVTT);
             idxStaff = idx;
         }
 
@@ -3328,7 +3388,7 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
         iNames.append("system");
         printer.setStaffIndex(nVisible); // only affects fancy formatting
         printer.setYOffset(0);
-        printer.beginMultiGroup(&iNames, "system", 0, 0);
+        printer.beginMultiGroup(&iNames, "system", 0, 0, QString());
         for (SVGMap::iterator i = mapMulti.begin(); i != mapMulti.end(); ++i) {
             cue_id = i.key();
             printer.setCueID(cue_id);
@@ -3344,8 +3404,13 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
         for (int i = 0; i < iNames.size(); i++)
             printer.createMultiUse(iNames[i], staffTops[i] - staffTops[0]);
     }
-    else // Paint everything all at once, not by staff
+    else {
+        // Paint everything all at once, not by staff
         paintStaffSMAWS(score, &p, &printer, &mapFrozen, &mapSVG, &visibleStaves);
+
+        // These go in the <svg> element for the full score/part
+        printer.setCueID(getGrayOutCues(score, -1, &setVTT));
+    }
 
     // The bars ruler is based around the concept of start-of-bar lines, so it
     // has a line for the imaginary bar on the other side of the final BarLine.
