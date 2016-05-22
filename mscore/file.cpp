@@ -3987,9 +3987,14 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                             pageGridText.append(spl);
 
                             spv = new StrPtrVect(nStaves, 0);
-                            pageNames.append(spv);
-                            spv = new StrPtrVect(nStaves, 0);
                             pageStyles.append(spv);
+
+                            spv = new StrPtrVect(nStaves, 0);
+                            pageNames.append(spv);
+                            for (Element* eAnn : s->annotations()) {
+                                if (eAnn->type() == EType::INSTRUMENT_CHANGE)
+                                    (*pageNames[idxPage])[eAnn->staffIdx()] = new QString(static_cast<InstrumentChange*>(eAnn)->xmlText());
+                            }
                         }
                         // Reset indices for the new table or page
                         idxCol = 0;
@@ -4056,14 +4061,21 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                                     << SVG_CLASS << style << SVG_QUOTE;
                             }
                             if (isPageStart) {
-                                (*pageNames[idxPage])[r]  = new QString(score->staff(r)->part()->longName(gridTick));
                                 (*pageStyles[idxPage])[r] = new QString(style);
+
+                                if ((*pageNames[idxPage])[r] == 0) {
+                                    if (idxPage == 0)
+                                        (*pageNames[idxPage])[r] = new QString(score->staff(r)->part()->longName(startOffset));
+                                    else
+                                        (*pageNames[idxPage])[r] = (*pageNames[idxPage - 1])[r];
+                                }
                             }
                         }
                     }
 
                     // The ChordRest for this staff, using only Voice #1
                     crData = s->cr(track);
+
                     if (!isStaffVisible[r] || crData == 0 || !crData->visible()) {/// EMPTY CELL ///
                         if (!isHTML && (isPages || isStaffVisible[r])) {
                             cellY += cellHeight; // !!! Necessary for height calculation
