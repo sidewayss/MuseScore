@@ -3785,6 +3785,8 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
     Segment*   s;        // this segment
     ChordRest* crGrid;   // this start tick's ChordRest from the grid staff
     ChordRest* crData;   // this start tick's ChordRest from this staff
+    Note*      crNote;   // if crData is a chord, its first note
+    bool       isChord;  // is crData a chord?
 
     QTextStream     qts;        // temp variable used to populate grid and more
     QString*        pqs;        //  ditto
@@ -3798,6 +3800,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
     QString         tableTitle; // RehearsalMark at startTick==0 is the title
 
     QStringList    tableCues; // List of cue_ids for VTT file
+    StrPtrList     barNums;   // List of <text>s
     StrPtrList     barLines;  // List of <line>s
     StrPtrList     beatLines; // Every whole beat (1/4 note in 4/4 time)
     StrPtrList     gridUse;   // if (isPages) this is for grid staff
@@ -3811,11 +3814,8 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
     int     prevTempoPage;  // previous tempo in BPS
     QString tempoCues;      // data-cue="id1;BPM1,id2:BPM2,..." for tempo changes
 
+    const int  BPM_PRECISION = 2;
     const TempoMap* tempoMap = score->tempomap(); // a convenience
-
-    // Bar and Beat Line x-coordinates per page:
-    IntListList    pageBars;  // for/by barline
-    IntListList    pageBeats; // for/by beatline
 
     // By page
     IntList        pageCols;     // active column count per page
@@ -3824,6 +3824,10 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
     StrPtrVectList pageStyles;   // instrument name style: Lo or No, by row
     StrPtrListVectList leds;     // data cell href   by col, by row, by page
     IntListVectList    pitches;  // MIDI note number by col, by row, by page
+
+    IntListList    pageBeats;   // x-coordinates by beatline
+    IntListList    pageBars;    // x-coordinates by barline
+    IntListList    pageBarNums; // bar numbers   by barline
 
     IntListVect  pitchSet(nStaves, 0); // by row: sorted, unique set of MIDI note numbers
     StrPtrVect     iNames(nStaves, 0); // Row header instrument names
@@ -4074,9 +4078,15 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                     }
 
                     // The ChordRest for this staff, using only Voice #1
-                    crData = s->cr(track);
+                    crData  = s->cr(track);
+                    isChord = (crData != 0 && crData->isChord());
+                    if (isChord)
+                        crNote = static_cast<Chord*>(crData)->notes()[0];
 
-                    if (!isStaffVisible[r] || crData == 0 || !crData->visible()) {/// EMPTY CELL ///
+                    if (!isStaffVisible[r]                                     /// EMPTY CELL ///
+                     || crData == 0
+                     || !crData->visible()
+                     || (isChord && crNote->tieBack() != 0)) { // excludes all secondary tied notes
                         if (!isHTML && (isPages || isStaffVisible[r])) {
                             cellY += cellHeight; // !!! Necessary for height calculation
                         }
@@ -4165,22 +4175,24 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                             // Tempo change?
                             if (prevTempo != tempoMap->tempo(gridTick)) {
                                 qts.setString(&tempoCues);
+                                qts.setRealNumberNotation(QTextStream::FixedNotation);
+                                qts.setRealNumberPrecision(BPM_PRECISION);
 
                                 // Is this the first tempo change?
                                 if (tempoCues.isEmpty()) {
                                     qts << SVG_CUE       << CUE_ID_ZERO
-                                        << SVG_SEMICOLON << initialBPM << TEXT_BPM;
+                                        << SVG_SEMICOLON << initialBPM * 1.0 << TEXT_BPM;
                                 }
 
                                 // Any missing page cues
                                 while (idxPage > prevTempoPage)
                                     qts << SVG_COMMA     << pageIDs[prevTempoPage++]
-                                        << SVG_SEMICOLON << prevTempo * 60 << TEXT_BPM;
+                                        << SVG_SEMICOLON << prevTempo * 60.0 << TEXT_BPM;
 
                                 // This tempo change's cue
                                 prevTempo  = tempoMap->tempo(gridTick);
                                 qts << SVG_COMMA     << getCueID(startTick)
-                                    << SVG_SEMICOLON << prevTempo * 60 << TEXT_BPM;
+                                    << SVG_SEMICOLON << prevTempo * 60.0 << TEXT_BPM;
                             }
 
                             // Grid <line> for whole beats e,g, 1/4 note in 4/4 time
@@ -4223,13 +4235,15 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                     } // if(idxGrid)
                     else {                                                     /// DATA CELL ///
                         // Data cells are not as simple
-                        dataTicks = crData->actualTicks();
+                        if (isChord)
+                            dataTicks = crNote->playTicks(); // handles tied notes, secondary tied notes excluded above (crNote->tieBack() != 0)
+                        else
+                            dataTicks = crData->actualTicks();
 
                         if (dataTicks < gridTicks)
                             return false; // Dies ist verboten
 
                         const int  colSpan = dataTicks / gridTicks;
-                        const bool isChord = (crData->type() == EType::CHORD);
 
                         cue_id = getCueID(startTick, startTick + dataTicks);
 
@@ -4278,9 +4292,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                                 qts << SVG_CUE << cue_id << SVG_QUOTE;
 
                             // This ChordRest's pitch
-                            const int p = (isChord
-                                         ? static_cast<Chord*>(crData)->notes()[0]->pitch()
-                                         : MIDI_REST);  // MIDI note values are 0-127
+                            const int p = (isChord ? crNote->pitch() : MIDI_REST);  // MIDI note values are 0-127
 
                             // Pitch for this cell
                             pil = (*pitches[idxCol])[r];
@@ -4452,14 +4464,13 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                             << SVG_CLASS            << "background"    << SVG_QUOTE
                             << SVG_ELEMENT_END      << endl << endl;
 
-                // This is just more convenient - now it's page count
-                if (isPages)
+                if (isPages) {
+                    // This is just more convenient - now it's page count
                     idxPage++;
 
-                // Stream the barLines (if they exist
-                for (int b = 0; b < barLines.size(); b++) {
-                    tableStream << *barLines[b];
-                    if (idxPage > 1) { // are there page cues for this barline?
+                    // Complete the barLines and barNums values
+                    for (int b = 0; b < barLines.size(); b++) {
+                        // barLines
                         bool hasPageCues = false;
                         if (pageBars[b]->size() < idxPage)     // missing pages
                             hasPageCues = true;
@@ -4472,25 +4483,63 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                                 }
                             }
                         }
-                        if (hasPageCues) { // page cues required
-                            tableStream << SVG_CUE;
+                        qts.setString(barLines[b]);
+                        if (hasPageCues) { // page cues required for barLines[b]
                             for (int p = 0; p < idxPage; p++) {
                                 if (p > 0)
-                                    tableStream << SVG_COMMA;
-                                tableStream << pageIDs[p] << SVG_SEMICOLON;
-                                if (p < pageBars[b]->size())
-                                    tableStream << (*pageBars[b])[p];
+                                    qts << SVG_COMMA;
                                 else
-                                    tableStream << -100;  // -1 isn't far enough off the canvas
+                                    qts << SVG_CUE;
+
+                                qts << pageIDs[p] << SVG_SEMICOLON;
+
+                                if (p >= pageBars[b]->size())
+                                    pageBars[b]->append(-100);  // -1 isn't far enough off the canvas
+
+                                qts << (*pageBars[b])[p];
                             }
-                            tableStream << SVG_QUOTE;
+                            qts << SVG_QUOTE;
                         }
-                        tableStream << SVG_ELEMENT_END << endl;
+                        qts << SVG_ELEMENT_END << endl;
+
+                        // barNums
+                        const int num = (*pageBarNums[b])[0]; // initial barNum
+                        if (!hasPageCues) {
+                            for (int p = 1; p < idxPage; p++) {
+                                if ((*pageBarNums[b])[p] != num) {   // diff barNums
+                                    hasPageCues = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        qts.setString(barNums[b]);
+                        if (hasPageCues) { // page cues required for barNums[b]
+                            for (int p = 0; p < idxPage; p++) {
+                                if (p > 0)
+                                    qts << SVG_COMMA;
+                                else
+                                    qts << SVG_CUE;
+
+                                qts << pageIDs[p] << SVG_SEMICOLON;
+
+                                if (p < pageBarNums[b]->size() && (*pageBarNums[b])[p] >= 0)
+                                    qts << (*pageBarNums[b])[p];
+
+                                qts << SVG_SEMICOLON << (*pageBars[b])[p] + 4;
+                            }
+                            qts << SVG_QUOTE;
+                        }
+                        qts << SVG_GT << num << SVG_TEXT_END << endl;
                     }
                 }
+
+                // Stream the barLines and barNums (if they exist)
+                for (int b = 0; b < barLines.size(); b++)
+                    tableStream << *barLines[b] << *barNums[b];
                 tableStream << endl;
 
-                // Stream the beatLines (beat and barline loops could be consolidated in a function)
+                // Stream the beatLines (beat and barline/barnum loops could be consolidated in a function, maybe?)
                 for (int b = 0; b < beatLines.size(); b++) {
                     tableStream << *beatLines[b];
                     if (idxPage > 1) { // are there page cues for this beatline?
@@ -4792,8 +4841,10 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
 
                 // Terminate this string if it exists
                 if (!tempoCues.isEmpty()) {
+                    qts.setRealNumberNotation(QTextStream::FixedNotation);
+                    qts.setRealNumberPrecision(BPM_PRECISION);
                     while (idxPage > prevTempoPage) // Complete any missing page cues
-                        qts << SVG_COMMA << pageIDs[prevTempoPage++] << SVG_SEMICOLON << prevTempo * 60 << TEXT_BPM;
+                        qts << SVG_COMMA << pageIDs[prevTempoPage++] << SVG_SEMICOLON << prevTempo * 60.0 << TEXT_BPM;
 
                     tempoCues.append(SVG_QUOTE);
                 }
@@ -4812,7 +4863,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                                             .replace("%4", qfi->completeBaseName())
                                             .replace("%5", QString::number(width - 8))
                                             .replace("%6", tempoCues)
-                                            .replace("%7", QString::number(initialBPM))
+                                            .replace("%7", QString::number(initialBPM, 'f', BPM_PRECISION))
                                             .replace("%8", pageCues) // if (isPages)
                                             .replace("%9", QString("%1").arg(idxPage, 2, 10, QLatin1Char(SVG_ZERO)));
                 // </svg>
@@ -4838,6 +4889,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
             grid.clear();
             gridUse.clear();
             gridText.clear();
+            barNums.clear();
             barLines.clear();
             beatLines.clear();
             tableCues.clear();
@@ -4862,10 +4914,12 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                 pageBeats.clear();
                 pageNames.clear();
                 pageStyles.clear();
+                pageBarNums.clear();
                 pageGridText.clear();
             }
         } // if(Repeat::END)
         else {
+            const int n = m->no() + 2; // this is the bar number for the next bar
             const int x = (isPages && idxPage > 0 ? -100 : cellX - barRound);
             if (!isHTML
             && (!isPages || (idxBar == barLines.size() && m != mPageEnd))) {
@@ -4886,15 +4940,32 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                     qts << SVG_ELEMENT_END   << endl;
 
                 barLines.append(pqs);
+
+                // Bar numbers for the bar lines
+                pqs = new QString;
+                qts.setString(pqs);
+                qts << SVG_TEXT_BEGIN
+                       << SVG_X << SVG_QUOTE << x + 4              << SVG_QUOTE
+                       << SVG_Y << SVG_QUOTE << barMargin          << SVG_QUOTE
+                       << SVG_CLASS          << "barNumber"        << SVG_QUOTE;
+                if (!isPages)
+                    qts << SVG_GT << n << SVG_TEXT_END   << endl;
+
+                barNums.append(pqs);
             }
             if (isPages) {
                 if (pageBars.size() == idxBar) {
                     pil = new IntList;
                     pageBars.append(pil);
+                    pil = new IntList;
+                    pageBarNums.append(pil);
                 }
-                while (pageBars[idxBar]->size() < idxPage)
-                    pageBars[idxBar]->append(-100); // This barline is initially invisible
+                while (pageBars[idxBar]->size() < idxPage) {
+                    pageBars[idxBar]->append(-100);  // This barline is initially invisible
+                    pageBarNums[idxBar]->append(-1); // So is it's bar number
+                }
                 pageBars[idxBar]->append(cellX - barRound);
+                pageBarNums[idxBar]->append(n);
                 idxBar++;
             }
         }
