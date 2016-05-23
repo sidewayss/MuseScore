@@ -3924,10 +3924,10 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                 if (gridTicks == 0                        //    new table
                 || (isPages && pageTick == mStartTick)) { // or new page
                     if (gridTicks == 0) {                                      /// NEW TABLE ///
-                        // The table's title is its first RehearsalMark's text
+                        // The table's title is the grid staff's first staff text
                         for (Element* eAnn : s->annotations()) {
-                            if (eAnn->type() == EType::REHEARSAL_MARK) {
-                                tableTitle = static_cast<RehearsalMark*>(eAnn)->xmlText();
+                            if (eAnn->type() == EType::STAFF_TEXT) {
+                                tableTitle = static_cast<Text*>(eAnn)->xmlText();
                                 break;
                             }
                         }
@@ -4358,7 +4358,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                 cellY = 0;
                 cellX += cellWidth;
 
-            } // if (crGrid->type() == EType::CHORD) - it's a live grid column
+            } // if (crGrid->isChord()) - it's a live grid column
 
             if (isPageStart) {
                 isPageStart = false;     // page start is always on measure start
