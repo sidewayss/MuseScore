@@ -2993,7 +2993,7 @@ System* Score::collectSystem(LayoutContext& lc)
       qreal minWidth        = system->leftMargin();
       bool firstMeasure     = true;
       qreal measureSpacing  = styleD(StyleIdx::measureSpacing);
-      qreal systemWidth     = pageFormat()->printableWidth() * DPI;
+      qreal systemWidth     = pageFormat()->printableWidth();
       bool lineMode         = _layoutMode == LayoutMode::LINE;
 
       while (lc.curMeasure) {    // collect measure for system
