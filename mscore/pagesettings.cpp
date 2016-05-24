@@ -524,6 +524,9 @@ void PageSettings::pageWidthChanged(double val)
       {
       pageGroup->setCurrentIndex(Page::SIZE_CUSTOM);
       pf->setSize(QSizeF(convertToPx(val), convertToPx(pageHeight->value())));
+      pf->setPrintableWidth(pf->width()
+                          - pf->oddLeftMargin()
+                          + convertToPx(oddPageRightMargin->value())); // pf->oddRightMargin() is not stored, it's calculated based on printable width
       oddPageLeftMargin->setMaximum(val);
       oddPageRightMargin->setMaximum(val);
       evenPageLeftMargin->setMaximum(val);
