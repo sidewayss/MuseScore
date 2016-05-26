@@ -1149,12 +1149,12 @@ void ExportMusicXml::credits(Xml& xml)
       // determine page formatting
       const PageFormat* pf = _score->pageFormat();
       if (!pf) return;
-      const double h  = pf->size().height()   * PageFormat::SCALE_XML;
-      const double w  = pf->size().width()    * PageFormat::SCALE_XML;
-      const double lm = pf->oddLeftMargin()   * PageFormat::SCALE_XML;
-      const double rm = pf->oddRightMargin()  * PageFormat::SCALE_XML;
-      //const double tm = pf->oddTopMargin()  * PageFormat::SCALE_XML;
-      const double bm = pf->oddBottomMargin() * PageFormat::SCALE_XML;
+      const double h  = pf->size().height();
+      const double w  = pf->size().width();
+      const double lm = pf->oddLeftMargin();
+      const double rm = pf->oddRightMargin();
+      //const double tm = pf->oddTopMargin();
+      const double bm = pf->oddBottomMargin();
       //qDebug("page h=%g w=%g lm=%g rm=%g tm=%g bm=%g", h, w, lm, rm, tm, bm);
 
       // write the credits
@@ -1162,10 +1162,10 @@ void ExportMusicXml::credits(Xml& xml)
             for (const Element* element : measure->el()) {
                   if (element->type() == Element::Type::TEXT) {
                         const Text* text = (const Text*)element;
-                        const double ph = parentHeight(text) * PageFormat::SCALE_XML;
+                        const double ph = parentHeight(text);
 
                         double tx = w / 2;
-                        double ty = h - (text->pagePos().y() * PageFormat::SCALE_XML);
+                        double ty = h - text->pagePos().y();
                         QString styleName = text->textStyle().name();
 
                         Align al = text->textStyle().align();
@@ -2356,8 +2356,8 @@ void ExportMusicXml::chord(Chord* chord, int staff, const QVector<Lyrics*>* ll, 
 #endif
 
       const PageFormat* pf = _score->pageFormat();
-      const double pageHeight  = pf->size().height() * PageFormat::SCALE_XML;
-      // const double pageWidth  = pf->size().width() * PageFormat::SCALE_XML;
+      const double pageHeight  = pf->size().height();
+      // const double pageWidth  = pf->size().width();
 
       for (Note* note : nl) {
             QString val;
@@ -2366,10 +2366,10 @@ void ExportMusicXml::chord(Chord* chord, int staff, const QVector<Lyrics*>* ll, 
             QString noteTag = QString("note");
 
             if (preferences.musicxmlExportLayout && pf) {
-                  double measureX = chord->measure()->pagePos().x() * PageFormat::SCALE_XML;
-                  double measureY = pageHeight - (chord->measure()->pagePos().y()  * PageFormat::SCALE_XML);
-                  double noteX = note->pagePos().x()  * PageFormat::SCALE_XML;
-                  double noteY = pageHeight - (note->pagePos().y() * PageFormat::SCALE_XML);
+                  double measureX = chord->measure()->pagePos().x();
+                  double measureY = pageHeight - chord->measure()->pagePos().y();
+                  double noteX = note->pagePos().x();
+                  double noteY = pageHeight - note->pagePos().y();
 
                   noteTag += QString(" default-x=\"%1\"").arg(QString::number(noteX - measureX,'f',2));
                   noteTag += QString(" default-y=\"%1\"").arg(QString::number(noteY - measureY,'f',2));
@@ -4448,10 +4448,10 @@ void ExportMusicXml::print(Measure* m, int idx, int staffCount, int staves)
             if (doLayout) {
                   xml.stag(QString("print%1").arg(newThing));
                   const PageFormat* pf = score()->pageFormat();
-                  const double pageWidth  = pf->size().width() * PageFormat::SCALE_XML;
-                  const double lm = pf->oddLeftMargin()  * PageFormat::SCALE_XML;
-                  const double rm = pf->oddRightMargin() * PageFormat::SCALE_XML;
-                  const double tm = pf->oddTopMargin()   * PageFormat::SCALE_XML;
+                  const double pageWidth  = pf->size().width();
+                  const double lm = pf->oddLeftMargin();
+                  const double rm = pf->oddRightMargin();
+                  const double tm = pf->oddTopMargin();
 
                   // System Layout
 
@@ -4466,8 +4466,8 @@ void ExportMusicXml::print(Measure* m, int idx, int staffCount, int staves)
                   if (idx == 0) {
 
                         // Find the right margin of the system.
-                        double systemLM = (mmR1->pagePos().x() - system->page()->pagePos().x() * PageFormat::SCALE_XML) - lm;
-                        double systemRM = pageWidth - rm - (system->bbox().width() * PageFormat::SCALE_XML) + lm;
+                        double systemLM = mmR1->pagePos().x() - system->page()->pagePos().x() - lm;
+                        double systemRM = pageWidth - rm - system->bbox().width() + lm;
 
                         xml.stag("system-layout");
                         xml.stag("system-margins");
@@ -4476,16 +4476,15 @@ void ExportMusicXml::print(Measure* m, int idx, int staffCount, int staves)
                         xml.etag();
 
                         if (currentSystem == NewPage || currentSystem == TopSystem) {
-                              const double topSysDist = (mmR1->pagePos().y() * PageFormat::SCALE_XML) - tm;
+                              const double topSysDist = mmR1->pagePos().y() - tm;
                               xml.tag("top-system-distance", QString("%1").arg(QString::number(topSysDist,'f',2)) );
                               }
                         if (currentSystem == NewSystem) {
                               // see System::layout2() for the factor 2 * score()->spatium()
-                              const double sysDist =  PageFormat::SCALE_XML * (mmR1->pagePos().y()
-                                                                              - previousMeasure->pagePos().y()
-                                                                              - previousMeasure->bbox().height()
-                                                                              + 2 * SPATIUM20
-                                                                              );
+                              const double sysDist = mmR1->pagePos().y()
+                                                   - previousMeasure->pagePos().y()
+                                                   - previousMeasure->bbox().height()
+                                                   + 2 * SPATIUM20;
                               xml.tag("system-distance",
                                       QString("%1").arg(QString::number(sysDist,'f',2)));
                               }
@@ -4497,7 +4496,7 @@ void ExportMusicXml::print(Measure* m, int idx, int staffCount, int staves)
                   for (int staffIdx = (staffCount == 0) ? 1 : 0; staffIdx < staves; staffIdx++) {
                         xml.stag(QString("staff-layout number=\"%1\"").arg(staffIdx + 1));
                         const double staffDist = 0.0;
-//TODO-ws                              system->staff(staffCount + staffIdx - 1)->distanceDown()  * PageFormat::SCALE_XML;
+//TODO-ws                              system->staff(staffCount + staffIdx - 1)->distanceDown();
                         xml.tag("staff-distance", QString("%1").arg(QString::number(staffDist,'f',2)));
                         xml.etag();
                         }
@@ -5008,7 +5007,7 @@ void ExportMusicXml::write(QIODevice* dev)
                   const bool isFirstActualMeasure = (irregularMeasureNo + measureNo + pickupMeasureNo) == 4;
 
                   if (preferences.musicxmlExportLayout)
-                        measureTag += QString(" width=\"%1\"").arg(QString::number(m->bbox().width() * PageFormat::SCALE_XML,'f',2));
+                        measureTag += QString(" width=\"%1\"").arg(QString::number(m->bbox().width(),'f',2));
 #if 0 // MERGE
                   xml.stag(measureTag);
 
@@ -5454,7 +5453,7 @@ void ExportMusicXml::harmony(Harmony const* const h, FretDiagram const* const fd
                   if (h->xmlSymbols() == "yes")
                         s += " use-symbols=\"yes\"";
                   if (h->xmlParens() == "yes")
-                        s += " parentheses-degrees=\"yes\"";
+                        s += " paren theses-degrees=\"yes\"";
                   xml.tag(s, h->xmlKind());
                   QStringList l = h->xmlDegrees();
                   if (!l.isEmpty()) {
