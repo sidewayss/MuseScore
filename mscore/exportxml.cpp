@@ -276,8 +276,6 @@ class ExportMusicXml {
       Ottava const* ottavas[MAX_NUMBER_LEVEL];
       Trill const* trills[MAX_NUMBER_LEVEL];
       int div;
-      double millimeters;
-      int tenths;
       TrillHash trillStart;
       TrillHash trillStop;
       MxmlInstrumentMap instrMap;
@@ -297,8 +295,6 @@ class ExportMusicXml {
       void work(const MeasureBase* measure);
       void calcDivMoveToTick(int t);
       void calcDivisions();
-      double getTenthsFromInches(double);
-      double getTenthsFromDots(double);
       void keysigTimesig(const Measure* m, const Part* p);
       void chordAttributes(Chord* chord, Notations& notations, Technical& technical,
                            TrillHash& trillStart, TrillHash& trillStop);
@@ -311,8 +307,7 @@ class ExportMusicXml {
 public:
       ExportMusicXml(Score* s)
             {
-            _score = s; tick = 0; div = 1; tenths = 40;
-            millimeters = _score->spatium() * tenths / (10 * DPMM);
+            _score = s; tick = 0; div = 1;
             }
       void write(QIODevice* dev);
       void credits(Xml& xml);
@@ -1073,14 +1068,12 @@ static void writePageFormat(const PageFormat* pf, Xml& xml, double conversion)
 //   defaults
 //---------------------------------------------------------
 
-// _spatium = DPMM * (millimeter * 10.0 / tenths);
-
-static void defaults(Xml& xml, Score* s, double& millimeters, const int& tenths)
+static void defaults(Xml& xml, Score* s)
       {
       xml.stag("defaults");
       xml.stag("scaling");
-      xml.tag("millimeters", millimeters);
-      xml.tag("tenths", tenths);
+      xml.tag("millimeters", s->spatium() / (10 * DPMM));
+      xml.tag("tenths", 1);
       xml.etag();
       const PageFormat* pf = s->pageFormat();
       if (pf)
@@ -1169,10 +1162,10 @@ void ExportMusicXml::credits(Xml& xml)
             for (const Element* element : measure->el()) {
                   if (element->type() == Element::Type::TEXT) {
                         const Text* text = (const Text*)element;
-                        const double ph = getTenthsFromDots(parentHeight(text));
+                        const double ph = parentHeight(text) * PageFormat::SCALE_XML;
 
                         double tx = w / 2;
-                        double ty = h - getTenthsFromDots(text->pagePos().y());
+                        double ty = h - (text->pagePos().y() * PageFormat::SCALE_XML);
                         QString styleName = text->textStyle().name();
 
                         Align al = text->textStyle().align();
@@ -2373,10 +2366,10 @@ void ExportMusicXml::chord(Chord* chord, int staff, const QVector<Lyrics*>* ll, 
             QString noteTag = QString("note");
 
             if (preferences.musicxmlExportLayout && pf) {
-                  double measureX = getTenthsFromDots(chord->measure()->pagePos().x());
-                  double measureY = pageHeight - getTenthsFromDots(chord->measure()->pagePos().y());
-                  double noteX = getTenthsFromDots(note->pagePos().x());
-                  double noteY = pageHeight - getTenthsFromDots(note->pagePos().y());
+                  double measureX = chord->measure()->pagePos().x() * PageFormat::SCALE_XML;
+                  double measureY = pageHeight - (chord->measure()->pagePos().y()  * PageFormat::SCALE_XML);
+                  double noteX = note->pagePos().x()  * PageFormat::SCALE_XML;
+                  double noteY = pageHeight - (note->pagePos().y() * PageFormat::SCALE_XML);
 
                   noteTag += QString(" default-x=\"%1\"").arg(QString::number(noteX - measureX,'f',2));
                   noteTag += QString(" default-y=\"%1\"").arg(QString::number(noteY - measureY,'f',2));
@@ -4473,8 +4466,8 @@ void ExportMusicXml::print(Measure* m, int idx, int staffCount, int staves)
                   if (idx == 0) {
 
                         // Find the right margin of the system.
-                        double systemLM = getTenthsFromDots(mmR1->pagePos().x() - system->page()->pagePos().x()) - lm;
-                        double systemRM = pageWidth - rm - (getTenthsFromDots(system->bbox().width()) + lm);
+                        double systemLM = (mmR1->pagePos().x() - system->page()->pagePos().x() * PageFormat::SCALE_XML) - lm;
+                        double systemRM = pageWidth - rm - (system->bbox().width() * PageFormat::SCALE_XML) + lm;
 
                         xml.stag("system-layout");
                         xml.stag("system-margins");
@@ -4483,16 +4476,16 @@ void ExportMusicXml::print(Measure* m, int idx, int staffCount, int staves)
                         xml.etag();
 
                         if (currentSystem == NewPage || currentSystem == TopSystem) {
-                              const double topSysDist = getTenthsFromDots(mmR1->pagePos().y()) - tm;
+                              const double topSysDist = (mmR1->pagePos().y() * PageFormat::SCALE_XML) - tm;
                               xml.tag("top-system-distance", QString("%1").arg(QString::number(topSysDist,'f',2)) );
                               }
                         if (currentSystem == NewSystem) {
                               // see System::layout2() for the factor 2 * score()->spatium()
-                              const double sysDist = getTenthsFromDots(mmR1->pagePos().y()
-                                                                       - previousMeasure->pagePos().y()
-                                                                       - previousMeasure->bbox().height()
-                                                                       + 2 * score()->spatium()
-                                                                       );
+                              const double sysDist =  PageFormat::SCALE_XML * (mmR1->pagePos().y()
+                                                                              - previousMeasure->pagePos().y()
+                                                                              - previousMeasure->bbox().height()
+                                                                              + 2 * SPATIUM20
+                                                                              );
                               xml.tag("system-distance",
                                       QString("%1").arg(QString::number(sysDist,'f',2)));
                               }
@@ -4504,7 +4497,7 @@ void ExportMusicXml::print(Measure* m, int idx, int staffCount, int staves)
                   for (int staffIdx = (staffCount == 0) ? 1 : 0; staffIdx < staves; staffIdx++) {
                         xml.stag(QString("staff-layout number=\"%1\"").arg(staffIdx + 1));
                         const double staffDist = 0.0;
-//TODO-ws                              getTenthsFromDots(system->staff(staffCount + staffIdx - 1)->distanceDown());
+//TODO-ws                              system->staff(staffCount + staffIdx - 1)->distanceDown()  * PageFormat::SCALE_XML;
                         xml.tag("staff-distance", QString("%1").arg(QString::number(staffDist,'f',2)));
                         xml.etag();
                         }
@@ -4968,7 +4961,7 @@ void ExportMusicXml::write(QIODevice* dev)
       identification(xml, _score);
 
       if (preferences.musicxmlExportLayout) {
-            defaults(xml, _score, millimeters, tenths);
+            defaults(xml, _score);
             credits(xml);
             }
 
@@ -5015,7 +5008,7 @@ void ExportMusicXml::write(QIODevice* dev)
                   const bool isFirstActualMeasure = (irregularMeasureNo + measureNo + pickupMeasureNo) == 4;
 
                   if (preferences.musicxmlExportLayout)
-                        measureTag += QString(" width=\"%1\"").arg(QString::number(m->bbox().width() / DPMM / millimeters * tenths,'f',2));
+                        measureTag += QString(" width=\"%1\"").arg(QString::number(m->bbox().width() * PageFormat::SCALE_XML,'f',2));
 #if 0 // MERGE
                   xml.stag(measureTag);
 
@@ -5420,16 +5413,6 @@ bool saveMxl(Score* score, const QString& name)
       uz.addFile(fn, dbuf.data());
       uz.close();
       return true;
-      }
-
-double ExportMusicXml::getTenthsFromInches(double inches)
-      {
-      return inches * MMPI / millimeters * tenths;
-      }
-
-double ExportMusicXml::getTenthsFromDots(double dots)
-      {
-      return dots / DPMM / millimeters * tenths;
       }
 
 //---------------------------------------------------------
