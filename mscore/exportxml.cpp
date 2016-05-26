@@ -1149,12 +1149,12 @@ void ExportMusicXml::credits(Xml& xml)
       // determine page formatting
       const PageFormat* pf = _score->pageFormat();
       if (!pf) return;
-      const double h  = pf->size().height();
-      const double w  = pf->size().width();
-      const double lm = pf->oddLeftMargin();
-      const double rm = pf->oddRightMargin();
-      //const double tm = pf->oddTopMargin();
-      const double bm = pf->oddBottomMargin();
+      const double h  = pf->size().height()   * PageFormat::SCALE_XML;
+      const double w  = pf->size().width()    * PageFormat::SCALE_XML;
+      const double lm = pf->oddLeftMargin()   * PageFormat::SCALE_XML;
+      const double rm = pf->oddRightMargin()  * PageFormat::SCALE_XML;
+      //const double tm = pf->oddTopMargin()  * PageFormat::SCALE_XML;
+      const double bm = pf->oddBottomMargin() * PageFormat::SCALE_XML;
       //qDebug("page h=%g w=%g lm=%g rm=%g tm=%g bm=%g", h, w, lm, rm, tm, bm);
 
       // write the credits
