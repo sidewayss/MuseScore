@@ -215,6 +215,7 @@ using IntListVectList = QList<IntListVect*>;
 #define SVG_CUE    " data-cue=\""         // the cue id
 #define SVG_START  " data-start=\""       // cue start time in milliseconds
 #define SVG_INAME  " data-iname=\""       // full instrument name == MuseScore "short" instrument name
+#define SVG_BARNUM " data-barnum=\""      // measure (bar) number for rulers/counters
 
 // SMAWS class attribute values
 #define CLASS_CLEF_COURTESY "ClefCourtesy"
