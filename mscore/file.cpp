@@ -4754,7 +4754,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
 
                                 qts << pageIDs[p] << SVG_SEMICOLON;
 
-                                if (p < pageBarNums[b]->size() && (*pageBarNums[b])[p] >= 0)
+                                if (p < pageBarNums[b]->size() && (*pageBarNums[b])[p] > -100)
                                     qts << (*pageBarNums[b])[p];
 
                                 qts << SVG_SEMICOLON << (*pageBars[b])[p] + 4;
@@ -5294,8 +5294,8 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                     pageBarNums.append(pil);
                 }
                 while (pageBars[idxBar]->size() < idxPage) {
-                    pageBars[idxBar]->append(-100);  // This barline is initially invisible
-                    pageBarNums[idxBar]->append(-1); // So is it's bar number
+                    pageBars[idxBar]->append(-100);    // This barline is initially invisible
+                    pageBarNums[idxBar]->append(-100); // It's bar number reflects that
                 }
                 pageBars[idxBar]->append(cellX - barRound);
                 pageBarNums[idxBar]->append(n);
