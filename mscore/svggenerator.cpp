@@ -275,6 +275,7 @@ public:
 
         _isScrollVertical = false;
         _isMulti          = false;
+        _isSMAWS          = false;
     }
 
     bool begin(QPaintDevice *device);
