@@ -50,6 +50,7 @@
 #include "libmscore/key.h"
 #include "libmscore/barline.h"   // for BarLine class
 #include "libmscore/mscore.h"    // for BarLineType enum
+#include "libmscore/staff.h"     // for Tablature staves
 using BLType = Ms::BarLineType;  // for convenience, and consistency w/EType
 
 static void translate_color(const QColor &color, QString *color_string,
@@ -608,8 +609,14 @@ void SvgPaintEngine::updateState(const QPaintEngineState &state)
     // because they affect CSS-styled elements too.
     // For the elements that need transformations other than translation
     QTransform t = state.transform();
-    if (t.m11() == 1 && t.m22() == 1 // No scaling
-     && t.m12() == t.m21()) {        // No rotation, etc.
+
+    // These 2 can have floating point flotsam, e.g. 1.000000629
+    // This rounds to three decimal places, as MuseScore does elsewhere
+    const qreal m11 = qRound(t.m11() * 1000) / 1000;
+    const qreal m22 = qRound(t.m22() * 1000) / 1000;
+
+    if (m11 == 1 && m22 == 1   // No scaling
+      && t.m12() == t.m21()) { // No rotation, etc.
         // No transformation except translation
         _dx = t.m31();
         _dy = t.m32();
@@ -866,7 +873,8 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     case EType::BRACKET      :
     case EType::SLUR_SEGMENT :
     case EType::TREMOLO      :
-        break; // fill-rule styled by CSS
+    case EType::NOTE         : // Tablature has rects behind numbers
+        break;                // fill-rule styled by CSS
     default:
         if (p.fillRule() == Qt::OddEvenFill)
             stream() << SVG_FILL_RULE;
@@ -1239,6 +1247,14 @@ QString SvgPaintEngine::getClass()
                 .arg(static_cast<const Ms::Text*>(_e)->textStyle().name())
                 .arg("Text");
         break;
+    case EType::NOTE :
+    case EType::STEM :
+    case EType::BEAM :
+        // Tablature staves get prefixed class names for these element types
+        if (_e->staff()->isTabStaff()) {
+            eName= QString("%1%2").arg(SVG_PREFIX_TAB).arg(_e->name(_et));
+            break;
+        } // else fall-through to default for these element types
     default:
         // For most cases it's simply the element type name
         eName = _e->name(_et);

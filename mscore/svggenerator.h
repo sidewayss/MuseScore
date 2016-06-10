@@ -217,6 +217,8 @@ using IntListVectList = QList<IntListVect*>;
 #define SVG_INAME  " data-iname=\""       // full instrument name == MuseScore "short" instrument name
 #define SVG_BARNUM " data-barnum=\""      // measure (bar) number for rulers/counters
 
+#define SVG_PREFIX_TAB "tab" // For tablature class names
+
 // SMAWS class attribute values
 #define CLASS_CLEF_COURTESY "ClefCourtesy"
 #define CLASS_CURSOR        "cursor"
