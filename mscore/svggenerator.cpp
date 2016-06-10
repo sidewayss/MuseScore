@@ -610,8 +610,10 @@ void SvgPaintEngine::updateState(const QPaintEngineState &state)
     // For the elements that need transformations other than translation
     QTransform t = state.transform();
 
-    // These 2 can have floating point flotsam, e.g. 1.000000629
-    // This rounds to three decimal places, as MuseScore does elsewhere
+    // Tablature Note Text:
+    // These 2 have floating point flotsam, for example: 1.000000629
+    // Both values should be integer 1, because no scaling is intended.
+    // This rounds to three decimal places, as MuseScore does elsewhere.
     const qreal m11 = qRound(t.m11() * 1000) / 1000;
     const qreal m22 = qRound(t.m22() * 1000) / 1000;
 
