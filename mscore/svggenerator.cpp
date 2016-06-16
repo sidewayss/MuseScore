@@ -231,13 +231,14 @@ protected:
 //
     // Begin and End Multi-Select Staves group element.
     // Called by SvgGenerator functions of the same name.
-    void beginMultiGroup(const QString& iName, const QString& fullName, qreal height, qreal top, const QString& cues)
+    void beginMultiGroup(const QString& iName, const QString& fullName, const QString& className, qreal height, qreal top, const QString& cues)
     {
         *d_func()->stream << SVG_GROUP_BEGIN
                           << SVG_TRANSFORM << SVG_TRANSLATE << SVG_ZERO
                           << SVG_SPACE     << top           << SVG_RPAREN_QUOTE
                           << SVG_HEIGHT    << height        << SVG_QUOTE
                           << SVG_ID        << iName         << SVG_QUOTE
+                          << SVG_CLASS     << className     << SVG_QUOTE
                           << SVG_INAME     << fullName      << SVG_QUOTE
                           << cues          << SVG_GT        << endl;
     }
@@ -617,8 +618,8 @@ void SvgPaintEngine::updateState(const QPaintEngineState &state)
     const qreal m11 = qRound(t.m11() * 1000) / 1000;
     const qreal m22 = qRound(t.m22() * 1000) / 1000;
 
-    if (m11 == 1 && m22 == 1   // No scaling
-      && t.m12() == t.m21()) { // No rotation, etc.
+    if ((m11 == 1 && m22 == 1 && t.m12() == t.m21()) // No scaling, no rotation
+    || _classValue == CLASS_CLEF_COURTESY) {         // All courtesy clefs
         // No transformation except translation
         _dx = t.m31();
         _dy = t.m32();
@@ -1870,12 +1871,12 @@ void SvgGenerator::streamBody() {
     beginning of a new staff, so it reinitializes the _prevDef pointer.
     Called by saveSMAWS() in mscore/file.cpp.
 */
-void SvgGenerator::beginMultiGroup(QStringList* pINames, const QString& fullName, qreal height, qreal top, const QString& cues) {
+void SvgGenerator::beginMultiGroup(QStringList* pINames, const QString& fullName, const QString& className, qreal height, qreal top, const QString& cues) {
     SvgPaintEngine* pe = static_cast<SvgPaintEngine*>(paintEngine());
     pe->_isMulti = true;
     pe->_prevDef = 0;
     pe->_iNames = pINames;
-    pe->beginMultiGroup(pINames->last(), fullName, height, top, cues);
+    pe->beginMultiGroup(pINames->last(), fullName, className, height, top, cues);
 }
 
 /*!
@@ -1896,10 +1897,9 @@ void SvgGenerator::setYOffset(qreal y) {
     static_cast<SvgPaintEngine*>(paintEngine())->_yOffset = y;
 }
 
-void createMultiUse(const QString& qs, qreal y);
 /*!
-    setYOffset() function
-    Sets the _yOffset variable in SvgPaintEngine.
+    createMultiUse() function
+    Streams the <use> elements for Multi-Select Staves frozen pane file only
     Called by saveSMAWS() in mscore/file.cpp.
 */
 void SvgGenerator::createMultiUse(const QString& qs, qreal y) {
