@@ -2786,29 +2786,49 @@ static void paintStaffLines(Score*        score,
                             QList<qreal>* pStaffTops     =  0,
                             QStringList*  pVTT         =  0)
 {
-    const qreal cursorOverlap = Ms::SPATIUM20 / 2; // 1/2 spatium top + bottom
+    const qreal cursorOverlap = Ms::SPATIUM20 / 2; // half staff-space overlap, top + bottom
+    const int   stdHeight     = 45;                //!!! see below
 
-    bool  isFirst = true;
+    bool  isFirstSystem = true;
     qreal cursorTop;
     qreal cursorBot;
+    qreal vSpacerUp = 0;
 
     if (isMulti && idxStaff > -1 && pINames != 0  && pVisibleStaves != 0) {
         // isMulti requires a <g></g> wrapper around each staff's elements
         QString qs = score->systems().first()->staff(idxStaff)->instrumentNames.first()->xmlText(); ///!!!this line of code crashes for piano-style dual-staff (linked staves?)!!!
         pINames->append(qs.replace(SVG_SPACE, SVG_DASH));
 
-        const System* s = page->systems().value(0);
-        const qreal top = s->staff(idxStaff)->y();
         const int idxVisible = (*pVisibleStaves)[idxStaff];
+        const System*      s = page->systems().value(0);
+        qreal top = s->staff(idxStaff)->y();
         qreal bot = -1;
-        if (idxVisible < nVisible - 1) {
-            for (int i = idxStaff + 1; i < pVisibleStaves->size(); i++) {
+        if (s->firstMeasure()->mstaff(idxStaff)->_vspacerUp != 0) {
+            // This measure claims the extra space between it and the staff above it
+            // Get the previous visible staff - top staff can't have a vertical spacer up
+            for (int i = idxStaff - 1; i >= 0; i--) {
                 if ((*pVisibleStaves)[i] > 0) {
-                    bot = s->staff(i)->y();
+                    vSpacerUp = top - (s->staff(i)->y() + stdHeight); //!!! doesn't deal with previous staff == invisible
                     break;
                 }
             }
         }
+
+        if (idxVisible < nVisible - 1) {
+            // Get the next visible staff (below)
+            for (int i = idxStaff + 1; i < pVisibleStaves->size(); i++) {
+                if ((*pVisibleStaves)[i] > 0) {
+                    if (s->firstMeasure()->mstaff(i)->_vspacerUp != 0)
+                        // Next staff (below) claims the extra space below this staff
+                        bot = top + stdHeight; //!!! I assume that this staff's height is the standard 45pt/px
+                    else
+                        bot = s->staff(i)->y(); // top of next visible staff
+                    break;
+                }
+            }
+        }
+        top -= vSpacerUp;
+
         if (bot < 0)
             bot = page->height() - pStaffTops->value(0) - page->bm();
 
@@ -2841,9 +2861,9 @@ static void paintStaffLines(Score*        score,
             // same height. Systems and staves are in top-to-bottom order here.
             if (pVisibleStaves != 0) {
                 printer->setStaffIndex(pVisibleStaves->value(i));
-                if (isFirst) {
+                if (isFirstSystem) {
                     sl        = s->firstMeasure()->staffLines(i);
-                    staffTop  = sl->bbox().top()+ sl->pagePos().y();
+                    staffTop  = sl->bbox().top() + sl->pagePos().y();
                     int j;
                     // Get the first visible staff index (in the first system)
                     for (j = 0; j < pVisibleStaves->size(); j++) {
@@ -2871,7 +2891,7 @@ static void paintStaffLines(Score*        score,
                     if (isMulti && pStaffTops != 0) {
                         // Offset between this staff and the first visible staff
                         pStaffTops->append(staffTop);
-                        printer->setYOffset(pStaffTops->value(0) - staffTop);
+                        printer->setYOffset((*pStaffTops)[0] - staffTop + vSpacerUp);
                     }
                 }
             }
@@ -2922,7 +2942,7 @@ static void paintStaffLines(Score*        score,
                 break;          // because score has only one system.
 
         } // for each Staff
-        isFirst = false;
+        isFirstSystem = false;
 
     } //for each System
 
