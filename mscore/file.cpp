@@ -2890,8 +2890,9 @@ static void paintStaffLines(Score*        score,
                     }
                     if (isMulti && pStaffTops != 0) {
                         // Offset between this staff and the first visible staff
+                        staffTop -= vSpacerUp;
                         pStaffTops->append(staffTop);
-                        printer->setYOffset((*pStaffTops)[0] - staffTop + vSpacerUp);
+                        printer->setYOffset((*pStaffTops)[0] - staffTop);
                     }
                 }
             }
@@ -3092,7 +3093,7 @@ static void paintStaffSMAWS(Score*        score,
                             SVGMap*       mapFrozen,
                             SVGMap*       mapSVG,
                             QVector<int>* pVisibleStaves =  0, // only used if (!isMulti)
-                            int           idxStaff = -1,       // Only used if (isMulti), visible-staff index, not Element::staffIdx()
+                            int           idxStaff = -1,       // Only used if (isMulti) == Visible-Staff Index, not Element::staffIdx()
                             bool          isMulti  = false)
 {
     QString cue_id;
@@ -3296,6 +3297,7 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
         if (!e->visible() && eType != EType::TEMPO_TEXT)
                 continue;
 
+        // Multi-Select Staves groups and draws staves one at a time
         const int idx = e->staffIdx();
         if (isMulti && idxStaff != idx) {
             if (idxStaff > -1) {
@@ -3428,6 +3430,7 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
         paintElement(p, e);
     }
 
+    // Multi-Select Staves
     if (isMulti) {
         // Paint the last staff's animated elements
         paintStaffSMAWS(score, &p, &printer, &mapFrozen, &mapSVG,
@@ -3449,9 +3452,8 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
 
         // Multi-Select Staves frozen pane has <use> elements, one per staff
         staffTops.append(staffTops[0]); // For the staff-independent elements
-        printer.streamBody();
         for (int i = 0; i < iNames.size(); i++)
-            printer.createMultiUse(iNames[i], staffTops[i] - staffTops[0]);
+            printer.createMultiUse(staffTops[i] - staffTops[0]);
     }
     else {
         // Paint everything all at once, not by staff
