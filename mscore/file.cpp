@@ -101,6 +101,7 @@
 #define EXT_HTML ".html"
 #define EXT_JS   ".js"
 
+#define FILE_PLAY_BUTTS "SMAWS_PlayButts.svg.txt"
 #define FILE_DRUM_DEFS  "SMAWS_DrumDefs.svg.txt"
 #define FILE_DRUM_BUTTS "SMAWS_DrumButts.svg.txt"
 #define FILE_PAGE_BUTTS "SMAWS_DrumPageButts.svg.txt"
@@ -3739,51 +3740,63 @@ static void streamRulers(Score*         score,
 // the score's VTT files. A separate rulers VTT file has not been necessary.
 bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
 {
-    // Default width of rulers + counters = 1920(HD width) - 20(safety?)
-    const int wRuler = 1900;
+    const int hRuler =   40; // Height of the rulers
+    const int wRuler = 1900; // Width of buttons + rulers + counters = 1920(HD width) - 20(safety?)
+    const int wButts =   91; // Width of the playback buttons
 
-    // Boilerplate headers
-    const QString hdrBars  = QString("<?xml-stylesheet type=\"text/css\" href=\"SMAWS_22.css\"?>\n<svg width=\"%1\" height=\"20\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\"\n data-attr=\"fill\">\n\n").arg(wRuler);
-    const QString hdrMarks = QString("<?xml-stylesheet type=\"text/css\" href=\"SMAWS_22.css\"?>\n<svg width=\"%1\" height=\"20\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\"\n data-attr=\"fill\">\n\n").arg(wRuler);
+    // Boilerplate header
+    const QString hdr = QString("<?xml-stylesheet type=\"text/css\" href=\"SMAWS_22.css\"?>\n<svg width=\"%1\" height=\"40\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\"\n data-attr=\"fill\">\n\n").arg(wRuler);
 
-    // This procedure opens files in only one mode
-    const QIODevice::OpenMode openMode = QIODevice::WriteOnly | QIODevice::Text;
     // The root file name, without the .ext
     const QString fileRoot = qfi->filePath().left(qfi->filePath().size() - 4);
 
-    // 2 rulers = 2 SVG files
-    QFile fileBars;  // Bar|Beat, but only bars in the ruler. Beats in a counter?
-    QFile fileMarks; // Rehearsal marks
-    QString fn;      // file name
-
-    fn = QString("%1_%2%3").arg(fileRoot).arg("bars").arg(EXT_SVG);
-    fileBars.setFileName(fn);
-    fileBars.open(openMode);  // TODO: check for failure here!!!
-    QTextStream streamBars(&fileBars);
-
-    fn = QString("%1_%2%3").arg(fileRoot).arg("mrks").arg(EXT_SVG);
-    fileMarks.setFileName(fn);
-    fileMarks.open(openMode);  // TODO: check for failure here!!!
-    QTextStream streamMarks(&fileMarks);
-
-    // Stream the headers, borders, template "gray-out" rect, and cursors
-    streamBars  << hdrBars;
-    streamMarks << hdrMarks;
+    // The rulers file name, with the .ext
+    const QString fn = QString("%1_%2%3").arg(fileRoot).arg("rulers").arg(EXT_SVG);
 
     // Event handler for clicking on ruler lines/text. Note the "top." prefix
     // to the function name. It's calling the (HTML) container's function.
     const QString onClick = " onclick=\"top.clickRuler(evt)\"";
 
-    streamRulers(score, &streamBars, &streamMarks, wRuler, onClick);
+    // 2 streams = 2 <g> elements in 1 SVG file
+    QFile       rulersFile;
+    QTextStream fileStream(&rulersFile);
+    rulersFile.setFileName(fn);
+    rulersFile.open(QIODevice::WriteOnly | QIODevice::Text);  // TODO: check for failure here!!!
+
+    // Stream the headers
+    fileStream  << hdr;
+
+    // Stream the fixed playback buttons from a file
+    QFile       qf;
+    QTextStream qts;
+    qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_PLAY_BUTTS));
+    qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
+    qts.setDevice(&qf);
+    fileStream << qts.readAll() << endl;
+
+    // streamRulers() takes separate streams for bars/markers
+    QString bars;
+    QTextStream barStream(&bars);
+    fileStream << SVG_GROUP_BEGIN  << SVG_ID        << "markers"
+               << SVG_QUOTE        << SVG_TRANSFORM << SVG_TRANSLATE
+               << wButts           << SVG_SPACE     << SVG_ZERO
+               << SVG_RPAREN_QUOTE << SVG_GT        << endl;
+
+    streamRulers(score, &barStream, &fileStream, wRuler - wButts, onClick, SVG_4SPACES);
+
+    fileStream << SVG_GROUP_END    << endl          << endl
+               << SVG_GROUP_BEGIN  << SVG_ID        << "bars"
+               << SVG_QUOTE        << SVG_TRANSFORM << SVG_TRANSLATE
+               << wButts           << SVG_SPACE     << hRuler / 2
+               << SVG_RPAREN_QUOTE << SVG_GT        << endl
+               << bars             << SVG_GROUP_END << endl << endl;
 
     // Stream the "footer", terminating the <svg> element
-    streamBars  << SVG_END;
-    streamMarks << SVG_END;
+    fileStream  << SVG_END;
+
     // Flush streams, close files, and return
-    streamBars.flush();
-    streamMarks.flush();
-    fileBars.close();
-    fileMarks.close();
+    fileStream.flush();
+    rulersFile.close();
     return true;
 }
 
@@ -5170,7 +5183,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                 const QString onClick = " onclick=\"clickRuler(evt)\"";
                 QString bars;
                 QTextStream barStream(&bars);
-                tableStream << SVG_GROUP_BEGIN  << SVG_CLASS     << "markers"
+                tableStream << SVG_GROUP_BEGIN  << SVG_ID        << "markers"
                             << SVG_QUOTE        << SVG_TRANSFORM << SVG_TRANSLATE
                             << SVG_ZERO         << SVG_SPACE     << height
                             << SVG_RPAREN_QUOTE << SVG_GT        << endl;
@@ -5178,7 +5191,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                 streamRulers(score, &barStream, &tableStream, width, onClick, SVG_4SPACES);
 
                 tableStream << SVG_GROUP_END    << endl          << endl
-                            << SVG_GROUP_BEGIN  << SVG_CLASS     << "bars"
+                            << SVG_GROUP_BEGIN  << SVG_ID        << "bars"
                             << SVG_QUOTE        << SVG_TRANSFORM << SVG_TRANSLATE
                             << SVG_ZERO         << SVG_SPACE     << height + (rulerHeight / 2)
                             << SVG_RPAREN_QUOTE << SVG_GT        << endl
