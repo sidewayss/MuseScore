@@ -3698,24 +3698,26 @@ static void streamRulers(Score*         score,
         }
 
         // Both Markers and Bars get the line and, conditionally, text.
-        *streamX << indent << SVG_LINE << dataStart
-                    << SVG_CUE         << cue_id    << SVG_QUOTE
-                    << SVG_CLASS       << lineClass
-                    << SVG_BARNUM      << iBarNo    << SVG_QUOTE
-                    << SVG_X1          << pxX       << SVG_QUOTE
-                    << SVG_Y1          << iY1       << SVG_QUOTE
-                    << SVG_X2          << pxX       << SVG_QUOTE
-                    << SVG_Y2          << iY2       << SVG_QUOTE
-                    << SVG_STROKE      << SVG_BLACK << SVG_QUOTE // stroke not working for lines in CSS
+        *streamX << indent << SVG_LINE
+                    << (isMarker ? onClick : "") << dataStart
+                    << SVG_CUE      << cue_id    << SVG_QUOTE
+                    << SVG_CLASS    << lineClass
+                    << SVG_BARNUM   << iBarNo    << SVG_QUOTE
+                    << SVG_X1       << pxX       << SVG_QUOTE
+                    << SVG_Y1       << iY1       << SVG_QUOTE
+                    << SVG_X2       << pxX       << SVG_QUOTE
+                    << SVG_Y2       << iY2       << SVG_QUOTE
+                    << SVG_STROKE   << SVG_BLACK << SVG_QUOTE // stroke not working for lines in CSS
                  << SVG_ELEMENT_END << endl;
 
         // Only stream the text element if there's text inside it
         if (!label.isEmpty()) {
-            *streamX << indent << SVG_TEXT_BEGIN << dataStart
-                        << SVG_CUE               << cue_id     << SVG_QUOTE
-                        << SVG_CLASS             << textClass
-                        << SVG_X    << SVG_QUOTE << pxX + offX << SVG_QUOTE
-                        << y        << anchor    << SVG_GT     << label
+            *streamX << indent << SVG_TEXT_BEGIN
+                        << (isMarker ? onClick : "")        << dataStart
+                        << SVG_CUE            << cue_id     << SVG_QUOTE
+                        << SVG_CLASS          << textClass
+                        << SVG_X << SVG_QUOTE << pxX + offX << SVG_QUOTE
+                        << y     << anchor    << SVG_GT     << label
                      << SVG_TEXT_END << endl;
         }
 
