@@ -3526,8 +3526,8 @@ static void streamRulers(Score*         score,
     const TempoMap* tempos = score->tempomap();
     const qreal duration = tempos->tick2time(score->lastMeasure()->tick()
                                            + score->lastMeasure()->ticks());
-    // Pixels of width per millisecond
-    const qreal pxPerMSec = (width - cntrWidth - (margin * 2)) / (duration * 1000);
+    // Pixels of width per millisecond, left margin only
+    const qreal pxPerMSec = (width - cntrWidth - margin) / (duration * 1000);
 
     // For CSS Styling
     QString lineClass;
@@ -3559,9 +3559,6 @@ static void streamRulers(Score*         score,
                 mapRulersSVG[cue_id] = e;
         }
     }
-    // The bar lines ruler has a final, extra line, and maybe text.
-    cue_id = getCueID(score->lastSegment()->tick());
-    mapRulersSVG[cue_id] = static_cast<const Element*>(score->lastSegment());
 
     // Tick/Time variables: end tick/time and duration don't apply here
     int     startTick;
@@ -3569,7 +3566,8 @@ static void streamRulers(Score*         score,
     QString dataStart;
 
     // For the invisible, but clickable, rects around lines
-    qreal   rectX = 0;
+    qreal   rectX = cntrWidth + 1;
+    qreal   rectWidth;
     qreal   lineX; // The previous bar ruler line x-coord
     QString prevStart;
 
@@ -3592,7 +3590,7 @@ static void streamRulers(Score*         score,
     // Rulers: Bars and RehearsalMarks
     cntrWidth++;
     const QString border      = QString("<rect class=\"border\" x=\"%1.5\" y=\"0.5\" width=\"%2\" height=\"19\"/>\n").arg(cntrWidth).arg(width - cntrWidth - 1);
-    const QString grayRect    = "<rect class=\"gray\"   x=\"0\"   y=\"1\"   width=   \"0\" height=\"18\" fill=\"none\"/>\n";
+    const QString grayRect    = "<rect class=\"gray\"   x=\"0\"   y=\"1\"   width=   \"0\" height=\"18\" fill-opacity=\"0\"/>\n";
     const QString cursorBars  = QString("<polygon class=\"cursNo\" points=\"-6,1 6,1 0,14\" transform=\"translate(%1,0)\"/>\n").arg(margin + cntrWidth);
     const QString cursorMarks = QString("<polygon class=\"cursNo\" points=\"-6,19 6,19 0,5\" transform=\"translate(%1,0)\"/>\n").arg(margin + cntrWidth);
 
@@ -3635,19 +3633,13 @@ static void streamRulers(Score*         score,
         dataStart = QString("%1%2%3").arg(SVG_START).arg(startMSec).arg(SVG_QUOTE);
 
         QString start;
-        qreal   rectWidth;
         qreal   x;
         const Element* e = i.value();
         EType      eType = e->type();
 
         switch (eType) {
         case EType::BAR_LINE :
-        case EType::SEGMENT  : // Final, extra line in Bars ruler
-            if (eType == EType::BAR_LINE)
-                iBarNo = static_cast<Measure*>(e->parent()->parent())->no() + 1;
-            else
-                iBarNo++; // That imaginary bar on the other side of the final BarLine
-
+            iBarNo = static_cast<Measure*>(e->parent()->parent())->no() + 1;
             if (iBarNo % 5 == 0) {
                 // Multiples of 5 get a longer, thick line
                 iY2 = 13;
@@ -3682,14 +3674,16 @@ static void streamRulers(Score*         score,
         default:
             break;
         }
+
+        const bool  isMarker = (eType == EType::REHEARSAL_MARK);
+        QTextStream* streamX = isMarker ? streamMarks : streamBars;
+
         // Ruler lines have invisible rects around them, allowing users to be
         // less precise with their mouse clicks. The last BarLine ruler line
         // is excluded, because it's not clickable.
         // The code operates on the current Marker and the previous BarLine.
         // Marker rects have a fixed width rect = text offset from line.
         // BarLine rects split the space around each line, no empty spaces.
-        const bool  isMarker = (eType == EType::REHEARSAL_MARK);
-        QTextStream* streamX = isMarker ? streamMarks : streamBars;
         if (isMarker || startTick > 0) {
             *streamX << indent   << SVG_RECT  << onClick   << start
                         << SVG_X << SVG_QUOTE << x         << SVG_QUOTE
@@ -3703,13 +3697,8 @@ static void streamRulers(Score*         score,
                 rectX += rectWidth;
         }
 
-        if (!isMarker) {   // Bars only
-            lineX = pxX;
-            prevStart = dataStart;
-        }
-
         // Both Markers and Bars get the line and, conditionally, text.
-        *streamX << indent << SVG_LINE << onClick   << dataStart
+        *streamX << indent << SVG_LINE << dataStart
                     << SVG_CUE         << cue_id    << SVG_QUOTE
                     << SVG_CLASS       << lineClass
                     << SVG_BARNUM      << iBarNo    << SVG_QUOTE
@@ -3722,14 +3711,29 @@ static void streamRulers(Score*         score,
 
         // Only stream the text element if there's text inside it
         if (!label.isEmpty()) {
-            *streamX << indent << SVG_TEXT_BEGIN << onClick << dataStart
-                        << SVG_CUE            << cue_id     << SVG_QUOTE
-                        << SVG_CLASS          << textClass
-                        << SVG_X << SVG_QUOTE << pxX + offX << SVG_QUOTE
-                        << y     << anchor    << SVG_GT     << label
+            *streamX << indent << SVG_TEXT_BEGIN << dataStart
+                        << SVG_CUE               << cue_id     << SVG_QUOTE
+                        << SVG_CLASS             << textClass
+                        << SVG_X    << SVG_QUOTE << pxX + offX << SVG_QUOTE
+                        << y        << anchor    << SVG_GT     << label
                      << SVG_TEXT_END << endl;
         }
+
+        if (!isMarker) {   // Bars only
+            lineX = pxX;
+            prevStart = dataStart;
+        }
     } //for (i)
+
+    // Mouse-click <rect> for final bar line
+    rectWidth = width - rectX - 1;
+    *streamBars << indent   << SVG_RECT  << onClick   << dataStart
+                   << SVG_X << SVG_QUOTE << rectX     << SVG_QUOTE
+                   << SVG_Y << SVG_QUOTE << iY1       << SVG_QUOTE
+                   << SVG_WIDTH          << rectWidth << SVG_QUOTE
+                   << SVG_HEIGHT         << "18"      << SVG_QUOTE
+                   << SVG_FILL           << SVG_NONE  << SVG_QUOTE
+                << SVG_ELEMENT_END << endl;
 }
 
 // MuseScore::saveSMAWS_Rulers()
