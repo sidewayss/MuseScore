@@ -194,6 +194,7 @@ protected:
     qreal   _cursorHeight;     // Sheet music playback position cursor.
     qreal   _yOffset;          // Y axis offset used by Multi-Select Staves
     int     _startMSecs;       // The elements start time in milliseconds -Yes, it kind of duplicates _cue_id, but it serves a different purpose for now. an oddly important yet minor kludge.
+    int     _maxNote;          // The max duration for notes in this score (in ticks)
 
 ////////////////////
 // for Frozen Pane:
@@ -267,6 +268,7 @@ public:
         _prevDef       = 0; // FDef*
         _iNames        = 0; // QStringList*
         _nStaves       = 0; // int
+        _maxNote       = 0; // int
         _xLeft         = 0; // qreal
         _cursorTop     = 0; // qreal
         _cursorHeight  = 0; // qreal
@@ -400,11 +402,12 @@ bool SvgPaintEngine::end()
                 << SVG_4SPACES   << SVG_POINTER_EVENTS       << endl
                 << SVG_4SPACES   << SVG_CLASS  << SMAWS      << SVG_QUOTE
                                  << SVG_SCROLL << scrollAxis << SVG_QUOTE
-                                 << SVG_ATTR;
+                                 << SVG_ATTR
+                                 << SVG_MAX    << _maxNote   << SVG_QUOTE;
         if (_isMulti)
             stream()             << SVG_STAVES << _nStaves   << SVG_QUOTE;
         else
-            stream()             << _cue_id; // Here it is a full data-cue="" string of comma-separated cue ids
+            stream()             << _cue_id; // ??? is this still needed? it's for gray-out cues, right? Here it is, a full data-cue="" string of comma-separated cue ids
     }
 
     stream() << SVG_GT << endl
@@ -1908,6 +1911,15 @@ void SvgGenerator::endMultiGroup() {
 */
 void SvgGenerator::setYOffset(qreal y) {
     static_cast<SvgPaintEngine*>(paintEngine())->_yOffset = y;
+}
+
+/*!
+    setMaxNote() function
+    Sets the _maxNote variable in SvgPaintEngine.
+    Called by saveSMAWS() in mscore/file.cpp.
+*/
+void SvgGenerator::setMaxNote(int max) {
+    static_cast<SvgPaintEngine*>(paintEngine())->_maxNote = max;
 }
 
 /*!

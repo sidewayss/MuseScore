@@ -3292,6 +3292,8 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
     EType            eType;     // Everything is determined by element type.
     const ChordRest* cr;        // It has start and end ticks for highlighting.
 
+    int maxNote = 0; // data-maxnote = Max note duration for this score. Helps optimize
+                     // highlighting previous notes when user changes start time.
     idxStaff = -1;
     foreach (const Element* e, elmPtrs) {
         // Always exclude invisible elements from this pass, except TEMPO_TEXT.
@@ -3322,11 +3324,11 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
             continue;
             break;
                                     /// Highlighted Elements:
-        case EType::REST       : //                = ChordRest subclass Rest
-        case EType::LYRICS     : //         parent = ChordRest
-        case EType::NOTE       : //         parent = ChordRest subclass Chord
-        case EType::NOTEDOT    : //   grand-parent = ChordRest subclass Chord
-        case EType::ACCIDENTAL : //   grand-parent = ChordRest subclass Chord
+        case EType::REST       : //              = ChordRest subclass Rest
+        case EType::LYRICS     : //       parent = ChordRest
+        case EType::NOTE       : //       parent = ChordRest subclass Chord
+        case EType::NOTEDOT    : // grand-parent = ChordRest subclass Chord
+        case EType::ACCIDENTAL : // grand-parent = ChordRest subclass Chord
             switch (eType) {
             case EType::REST :
                 cr = static_cast<const ChordRest*>(e);
@@ -3334,6 +3336,7 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
             case EType::LYRICS :
             case EType::NOTE   :
                 cr = static_cast<const ChordRest*>(e->parent());
+                maxNote = qMax(maxNote, cr->actualTicks());
                 break;
             case EType::NOTEDOT    :
             case EType::ACCIDENTAL :
@@ -3464,9 +3467,11 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
         printer.setCueID(getGrayOutCues(score, -1, &setVTT));
     }
 
-    // The bars ruler is based around the concept of start-of-bar lines, so it
-    // has a line for the imaginary bar on the other side of the final BarLine.
-    // That ruler line has this Cue ID:
+    // Max note duration, in ticks, for the inefficient task of highlighting
+    // previous notes when the user change the start time.
+    printer.setMaxNote(maxNote);
+
+    // The end of audio is a cue that equals the end of the last bar.
     setVTT.append(getCueID(score->lastSegment()->tick()));
 
     // Write the VTT file

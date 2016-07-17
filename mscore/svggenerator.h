@@ -212,6 +212,7 @@ using IntListVectList = QList<IntListVect*>;
 #define SVG_ATTR   " data-attr=\"fill\""  // the only animated attribute so far
 #define SVG_SCROLL " data-scroll=\""      // "x" or "y", horizontal or vertical
 #define SVG_STAVES " data-staves=\""      // number of staves for the score
+#define SVG_MAX    " data-maxnote=\""     // max note duration for the score
 #define SVG_CUE    " data-cue=\""         // the cue id
 #define SVG_START  " data-start=\""       // cue start time in milliseconds
 #define SVG_INAME  " data-iname=\""       // full instrument name == MuseScore "short" instrument name
@@ -352,6 +353,7 @@ public:
     void beginMultiGroup(QStringList* pINames, const QString& fullName, const QString &className, qreal height, qreal top, const QString& cues);
     void endMultiGroup();
     void setYOffset(qreal y);
+    void setMaxNote(int max);
     void createMultiUse(qreal y);
 };
 
