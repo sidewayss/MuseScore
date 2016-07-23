@@ -201,7 +201,7 @@ using IntListVectList = QList<IntListVect*>;
 #define HTML_HEADER    "<!DOCTYPE html>\n<!-- SMAWS HTML Tables -->\n<html>\n<head>\n    <meta charset=\"utf-8\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">\n    <link rel=\"stylesheet\" href=\"SMAWS_22.css\">\n</head>\n\n<body onload=\"onLoadHTMLTables()\">\n\n"
 
 // Boilerplate events
-#define SVG_ONCLICK " onclick=\"top.clickMusic(evt)\""
+#define SVG_ONCLICK " onclick=\"top.musicClick(evt)\""
 #define SVG_ONLOAD   " onload=\"onLoadSVGGrid(evt)\""
 
 // SMAWS

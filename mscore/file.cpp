@@ -2788,7 +2788,6 @@ static void paintStaffLines(Score*        score,
                             QStringList*  pVTT         =  0)
 {
     const qreal cursorOverlap = Ms::SPATIUM20 / 2; // half staff-space overlap, top + bottom
-    const int   stdHeight     = 45;                //!!! see below
 
     bool  isFirstSystem = true;
     qreal cursorTop;
@@ -2800,6 +2799,9 @@ static void paintStaffLines(Score*        score,
         QString qs = score->systems().first()->staff(idxStaff)->instrumentNames.first()->xmlText(); ///!!!this line of code crashes for piano-style dual-staff (linked staves?)!!!
         pINames->append(qs.replace(SVG_SPACE, SVG_DASH));
 
+        const bool isTab     = score->staff(idxStaff)->isTabStaff();
+        const int tabHeight  = 53;
+        const int stdHeight  = 45;                //!!! see below
         const int idxVisible = (*pVisibleStaves)[idxStaff];
         const System*      s = page->systems().value(0);
         qreal top = s->staff(idxStaff)->y();
@@ -2809,7 +2811,7 @@ static void paintStaffLines(Score*        score,
             // Get the previous visible staff - top staff can't have a vertical spacer up
             for (int i = idxStaff - 1; i >= 0; i--) {
                 if ((*pVisibleStaves)[i] > 0) {
-                    vSpacerUp = top - (s->staff(i)->y() + stdHeight); //!!! doesn't deal with previous staff == invisible
+                    vSpacerUp = top - (s->staff(i)->y() + (score->staff(i)->isTabStaff() ? tabHeight : stdHeight));
                     break;
                 }
             }
@@ -2821,7 +2823,7 @@ static void paintStaffLines(Score*        score,
                 if ((*pVisibleStaves)[i] > 0) {
                     if (s->firstMeasure()->mstaff(i)->_vspacerUp != 0)
                         // Next staff (below) claims the extra space below this staff
-                        bot = top + stdHeight; //!!! I assume that this staff's height is the standard 45pt/px
+                        bot = top + (isTab ? tabHeight : stdHeight); //!!! I assume that this staff's height is the standard 45pt/px or 53 for tablature
                     else
                         bot = s->staff(i)->y(); // top of next visible staff
                     break;
@@ -2834,7 +2836,7 @@ static void paintStaffLines(Score*        score,
             bot = page->height() - pStaffTops->value(0) - page->bm();
 
         // Standard notation or tablature? I need to know by staff
-        const QString className = (score->staff(idxStaff)->isTabStaff() ? "tablature" : "notes");
+        const QString className = (isTab ? "tablature" : "notes");
         printer->beginMultiGroup(pINames,
                                  score->staff(idxStaff)->part()->shortName(0),
                                  className,
@@ -3509,13 +3511,9 @@ static void streamRulers(Score*         score,
                          QTextStream*   streamBars,
                          QTextStream*   streamMarks,
                          int            width,
-                         const QString& onClick,
+                         const QString& evtPrefix,
                          const QString& indent = "")
 {
-    QString anchor; // anchor is always empty at this time!!!
-    const QString anchorStart = " style=\"text-anchor:start\"";
-    const QString anchorEnd   = " style=\"text-anchor:end\"";
-
     // Strings for the ruler's <line> and <text> element attributes
     QString label;  // <text> element contents
 
@@ -3531,8 +3529,8 @@ static void streamRulers(Score*         score,
     const TempoMap* tempos = score->tempomap();
     const qreal duration = tempos->tick2time(score->lastMeasure()->tick()
                                            + score->lastMeasure()->ticks());
-    // Pixels of width per millisecond, left margin only
-    const qreal pxPerMSec = (width - cntrWidth - margin) / (duration * 1000);
+    // Pixels of width per millisecond, left + right margins
+    const qreal pxPerMSec = (width - cntrWidth - (margin * 2)) / (duration * 1000);
 
     // For CSS Styling
     QString lineClass;
@@ -3540,6 +3538,12 @@ static void streamRulers(Score*         score,
     const QString classRul   = "ruler\" ";
     const QString classRul5  = "ruler5\"";
     const QString classMrkNo = "markNo\"";
+
+    // Ruler event handlers
+    const QString onClick   =     QString(" onclick=\"%1rulerClick(evt)\"").arg(evtPrefix);
+    const QString mouseOver = QString(" onmouseover=\"%1rulerOver(evt)\"").arg(evtPrefix);
+    const QString mouseOut  =  QString(" onmouseout=\"%1rulerOut(evt)\"").arg(evtPrefix);
+    const QString mouseUp   =   QString(" onmouseup=\"%1rulerUp(evt)\"").arg(evtPrefix);
 
     // Collect the ruler elements
     // Not a multimap, rehearsal marks must be spaced >1 measure apart.
@@ -3571,6 +3575,7 @@ static void streamRulers(Score*         score,
     QString dataStart;
 
     // For the invisible, but clickable, rects around lines
+    const int halfHeight = 20;
     qreal   rectX = cntrWidth + 1;
     qreal   rectWidth;
     qreal   lineX; // The previous bar ruler line x-coord
@@ -3582,8 +3587,8 @@ static void streamRulers(Score*         score,
     int     iBarNo;   // Integer version of measure number
 
     // Counters: Min:Sec and Bar#000
-    const QString cntrRect = QString("<rect class=\"counter\" x=\"0.5\" y=\"0.5\" width=\"%1\" height=\"19\"/>\n").arg(cntrWidth);
-    const QString cntrText = "<text class=\"cntrNo\" id=\"%1\" x=\"%2\" y=\"16\">%3</text>\n";
+    const QString cntrRect    = QString("<rect class=\"counter\" x=   \"0.5\" y= \"0.5\" width=  \"%1\" height=\"19\"/>\n").arg(cntrWidth);
+    const QString cntrText    = "<text class=\"cntrNo\"  x=  \"%2\"   y=\"16\" id=\"%1\">%3</text>\n";
 
     // Min:Sec
     *streamMarks << indent << cntrRect
@@ -3594,13 +3599,20 @@ static void streamRulers(Score*         score,
 
     // Rulers: Bars and RehearsalMarks
     cntrWidth++;
-    const QString border      = QString("<rect class=\"border\" x=\"%1.5\" y=\"0.5\" width=\"%2\" height=\"19\"/>\n").arg(cntrWidth).arg(width - cntrWidth - 1);
-    const QString grayRect    = "<rect class=\"gray\"   x=\"0\"   y=\"1\"   width=   \"0\" height=\"18\" fill-opacity=\"0\"/>\n";
-    const QString cursorBars  = QString("<polygon class=\"cursNo\" points=\"-6,1 6,1 0,14\" transform=\"translate(%1,0)\"/>\n").arg(margin + cntrWidth);
+    cue_id    = getCueID(score->lastSegment()->tick()); // for endRect and loopEnd
+    dataStart = QString("%1%2%3").arg(SVG_START).arg(startMSecsFromCueID(score, cue_id)).arg(SVG_QUOTE);
+    const QString border      = QString("<rect class=\"border\"  x=  \"%1.5\" y= \"0.5\" width=\"%2\" height=\"19\" pointer-events=\"none\"/>\n").arg(cntrWidth).arg(width - cntrWidth - 1);
+    const QString endRect     = QString("<rect class=\"end\"     x=\"%1.5\" y= \"0.5\" width=   \"%2\" height=\"19\" %3%4%5\"%6%7%8/>\n").arg(width - margin).arg(margin - 1).arg(dataStart).arg(SVG_CUE).arg(cue_id).arg(mouseOver).arg(mouseOut).arg(mouseUp);
+    const QString grayRect    =         "<rect class=\"gray\"    x=   \"0\"   y= \"1\"   width=   \"0\" height=\"18\" fill-opacity=\"0\"/>\n";
+    const QString cursorBars  = QString("<polygon class=\"cursNo\" points=\"-6,1 6,1 0,15\" transform=\"translate(%1,0)\"/>\n").arg(margin + cntrWidth);
     const QString cursorMarks = QString("<polygon class=\"cursNo\" points=\"-6,19 6,19 0,5\" transform=\"translate(%1,0)\"/>\n").arg(margin + cntrWidth);
+    const QString loopStart   = QString("<polygon class=\"cursLoopLo\" points=\"-6,1 6,1 0,18\" transform=\"translate(%1,0)\" data-start=\"0\" onmousedown=\"%2cursorDown(evt)\" onmouseup=\"%3cursorUp(evt)\"/>\n").arg(margin + cntrWidth).arg(evtPrefix).arg(evtPrefix);
+    const QString loopEnd     = QString("<polygon class=\"cursLoopLo\" points=\"-6,19 6,19 0,2\" transform=\"translate(%1.5,0)\"%2 onmousedown=\"%3cursorDown(evt)\" onmouseup=\"%4cursorUp(evt)\"/>\n").arg(width - margin).arg(dataStart).arg(evtPrefix).arg(evtPrefix);
 
     *streamBars  << indent << border;
     *streamMarks << indent << border;
+    *streamBars  << indent << endRect;
+    *streamMarks << indent << endRect;
     *streamBars  << indent << grayRect;
     *streamMarks << indent << grayRect;
     *streamBars  << indent << cursorBars;
@@ -3613,9 +3625,9 @@ static void streamRulers(Score*         score,
     streamMarks->setRealNumberNotation(QTextStream::FixedNotation);
 
     // Stream the line and text elements, with all their attributes:
-    //   cue_id, x, x1, x2, y, y1, y2, anchor, and label
+    //   cue_id, x, x1, x2, y, y1, y2, and label
     // y and y1 are fixed by element type. That leaves:
-    // cue_id, x, x1, x2, y2, anchor and label
+    // cue_id, x, x1, x2, y2, and label
     for (QMap<QString, const Element*>::iterator i  = mapRulersSVG.begin();
                                                  i != mapRulersSVG.end();
                                                  i++) {
@@ -3627,7 +3639,6 @@ static void streamRulers(Score*         score,
         iY2    = 9;
         offX   = 0;
         label  = "";
-        anchor = "";
         lineClass = classRul;
 
         // Values for this cue
@@ -3690,12 +3701,13 @@ static void streamRulers(Score*         score,
         // Marker rects have a fixed width rect = text offset from line.
         // BarLine rects split the space around each line, no empty spaces.
         if (isMarker || startTick > 0) {
-            *streamX << indent   << SVG_RECT  << onClick   << start
-                        << SVG_X << SVG_QUOTE << x         << SVG_QUOTE
-                        << SVG_Y << SVG_QUOTE << iY1       << SVG_QUOTE
-                        << SVG_WIDTH          << rectWidth << SVG_QUOTE
-                        << SVG_HEIGHT         << "18"      << SVG_QUOTE
-                        << SVG_FILL           << SVG_NONE  << SVG_QUOTE
+            *streamX << indent     << SVG_RECT  << start
+                        << SVG_X   << SVG_QUOTE << x         << SVG_QUOTE
+                        << SVG_Y   << SVG_QUOTE << iY1 - (!isMarker ? halfHeight : 0) << SVG_QUOTE
+                        << SVG_WIDTH            << rectWidth << SVG_QUOTE
+                        << SVG_HEIGHT           << 18  + (!isMarker ? halfHeight : 0) << SVG_QUOTE
+                        << SVG_FILL             << SVG_NONE  << SVG_QUOTE
+                        << onClick << mouseOver << mouseOut  << mouseUp
                      << SVG_ELEMENT_END << endl;
 
             if (!isMarker) // startTick > 0
@@ -3703,8 +3715,7 @@ static void streamRulers(Score*         score,
         }
 
         // Both Markers and Bars get the line and, conditionally, text.
-        *streamX << indent << SVG_LINE
-                    << (isMarker ? onClick : "") << dataStart
+        *streamX << indent          << SVG_LINE  << dataStart
                     << SVG_CUE      << cue_id    << SVG_QUOTE
                     << SVG_CLASS    << lineClass
                     << SVG_BARNUM   << iBarNo    << SVG_QUOTE
@@ -3713,16 +3724,23 @@ static void streamRulers(Score*         score,
                     << SVG_X2       << pxX       << SVG_QUOTE
                     << SVG_Y2       << iY2       << SVG_QUOTE
                     << SVG_STROKE   << SVG_BLACK << SVG_QUOTE // stroke not working for lines in CSS
+                    << (isMarker ? onClick   : "")
+                    << (isMarker ? mouseOver : "")
+                    << (isMarker ? mouseOut  : "")
+                    << (isMarker ? mouseUp   : "")
                  << SVG_ELEMENT_END << endl;
 
         // Only stream the text element if there's text inside it
         if (!label.isEmpty()) {
-            *streamX << indent << SVG_TEXT_BEGIN
-                        << (isMarker ? onClick : "")        << dataStart
+            *streamX << indent   << SVG_TEXT_BEGIN          << dataStart
                         << SVG_CUE            << cue_id     << SVG_QUOTE
                         << SVG_CLASS          << textClass
-                        << SVG_X << SVG_QUOTE << pxX + offX << SVG_QUOTE
-                        << y     << anchor    << SVG_GT     << label
+                        << SVG_X << SVG_QUOTE << pxX + offX << SVG_QUOTE << y
+                        << (isMarker ? onClick   : "")
+                        << (isMarker ? mouseOver : "")
+                        << (isMarker ? mouseOut  : "")
+                        << (isMarker ? mouseUp   : "")
+                        << SVG_GT     << label
                      << SVG_TEXT_END << endl;
         }
 
@@ -3732,15 +3750,20 @@ static void streamRulers(Score*         score,
         }
     } //for (i)
 
-    // Mouse-click <rect> for final bar line
+    // Invisible <rect> for final bar line
     rectWidth = width - rectX - 1;
-    *streamBars << indent   << SVG_RECT  << onClick   << dataStart
-                   << SVG_X << SVG_QUOTE << rectX     << SVG_QUOTE
-                   << SVG_Y << SVG_QUOTE << iY1       << SVG_QUOTE
-                   << SVG_WIDTH          << rectWidth << SVG_QUOTE
-                   << SVG_HEIGHT         << "18"      << SVG_QUOTE
-                   << SVG_FILL           << SVG_NONE  << SVG_QUOTE
+    *streamBars << indent     << SVG_RECT  << dataStart
+                   << SVG_X   << SVG_QUOTE << rectX     << SVG_QUOTE
+                   << SVG_Y   << SVG_QUOTE << iY1 - halfHeight << SVG_QUOTE
+                   << SVG_WIDTH            << rectWidth << SVG_QUOTE
+                   << SVG_HEIGHT           << 18  + halfHeight << SVG_QUOTE
+                   << SVG_FILL             << SVG_NONE  << SVG_QUOTE
+                   << onClick << mouseOver << mouseOut  << mouseUp
                 << SVG_ELEMENT_END << endl;
+
+    // The loop cursors
+    *streamMarks << indent << loopStart;
+    *streamBars  << indent << loopEnd;
 }
 
 // MuseScore::saveSMAWS_Rulers()
@@ -3756,7 +3779,7 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
     const int wButts =   91; // Width of the playback buttons
 
     // Boilerplate header
-    const QString hdr = QString("<?xml-stylesheet type=\"text/css\" href=\"SMAWS_22.css\"?>\n<svg width=\"%1\" height=\"40\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\"\n data-attr=\"fill\">\n\n").arg(wRuler);
+    const QString hdr = QString("<?xml-stylesheet type=\"text/css\" href=\"SMAWS_22.css\"?>\n<svg width=\"%1\" height=\"%2\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\"\n data-attr=\"fill\">\n\n").arg(wRuler).arg(hRuler);
 
     // The root file name, without the .ext
     const QString fileRoot = qfi->filePath().left(qfi->filePath().size() - 4);
@@ -3766,7 +3789,7 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
 
     // Event handler for clicking on ruler lines/text. Note the "top." prefix
     // to the function name. It's calling the (HTML) container's function.
-    const QString onClick = " onclick=\"top.clickRuler(evt)\"";
+    const QString evtPrefix = "top.";
 
     // 2 streams = 2 <g> elements in 1 SVG file
     QFile       rulersFile;
@@ -3786,21 +3809,23 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
     fileStream << qts.readAll() << endl;
 
     // streamRulers() takes separate streams for bars/markers
-    QString bars;
-    QTextStream barStream(&bars);
-    fileStream << SVG_GROUP_BEGIN  << SVG_ID        << "markers"
-               << SVG_QUOTE        << SVG_TRANSFORM << SVG_TRANSLATE
-               << wButts           << SVG_SPACE     << SVG_ZERO
-               << SVG_RPAREN_QUOTE << SVG_GT        << endl;
-
-    streamRulers(score, &barStream, &fileStream, wRuler - wButts, onClick, SVG_4SPACES);
-
-    fileStream << SVG_GROUP_END    << endl          << endl
-               << SVG_GROUP_BEGIN  << SVG_ID        << "bars"
+    // Bars goes first because it's full-height (38px) invisible rects are
+    // behind the Markers elements - all for mouse event management.
+    QString markers;
+    QTextStream markStream(&markers);
+    fileStream << SVG_GROUP_BEGIN  << SVG_ID        << "bars"
                << SVG_QUOTE        << SVG_TRANSFORM << SVG_TRANSLATE
                << wButts           << SVG_SPACE     << hRuler / 2
+               << SVG_RPAREN_QUOTE << SVG_GT        << endl;
+
+    streamRulers(score, &fileStream, &markStream, wRuler - wButts, evtPrefix, SVG_4SPACES);
+
+    fileStream << SVG_GROUP_END    << endl          << endl
+               << SVG_GROUP_BEGIN  << SVG_ID        << "markers"
+               << SVG_QUOTE        << SVG_TRANSFORM << SVG_TRANSLATE
+               << wButts           << SVG_SPACE     << SVG_ZERO
                << SVG_RPAREN_QUOTE << SVG_GT        << endl
-               << bars             << SVG_GROUP_END << endl << endl;
+               << markers          << SVG_GROUP_END << endl << endl;
 
     // Stream the "footer", terminating the <svg> element
     fileStream  << SVG_END;
@@ -5191,7 +5216,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                             << SVG_ELEMENT_END        << endl;
 
                 // Rulers: Bars and RehearsalMarks
-                const QString onClick = " onclick=\"clickRuler(evt)\"";
+                const QString evtPrefix = "";
                 QString bars;
                 QTextStream barStream(&bars);
                 tableStream << SVG_GROUP_BEGIN  << SVG_ID        << "markers"
@@ -5199,7 +5224,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML)
                             << SVG_ZERO         << SVG_SPACE     << height
                             << SVG_RPAREN_QUOTE << SVG_GT        << endl;
 
-                streamRulers(score, &barStream, &tableStream, width, onClick, SVG_4SPACES);
+                streamRulers(score, &barStream, &tableStream, width, evtPrefix, SVG_4SPACES);
 
                 tableStream << SVG_GROUP_END    << endl          << endl
                             << SVG_GROUP_BEGIN  << SVG_ID        << "bars"
