@@ -233,6 +233,7 @@ using IntListVectList = QList<IntListVect*>;
 #define CUE_ID_ZERO  "0000000_0000000"
 #define NATURAL_SIGN 57953     // 0xE261, natural signs excluded from frozen panes
 #define FROZEN_WIDTH 100.00
+#define RULER_HEIGHT 40
 
 // Imaginary MIDI note values for rests and invisible "cells" in SVG "tables"
 #define MIDI_REST  -1

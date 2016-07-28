@@ -622,8 +622,8 @@ void SvgPaintEngine::updateState(const QPaintEngineState &state)
     // These 2 have floating point flotsam, for example: 1.000000629
     // Both values should be integer 1, because no scaling is intended.
     // This rounds to three decimal places, as MuseScore does elsewhere.
-    const qreal m11 = qRound(t.m11() * 1000) / 1000;
-    const qreal m22 = qRound(t.m22() * 1000) / 1000;
+    const qreal m11 = qRound(t.m11() * 1000) / 1000.0;
+    const qreal m22 = qRound(t.m22() * 1000) / 1000.0;
 
     if ((m11 == 1 && m22 == 1 && t.m12() == t.m21()) // No scaling, no rotation
     || _classValue == CLASS_CLEF_COURTESY) {         // All courtesy clefs
@@ -1891,8 +1891,12 @@ void SvgGenerator::beginMultiGroup(QStringList* pINames, const QString& fullName
     SvgPaintEngine* pe = static_cast<SvgPaintEngine*>(paintEngine());
     pe->_isMulti = true;
     pe->_prevDef = 0;
-    pe->_iNames = pINames;
-    pe->beginMultiGroup(pINames->last(), fullName, className, height, top, cues);
+    if (pINames != 0) {
+        pe->_iNames = pINames;
+        pe->beginMultiGroup(pINames->last(), fullName, className, height, top, cues);
+    }
+    else // this applies to lyrics pseudo-staves
+        pe->beginMultiGroup(pe->_iNames->last().toUpper(), fullName, className, height, top, cues);
 }
 
 /*!
