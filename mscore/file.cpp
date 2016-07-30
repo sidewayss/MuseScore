@@ -3485,7 +3485,7 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
         iNames.append("system");
         printer.setStaffIndex(nVisible); // only affects fancy formatting
         printer.setYOffset(0);
-        printer.beginMultiGroup(&iNames, "system", "system", 0, 0, QString());
+        printer.beginMultiGroup(&iNames, "system", "system", 35, 0, QString()); ///!!! 35 is standard top staff line y-coord, I'm being lazy here by hardcoding it
         for (SVGMap::iterator i = mapMulti.begin(); i != mapMulti.end(); ++i) {
             cue_id = i.key();
             printer.setCueID(cue_id);
