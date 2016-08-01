@@ -91,6 +91,7 @@
 #include "libmscore/tempo.h"
 #include "libmscore/chord.h"
 #include "libmscore/iname.h"
+#include "libmscore/harmony.h"
 #include "libmscore/notedot.h"
 #include "libmscore/accidental.h"
 #include "libmscore/instrchange.h"
@@ -101,11 +102,12 @@
 #define EXT_HTML ".html"
 #define EXT_JS   ".js"
 
-#define FILE_PLAY_BUTTS "SMAWS_PlayButts.svg.txt"
+#define FILE_PLAY_BUTTS "SMAWS_PlayButts.svg.txt" // sheet music playback buttons
 #define FILE_DRUM_DEFS  "SMAWS_DrumDefs.svg.txt"
-#define FILE_DRUM_BUTTS "SMAWS_DrumButts.svg.txt"
-#define FILE_PAGE_BUTTS "SMAWS_DrumPageButts.svg.txt"
-#define FILE_DRUM_CTRLS "SMAWS_DrumCtrls.svg.txt"
+#define FILE_DRUM_PLAY  "SMAWS_DrumPlayButts.svg.txt"  // Drum Machine playback buttons
+#define FILE_DRUM_PAGE  "SMAWS_DrumPageButts.svg.txt"  // Drum Machine page buttons
+#define FILE_DRUM_BOTH  "SMAWS_DrumPageButts.svg.txt"  // Drum Machine playback + page buttons
+#define FILE_DRUM_CTRLS "SMAWS_DrumCtrls.svg.txt"      // Drum machine controls by row/channel
 
 #define FILTER_SMAWS               "SMAWS SVG+VTT"
 #define FILTER_SMAWS_MULTI         "SMAWS Multi-Staff"
@@ -2640,6 +2642,7 @@ static QString getCueID(int startTick, int endTick = -1)
     return QString("%1_%2").arg(startTick, CUE_ID_FIELD_WIDTH, base, fillChar)
                              .arg(endTick, CUE_ID_FIELD_WIDTH, base, fillChar);
 }
+
 // getAnnCueID()
 // Gets the cue ID for an annotation, such as rehearsal mark or chord symbol,
 // where the cue duration lasts until the next element of the same type.
@@ -2775,6 +2778,20 @@ static QString getGrayOutCues(Score* score, int idxStaff, QStringList* pVTT)
         qts << SVG_QUOTE;
 
     return(cues);
+}
+
+// Does a score have chord changes specified? (EType::HARMONY = chord "symbol")
+// Used by saveSMAWS_Tables()
+static Harmony* getHarmony(Segment* seg) {
+    Harmony* pHarm = 0;
+    for (Element* eAnn : seg->annotations()) {
+        if (eAnn->type() == EType::HARMONY) {
+            pHarm = static_cast<Harmony*>(eAnn); // found one, we're done
+            break;
+        }
+    }
+
+    return pHarm;
 }
 
 // paintStaffLines() - consolidates shared code in saveSVG() and saveSMAWS()
@@ -3875,67 +3892,79 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
     return true;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+// saveSMAWS_Tables() - SMAWS HTML & SVG Tables (Drum Machine Style) generator
 //
-// SMAWS HTML and SVG Tables generator
+// A single score can have multiple tables, just as a single HTML page can
+// have multiple tables.  In MuseScore I'm using the repeat barlines as a
+// 1)separator and
+// 2)loop vs. pick-up/count-off indicator.
+// There are three types of repeat barlines: Left, Right, and Both.
+// This code uses the Measure class's have a Repeat Flag to get that data.
+
+// Pitch is 100% irrelevant at this time, as are multiple notes/voices in
+// a staff's ChordRest. All that matters is: note duration per staff.
+// Pitch and more could definitely become useful when this gets hooked up
+// to MIDI on the client end. Not yet...
+
+// I handle pick-up measures (Repeat::NONE), but not let-downs. No need yet.
+
+// Every SMAWS HTML Table's columns are defined by the length of the repeat
+// segment and the grid density. The grid staff has lyrics, which are
+// displayed as grid text. I'm using the convention that staves with lyrics
+// have the Small staff checkbox checked.
+// The lyrics staff with the partName == "grid" is the grid staff.
+// The lyrics staff with the partName == "chords" is an optional chords staff.
 //
-bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML, bool hasRulers)
+// This grid staff contains notes, no rests, for the length of each repeat.
+// Anywhere you want to make a table column, put a note in the grid staff.
+// Generally within a table, the grid is one duration (e.g. 1/8th notes)
+// for the entire table.  But it is plausible in a Chords table to need a
+// mainly 1-bar grid that has 1/2 bar columns for mid-bar chord changes.
+// If barline borders are different than intra-bar borders, this is OK.
+// Sub-dividing the grid with extra <td>s in a column doesn't work easily.
+// Implementation is a colspan in the grid row + extra column(s) in table.
+// I'm not implementing it (yet). No pressing need, may never arise...
+// For now sub-divisions of the grid by staff are considered an error.
+
+// The order of the staves top-to-bottom == the order of the rows
+// Staff == Row, Time/Beat == Column
+// Extra header column for intrument names (row headers)
+// Extra pseudo-header columns for pick-up/count-off
+
+// For SVG, x-axis = columns, y-axis = rows: Columns move left-to-right
+//                                              Rows move top-to-bottom
+// It's totally backwards from the standard spreadsheet row/column concept.
+// Think about it this way: row data is across the columns
+//                          col data is across the rows
+// It gets into reverse translating from data cells to for() loop iteration.
+//
+// Don't be confused by isChord vs. idxChords:
+//     isChord   == bool: if (true) this ChordRest* is a Chord* not a Rest*
+//     idxChords == int: staff index for optional chord changes, EType::HARMONY
+//
+bool MuseScore::saveSMAWS_Tables(Score*     score,
+                                 QFileInfo* qfi,
+                                 bool       isHTML,
+                                 bool       hasRulers)
 {
-    // A single score can have multiple tables, just as a single HTML page can
-    // have multiple tables.  In MuseScore I'm using the repeat barlines as a
-    // 1)separator and
-    // 2)loop vs. pick-up/count-off indicator.
-    // There are three types of repeat barlines: Left, Right, and Both.
-    // This code uses the Measure class's have a Repeat Flag to get that data.
-
-    // Pitch is 100% irrelevant at this time, as are multiple notes/voices in
-    // a staff's ChordRest. All that matters is: note duration per staff.
-    // Pitch and more could definitely become useful when this gets hooked up
-    // to MIDI on the client end. Not yet...
-
-    // I handle pick-up measures (Repeat::NONE), but not let-downs. No need yet.
-
-    // Every SMAWS HTML Table's columns are defined by the length of the repeat
-    // segment and the grid density. The grid staff has lyrics, which are
-    // displayed as grid text. I'm using the convention that staves with lyrics
-    // have the Small staff checkbox checked.  The lyrics staff with the
-    // partName == "grid" is the grid staff.
-    //
-    // This grid staff contains notes, no rests, for the length of each repeat.
-    // Anywhere you want to make a table column, put a note in the grid staff.
-    // Generally within a table, the grid is one duration (e.g. 1/8th notes)
-    // for the entire table.  But it is plausible in a Chords table to need a
-    // mainly 1-bar grid that has 1/2 bar columns for mid-bar chord changes.
-    // If barline borders are different than intra-bar borders, this is OK.
-    // Sub-dividing the grid with extra <td>s in a column doesn't work easily.
-    // Implementation is a colspan in the grid row + extra column(s) in table.
-    // I'm not implementing it (yet). No pressing need, may never arise...
-    // For now sub-divisions of the grid by staff are considered an error.
-
-    // The order of the staves top-to-bottom == the order of the rows
-    // Staff == Row, Time/Beat == Column
-    // Extra header column for intrument names (row headers)
-    // Extra pseudo-header columns for pick-up/count-off
-
-    // For SVG, x-axis = columns, y-axis = rows: Columns move left-to-right
-    //                                              Rows move top-to-bottom
-    // It's totally backwards from the standard spreadsheet row/column concept.
-    // Think about it this way: row data is across the columns
-    //                          col data is across the rows
-    // It gets into reverse translating from data cells to for loop iteration.
-
     // Total staves, including invible and temporarily invisible staves
     const int nStaves = score->nstaves();
 
-    // Iterate by Staff to locate the grid staff
-    const QString GRID = "grid";
+    // Iterate by Staff to locate the required grid staff and optional chords staff
+    const QString GRID   = "grid";
+    const QString CHORDS = "chords";
     int     idxStaff;
-    int     idxGrid = -1; // The index of the grid staff/row
-    IntList twoVoices;    // For 2-voice lyrics staves
+    int     idxGrid   = -1; // The index of the grid staff/row
+    int     idxChords = -1; // The index of the optionsl chords row
+    IntList twoVoices;      // For 2-voice lyrics staves
 
     for (idxStaff = 0; idxStaff < nStaves; idxStaff++) {
         if (score->staff(idxStaff)->small()) {
             if (score->staff(idxStaff)->partName() == GRID)
                 idxGrid = idxStaff;
+            else if (score->staff(idxStaff)->partName() == CHORDS)
+                idxChords = idxStaff;
             else if (score->staff(idxStaff)->cutaway()) // for lack of a custom property
                 twoVoices.append(idxStaff);
         }
@@ -4287,7 +4316,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML, bool
                         }
                     }
 
-                    // Small staves are Grid or Lyrics (both have text)
+                    // Small staves are Grid, Chords, or Lyrics (all have text)
                     isLED = !score->staff(r)->small();
 
                     // The ChordRest for this staff, using only Voice #1
@@ -4313,9 +4342,9 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML, bool
                     //  - isChord2 is lyrics only, rest == empty
                     //  - isChord == false == not empty == rest in voice 1 LED
                     if (!isStaffVisible[r]
-                     || (!isChord2
-                      && ((crData == 0 || (isChord && note->tieBack() != 0))
-                       || (!isLED && !isChord))))
+                    || (!isChord2 && (crData == 0
+                                  || (isChord && note->tieBack() != 0)
+                                  || (!isLED && !isChord))))
                     {                                                          /// EMPTY CELL ///
                         if (!isHTML && (isPages || isStaffVisible[r])) {
                             cellY += cellHeight; // for the next row
@@ -4335,7 +4364,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML, bool
                                 (*leds2[idxCol])[r]->append(pqs);
                             }
                         }
-                        continue; // empty cell, we're done
+                        continue; // empty cell complete, on to the next cell
                     }
 
                     if (isLED || isChord) {
@@ -4546,6 +4575,11 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML, bool
                                            .arg(LED)
                                            .arg(colSpan > 1 ? QString::number(colSpan) : "")
                                            .arg(isChord     ? NO                       : LO);
+                            else if (r == idxChords) {
+                                Harmony* pHarm = getHarmony(s);
+                                if (pHarm != 0) // this prevents crashes for misaligned scores
+                                    cellValue = pHarm->rootName();
+                            }
                             else { // Lyrics
                                 if (isChord)
                                     cellValue = crData->lyrics(0)->plainText();
@@ -4556,6 +4590,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML, bool
                             int x  = cellX + (cellWidth / 2);
                             int y;
                             const QString lyric = "lyric";
+                            const QString chord = "chord";
 
                             if (pqs->isEmpty()) {
                                 if (isLED) { // LED staff, notes not text
@@ -4574,7 +4609,8 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML, bool
                                     qts << SVG_TEXT_BEGIN
                                         << formatInt(SVG_X, x, maxDigits, true)
                                         << formatInt(SVG_Y, y, maxDigits, true)
-                                        << SVG_CLASS << lyric << NO << SVG_QUOTE;
+                                        << SVG_CLASS << (r == idxChords ? chord : lyric)
+                                        << NO << SVG_QUOTE;
                                 }
                             }
                             if (isChord2 && pqs2->isEmpty()) {
@@ -4626,7 +4662,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML, bool
                                     qts << cue_id;
                                 }
 
-                                // LED or Lyrics value for page cues
+                                // LED or Chord or Lyrics value for page cues
                                 if (isLED || isChord) {
                                     spl = (*leds[idxCol])[r];
                                     if (spl == 0) {
@@ -4771,9 +4807,10 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML, bool
                 tableFile.open(QIODevice::WriteOnly | QIODevice::Text);  // TODO: check for failure here!!!
                 tableStream.setDevice(&tableFile);
 
-                // For rulers
                 if (hasRulers)
-                    height += RULER_HEIGHT;
+                    height += RULER_HEIGHT; // Ruler adds to the total SVG height
+                else
+                    height -= cellHeight;   // No ruler == no title bar/playback buttons either
 
                 // Stream the SVG header elements CSS, <svg>, <title>, <desc>:
                 tableStream
@@ -5034,11 +5071,13 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML, bool
                                        << SVG_SPACE     << cellY         << SVG_RPAREN_QUOTE
                                     << SVG_GT << endl;
 
-                        // Import the row header controls (solo, gain, pan).
-                        qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_DRUM_CTRLS));
-                        qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
-                        qts.setDevice(&qf);
-                        tableStream << qts.readAll().replace("%1", id);
+                        // Import the row header controls (solo, gain, pan), but not for idxChord
+                        if (r != idxChords) {
+                            qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_DRUM_CTRLS));
+                            qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
+                            qts.setDevice(&qf);
+                            tableStream << qts.readAll().replace("%1", id);
+                        }
 
                         tableStream << SVG_4SPACES << *iNames[r] << SVG_ID << id << SVG_QUOTE;
                         if (isPages) {
@@ -5105,14 +5144,16 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML, bool
 
                     isLED = !score->staff(r)->small();
 
+                    const bool hasPitches = (pitchSet[r] != 0
+                                          && pitchSet[r]->size() > 1);
+
                     for (int c = 0; c < grid.size(); c++) {
                         if ((*grid[c])[r] == 0 || (isPages && r == idxGrid))
                             continue;
 
                         int  pitch0;
                         qreal y = 0;
-                        const bool hasPitches = (pitchSet[r] != 0
-                                              && pitchSet[r]->size() > 1);
+
                         pqs = (*grid[c])[r];
                         pil = (*pitches[c])[r];
                         if (isLED) {
@@ -5195,7 +5236,7 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML, bool
 
                             if (isLED)
                                 tableStream << SVG_ELEMENT_END << endl;
-                            else {  // Lyrics are text, with innerHTML and </text>
+                            else {  // Chords and Lyrics are text, with innerHTML and </text>
                                 QString innerHTML;
                                 if (spl != 0)
                                     innerHTML = *pqs;
@@ -5289,8 +5330,11 @@ bool MuseScore::saveSMAWS_Tables(Score* score, QFileInfo* qfi, bool isHTML, bool
                 // This file includes the reference to the external javascript,
                 // as well as the audio and vtt files.
                 // This text file is very small, QString.replace() = no problem
-                qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(isPages ? FILE_PAGE_BUTTS
-                                                                             : FILE_DRUM_BUTTS));
+                qf.setFileName(QString("%1/%2").arg(qfi->path())
+                                               .arg(!hasRulers ? FILE_DRUM_PAGE
+                                                               : (isPages ? FILE_DRUM_BOTH
+                                                                          : FILE_DRUM_PLAY)));
+
                 qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
                 qts.setDevice(&qf);
                 tableStream << qts.readAll().replace("%1", QString::number(height - 47))
