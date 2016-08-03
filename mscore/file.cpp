@@ -3835,7 +3835,7 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
     const int wButts =   91; // Width of the playback buttons
 
     // Boilerplate header
-    const QString hdr = QString("<?xml-stylesheet type=\"text/css\" href=\"SMAWS_22.css\"?>\n<svg width=\"%1\" height=\"%2\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\"\n data-attr=\"fill\">\n\n").arg(wRuler).arg(hRuler);
+    const QString hdr = QString("<?xml-stylesheet type=\"text/css\" href=\"SMAWS_22.css\"?>\n<svg width=\"%1\" height=\"%2\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\">\n\n").arg(wRuler).arg(hRuler);
 
     // The root file name, without the .ext
     const QString fileRoot = qfi->filePath().left(qfi->filePath().size() - 4);
@@ -4094,6 +4094,9 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
     const QString MINI = "ledMini";
     const QString LO   = "Lo";
     const QString NO   = "No";
+
+    // if (!hasRulers) event functions are in the parent document's scripts
+    const QString evtPrefix = (hasRulers ? "" : "top.");
 
     // Currently two HTML table styles, one kludgy option implementation.
     // Two styles are: tableChords and tableDrumMachine
@@ -4828,7 +4831,8 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                                            << endl << SVG_4SPACES
                        << SVG_PRESERVE_XYMIN_SLICE         << endl << SVG_4SPACES
                        << SVG_POINTER_EVENTS << SVG_CURSOR << endl << SVG_4SPACES
-                       << SVG_CLASS << SMAWS << SVG_QUOTE  << SVG_ONLOAD
+                       << SVG_CLASS << SMAWS << SVG_QUOTE
+                       << (hasRulers ? SVG_ONLOAD : SVG_TOP_ONLOAD)
                     << SVG_GT << endl
                     // <title>
                     << SVG_TITLE_BEGIN << score->title() << SVG_TITLE_END << endl
@@ -5059,14 +5063,17 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         // Display name (text element's innerHTML)
                         name = score->staff(r)->part()->longName(startOffset);
 
+                        isLED = !score->staff(r)->small();
+
                         // This id value works best with only alphanumeric chars.
                         id = name;
                         id.remove(QRegExp("[^a-zA-Z\\d]"));
 
-                        // Each staff (row) is wrapped in a group, even the grid - why not reorder it too? because page numbers might have to move too
+                        // Each staff (row) is wrapped in a group
                         tableStream << SVG_GROUP_BEGIN
                                        << SVG_ID        << id            << SVG_QUOTE
-                                       << SVG_CLASS     << "staff"       << SVG_QUOTE
+                                       << SVG_CLASS     << "staff"
+                                       << (!isLED && r != idxChords ? " lyrics" : "") << SVG_QUOTE
                                        << SVG_TRANSFORM << SVG_TRANSLATE << SVG_ZERO
                                        << SVG_SPACE     << cellY         << SVG_RPAREN_QUOTE
                                     << SVG_GT << endl;
@@ -5076,7 +5083,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_DRUM_CTRLS));
                             qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
                             qts.setDevice(&qf);
-                            tableStream << qts.readAll().replace("%1", id);
+                            tableStream << qts.readAll().replace("%0", evtPrefix).replace("%1", id);
                         }
 
                         tableStream << SVG_4SPACES << *iNames[r] << SVG_ID << id << SVG_QUOTE;
@@ -5141,8 +5148,6 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                        << SVG_CLASS << "notes" << SVG_QUOTE
                                     << SVG_GT << endl;
                     }
-
-                    isLED = !score->staff(r)->small();
 
                     const bool hasPitches = (pitchSet[r] != 0
                                           && pitchSet[r]->size() > 1);
@@ -5298,7 +5303,6 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                 << SVG_ELEMENT_END        << endl;
 
                     // Rulers: Bars and RehearsalMarks
-                    const QString evtPrefix = (hasRulers ? "" : "top.");
                     QString bars;
                     QTextStream barStream(&bars);
                     tableStream << SVG_GROUP_BEGIN  << SVG_ID        << "markers"
@@ -5330,6 +5334,9 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 // This file includes the reference to the external javascript,
                 // as well as the audio and vtt files.
                 // This text file is very small, QString.replace() = no problem
+                // No rulers            == only page buttons
+                // Rulers, but no pages == only play buttons
+                // Rulers + pages       == both page and play buttons
                 qf.setFileName(QString("%1/%2").arg(qfi->path())
                                                .arg(!hasRulers ? FILE_DRUM_PAGE
                                                                : (isPages ? FILE_DRUM_BOTH
@@ -5337,7 +5344,10 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
 
                 qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
                 qts.setDevice(&qf);
-                tableStream << qts.readAll().replace("%1", QString::number(height - 47))
+
+                // Only FILE_DRUM_BOTH has all these fields, but the numbering is the same across all three files
+                tableStream << qts.readAll().replace("%0", evtPrefix)
+                                            .replace("%1", QString::number(height - 47))
                                             .replace("%2", QString::number(height - 10.5))
                                             .replace("%3", tableTitle)
                                             .replace("%4", qfi->completeBaseName())
