@@ -89,6 +89,7 @@ using IntListVectList = QList<IntListVect*>;
 #define SVG_ASTERISK  '*'
 #define SVG_RPAREN    ')'
 #define SVG_GT        '>'
+#define SVG_LT        '<'
 #define SVG_ZERO      '0'
 #define SVG_ONE       "1"
 #define SVG_SPACE     ' '

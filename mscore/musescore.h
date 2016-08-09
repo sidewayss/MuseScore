@@ -436,6 +436,7 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       bool saveSMAWS_Rulers (Score* score, QFileInfo* qfi);
       bool saveSMAWS_Tables (Score* score, QFileInfo* qfi, bool isHTML, bool hasRulers);
       bool saveSMAWS_MixTree(Score* score, QFileInfo* qfi);
+      bool saveSMAWS_Lyrics (Score* score, QFileInfo* qfi);
 ///////////////////////////////////////////////////////////////////////////////
 
    private slots:
