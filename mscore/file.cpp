@@ -3081,30 +3081,32 @@ bool MuseScore::saveSvg(Score* score, const QString& saveName)
 // SMAWS functions - 100% outside of MuseScore master (at least for now...)
 ///////////////////////////////////////////////////////////////////////////////
 
-// Static helper functions. They all return QString except startMSecFromCueID()
-// 1 VTT Cue generator: getVTTCueTwo()
-// 1 Extractor of Start Milliseconds from a string Cue ID: startMSecFromCueID()
-// 1 Painter of SMAWS staff/staves: paintStaffSMAWS()
-// 1 sort-by-staff function for std::stable_sort(): elementLessThanByStaff()
+// Static helper functions
+// ticks2VTTmsecs()  - converts from ticks to hh:mm:ss:zzz string for VTT cue
+// getVTTCueTwo()    - returns the first 2 lines of a SMAWS VTT cue: id + time
+// smawsDesc()       - returns a string to use in the <desc> of SVG file
+// paintStaffSMAWS() - paints the entire score for one staff
+// elementLessThanByStaff() - sort-by-staff function for std::stable_sort()
 //
+static QString ticks2VTTmsecs(int ticks, const TempoMap* tempos) {
+    return QTime::fromMSecsSinceStartOfDay(qRound(tempos->tick2time(ticks) * 1000))
+                                                 .toString("hh:mm:ss.zzz");
+}
+
 // getVTTCueTwo()
 // Gets the first two lines of a VTT cue. The minimum valid cue requires only
 // an additional newline. Some cues have cue text in addition to that.
 static QString getVTTCueTwo(const QString& cue_id, const TempoMap* tempos)
 {
-    // Calculate start/end times ...try to imagine it as two lines of code.
+    // Split the cue_id into start and end ticks
     const int   startTick = cue_id.left( CUE_ID_FIELD_WIDTH).toInt();
     const int     endTick = cue_id.right(CUE_ID_FIELD_WIDTH).toInt();
-    const int   startMSec = qRound(tempos->tick2time(startTick) * 1000);
-    const int     endMSec = qRound(tempos->tick2time(  endTick) * 1000);
-    const QTime startTime = QTime::fromMSecsSinceStartOfDay(startMSec);
-    const QTime   endTime = QTime::fromMSecsSinceStartOfDay(  endMSec);
 
     // Return the cue's first two lines:     0000000_1234567
     //                                       00:00:00.000 --> 12:34:56.789
     return QString("%1\n%2 --> %3\n").arg(cue_id)
-                                     .arg(startTime.toString("hh:mm:ss.zzz"))
-                                     .arg(  endTime.toString("hh:mm:ss.zzz"));
+                                     .arg(ticks2VTTmsecs(startTick, tempos))
+                                     .arg(ticks2VTTmsecs(  endTick, tempos));
 }
 
 // This gets used a couple/few times
@@ -5639,58 +5641,66 @@ bool MuseScore::saveSMAWS_MixTree(Score* score, QFileInfo* qfi)
 //
 bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
 {
-    int  i;
-    QMap<int, QString> lyricsStaves;
+    const TempoMap* tempos          = score->tempomap();
+    const QString   VTT_CLASS_BEGIN = "<c.";
+    const QString   VTT_CLASS_END   = "/c>";
 
-    // Iterate by Staff to locate the lyrics staves
-    for (i = 0; i < score->nstaves(); i++) {
-        if (score->staff(i)->hideSystemBarLine())
-            // Maps staff index to VTT+CSS-style version of part name, enclosed
-            // in angle brackets. VTT cue text looks like this:
-            //     <partName>insert-lyrics-here
-            // CSS rule looks like this:
-            //     ::cue(partName){attr:value;}
-            lyricsStaves.insert(i, QString("%1%2%3").arg(SVG_LT)
-                                                    .arg(score->staff(i)->partName())
-                                                    .arg(SVG_GT));
-    }
-
-    if (lyricsStaves.size() == 0)
-        return false; // no lyrics staves in this score
-
+    int     i;
     int     startTick  = 0;
     bool    isPrevRest = true; // Is the previous element a rest?
-    bool    isMulti    = lyricsStaves.size() > 1;
+    QString lyricsStaff;
     QString lyricsText;
-    QMultiMap<QString, QString>  mapLyrics; // key = cue_id, value = lyrics text
-    QMap<int, QString>::iterator staff;
+    QMultiMap<QString, QString> mapLyrics; // key = cue_id, value = lyrics text
 
-    // By measure by segment of type ChordRest
-    for (Measure* m = score->firstMeasure();
-                  m;
-                  m = m->nextMeasureMM())
+    // Iterate over the lyrics staves and collect cue_ids + lyrics text
+    // By staff by measure by segment of type ChordRest
+    for (i = 0; i < score->nstaves(); i++)
     {
-        for (Segment* s = m->first(Segment::Type::ChordRest);
-                      s;
-                      s = s->next(Segment::Type::ChordRest))
-        {
-            // Iterate over the lyrics staves and collect cue_ids + lyrics text
-            for (staff = lyricsStaves.begin(); staff != lyricsStaves.end(); ++staff) {
-                ChordRest* cr = s->cr(staff.key() * VOICES);
+        // VTT+CSS-class version of part name, enclosed in angle brackets.
+        // VTT cue text looks like this:
+        //     <c.partName>insert-lyrics-here</c>
+        // CSS rule looks like this:
+        //     .partName {...}
+        // VTT speaker name is a <v name></v> block (not implemented yet, use staff.instrument.shortName)
+        lyricsStaff = QString("%1%2").arg(VTT_CLASS_BEGIN).arg(score->staff(i)->partName());
+
+        for (Measure* m = score->firstMeasure(); m; m = m->nextMeasureMM()) {
+            for (Segment* s = m->first(Segment::Type::ChordRest); s; s = s->next(Segment::Type::ChordRest))
+            {
+                ChordRest* cr = s->cr(i * VOICES);
                 if (cr == 0)
                     continue;
 
                 switch (cr->type()) {
                 case EType::CHORD :
-                    if (isPrevRest) {
-                        isPrevRest = false;
-                        startTick  = cr->tick();
-                        lyricsText = (isMulti ? staff.value() : "") + cr->lyrics(0)->plainText();          ///!!! looping over lyricsList vector will be necessary soon, tied in with repeats, which are also 100% unhandled in SMAWS today!!!
+                    if (cr->lyricsList().size() > 0) {
+                        if (isPrevRest) { // New line of lyrics
+                            isPrevRest = false;
+                            startTick  = cr->tick();
+///!!! looping over lyricsList vector will be necessary soon, tied in with repeats, which are also 100% unhandled in SMAWS today!!!
+                            lyricsText = lyricsStaff + SVG_SPACE + cr->lyrics(0)->plainText();
+                        }
+                        else {            // Add to existing line of lyrics
+                            switch (cr->lyrics(0)->syllabic()) {
+                            case Lyrics::Syllabic::SINGLE :
+                            case Lyrics::Syllabic::BEGIN  :
+                                lyricsText += SVG_SPACE;   // new word, precede it with a space
+                                break;
+                            default :
+                                break; // multi-syllable word with separate timestap tags, no preceding space
+                            }
+                            lyricsText += SVG_LT;
+                            lyricsText += ticks2VTTmsecs(cr->tick(), tempos);
+                            lyricsText += SVG_GT;
+///!!! looping over lyricsList vector will be necessary soon, tied in with repeats, which are also 100% unhandled in SMAWS today!!!
+                            lyricsText += cr->lyrics(0)->plainText();
+                        }
                     }
                     break;
                 case EType::REST :
                     if (!isPrevRest && startTick != 0) {
-                        isPrevRest = true;
+                        isPrevRest  = true;
+                        lyricsText +=  VTT_CLASS_END;
                         mapLyrics.insert(getCueID(startTick, cr->tick()), lyricsText);
                     }
                     break;
@@ -5714,7 +5724,6 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
     streamVTT << VTT_HEADER;
 
     // Stream the cues, iterating by cue_id
-    const TempoMap*   tempos = score->tempomap();
     const QStringList keys   = mapLyrics.uniqueKeys();
     for (QStringList::const_iterator cue_id  = keys.cbegin();
                                      cue_id != keys.cend();
