@@ -5649,6 +5649,7 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
     int     startTick  = 0;
     bool    isPrevRest = true; // Is the previous element a rest?
     QString lyricsStaff;
+    QString lyricsItalic;
     QString lyricsText;
     QMultiMap<QString, QString> mapLyrics; // key = cue_id, value = lyrics text
 
@@ -5678,7 +5679,8 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
                             isPrevRest = false;
                             startTick  = cr->tick();
 ///!!! looping over lyricsList vector will be necessary soon, tied in with repeats, which are also 100% unhandled in SMAWS today!!!
-                            lyricsText = lyricsStaff + SVG_SPACE + cr->lyrics(0)->plainText();
+                            lyricsItalic = (cr->lyrics(0)->textStyle().italic() ? "Italic" : "");
+                            lyricsText   = lyricsStaff + lyricsItalic + SVG_SPACE + cr->lyrics(0)->plainText();
                         }
                         else {            // Add to existing line of lyrics
                             switch (cr->lyrics(0)->syllabic()) {
