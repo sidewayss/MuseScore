@@ -5700,7 +5700,7 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
                     }
                     break;
                 case EType::REST :
-                    if (!isPrevRest && startTick != 0) {
+                    if (!isPrevRest && cr->tick() != 0) {
                         isPrevRest  = true;
                         lyricsText +=  VTT_CLASS_END;
                         mapLyrics.insert(getCueID(startTick, cr->tick()), lyricsText);
