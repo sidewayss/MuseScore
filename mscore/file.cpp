@@ -3088,25 +3088,32 @@ bool MuseScore::saveSvg(Score* score, const QString& saveName)
 // paintStaffSMAWS() - paints the entire score for one staff
 // elementLessThanByStaff() - sort-by-staff function for std::stable_sort()
 //
+static int ticks2msecs(int ticks, const TempoMap* tempos) {
+    return qRound(tempos->tick2time(ticks) * 1000);
+}
+
 static QString ticks2VTTmsecs(int ticks, const TempoMap* tempos) {
-    return QTime::fromMSecsSinceStartOfDay(qRound(tempos->tick2time(ticks) * 1000))
-                                                 .toString("hh:mm:ss.zzz");
+    return QTime::fromMSecsSinceStartOfDay(ticks2msecs(ticks, tempos)).toString("hh:mm:ss.zzz");
 }
 
 // getVTTCueTwo()
 // Gets the first two lines of a VTT cue. The minimum valid cue requires only
 // an additional newline. Some cues have cue text in addition to that.
+// WebVTT requires that end times be greater than start times by at least 1ms.
+// I have scrolling cues that are zero duration, but in VTT they must last 1ms.
 static QString getVTTCueTwo(const QString& cue_id, const TempoMap* tempos)
 {
     // Split the cue_id into start and end ticks
-    const int   startTick = cue_id.left( CUE_ID_FIELD_WIDTH).toInt();
-    const int     endTick = cue_id.right(CUE_ID_FIELD_WIDTH).toInt();
+    const int startTick = cue_id.left( CUE_ID_FIELD_WIDTH).toInt();
+    const int   endTick = cue_id.right(CUE_ID_FIELD_WIDTH).toInt();
+    const int   endTime = ticks2msecs(endTick, tempos) + (startTick == endTick ? 1 : 0);
+
 
     // Return the cue's first two lines:     0000000_1234567
     //                                       00:00:00.000 --> 12:34:56.789
     return QString("%1\n%2 --> %3\n").arg(cue_id)
                                      .arg(ticks2VTTmsecs(startTick, tempos))
-                                     .arg(ticks2VTTmsecs(  endTick, tempos));
+                                     .arg(QTime::fromMSecsSinceStartOfDay(endTime).toString("hh:mm:ss.zzz"));
 }
 
 // This gets used a couple/few times
