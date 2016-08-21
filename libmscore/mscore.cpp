@@ -212,8 +212,6 @@ void MScore::init()
 #endif
       qRegisterMetaType<Fraction>("Fraction");
 
-//      DPMM = DPI / INCH;       // dots/mm
-
 #ifdef Q_OS_WIN
       QDir dir(QCoreApplication::applicationDirPath() + QString("/../" INSTALL_NAME));
       _globalShare = dir.absolutePath() + "/";

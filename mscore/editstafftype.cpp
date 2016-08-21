@@ -184,6 +184,8 @@ void EditStaffType::setValues()
                   int idx = fretFontName->findText(staffType.fretFontName(), Qt::MatchFixedString);
                   if (idx == -1)
                         idx = 0;          // if name not found, use first name
+                  QString suffix = qApp->translate(TRANSLATE_CTX_UNITS, unitSuffixes[int(Units::PT)]);
+                  fretFontSize->setSuffix(suffix);
                   fretFontName->setCurrentIndex(idx);
                   fretFontSize->setValue(staffType.fretFontSize());
                   fretY->setValue(staffType.fretFontUserY());
@@ -199,6 +201,7 @@ void EditStaffType::setValues()
                   idx = durFontName->findText(staffType.durationFontName(), Qt::MatchFixedString);
                   if (idx == -1)
                         idx = 0;          // if name not found, use first name
+                  durFontSize->setSuffix(suffix);
                   durFontName->setCurrentIndex(idx);
                   durFontSize->setValue(staffType.durationFontSize());
                   durY->setValue(staffType.durationFontUserY());

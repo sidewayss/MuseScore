@@ -21,6 +21,7 @@
 #include "textprop.h"
 #include "libmscore/text.h"
 #include "libmscore/score.h"
+#include "libmscore/page.h"
 #include "icons.h"
 
 namespace Ms {
@@ -33,6 +34,17 @@ TextProp::TextProp(QWidget* parent)
    : QWidget(parent)
       {
       setupUi(this);
+      //set the icon here or the style can't color them
+      alignLeft->setIcon(*icons[int(Icons::textLeft_ICON)]);
+      alignHCenter->setIcon(*icons[int(Icons::textCenter_ICON)]);
+      alignRight->setIcon(*icons[int(Icons::textRight_ICON)]);
+      alignTop->setIcon(*icons[int(Icons::textTop_ICON)]);
+      alignVCenter->setIcon(*icons[int(Icons::textVCenter_ICON)]);
+      alignBaseline->setIcon(*icons[int(Icons::textBaseline_ICON)]);
+      alignBottom->setIcon(*icons[int(Icons::textBottom_ICON)]);
+      fontBold->setIcon(*icons[int(Icons::textBold_ICON)]);
+      fontItalic->setIcon(*icons[int(Icons::textItalic_ICON)]);
+      fontUnderline->setIcon(*icons[int(Icons::textUnderline_ICON)]);
 
       QButtonGroup* g1 = new QButtonGroup(this);
       g1->addButton(alignLeft);
@@ -85,7 +97,8 @@ void TextProp::setScore(bool onlyStyle, Score* score)
 
 void TextProp::mmToggled(bool val)
       {
-      QString unit(val ? tr("mm", "millimeter unit") : tr("sp", "spatium unit"));
+      QString unit(val ? qApp->translate(TRANSLATE_CTX_UNITS, unitSuffixes[int(Units::MM)])
+                       : qApp->translate(TRANSLATE_CTX_UNITS, unitSuffixes[int(Units::SP)]));
       xOffset->setSuffix(unit);
       yOffset->setSuffix(unit);
       curUnit = val ? 0 : 1;
@@ -145,8 +158,8 @@ void TextProp::setTextStyle(const TextStyle& s)
             alignTop->setChecked(true);
 
       if (s.offsetType() == OffsetType::ABS) {
-            xOffset->setValue(s.offset().x() * INCH);
-            yOffset->setValue(s.offset().y() * INCH);
+            xOffset->setValue(s.offset().x() * MMPI);
+            yOffset->setValue(s.offset().y() * MMPI);
             mmUnit->setChecked(true);
             curUnit = 0;
             }
@@ -191,8 +204,8 @@ TextStyle TextProp::textStyle() const
       ts.setSize(fontSize->value());
       QFont f = fontSelect->currentFont();
       ts.setFamily(f.family());
-      ts.setXoff(xOffset->value() / ((ts.offsetType() == OffsetType::ABS) ? INCH : 1.0));
-      ts.setYoff(yOffset->value() / ((ts.offsetType() == OffsetType::ABS) ? INCH : 1.0));
+      ts.setXoff(xOffset->value() / ((ts.offsetType() == OffsetType::ABS) ? MMPI : 1.0));
+      ts.setYoff(yOffset->value() / ((ts.offsetType() == OffsetType::ABS) ? MMPI : 1.0));
       ts.setFrameColor(frameColor->color());
       ts.setForegroundColor(color->color());
       ts.setBackgroundColor(bgColor->color());

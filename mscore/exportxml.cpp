@@ -1084,7 +1084,7 @@ static void defaults(Xml& xml, Score* s, double& millimeters, const int& tenths)
       xml.etag();
       const PageFormat* pf = s->pageFormat();
       if (pf)
-            writePageFormat(pf, xml, INCH / millimeters * tenths);
+            writePageFormat(pf, xml, PageFormat::SCALE_XML);
 
       // TODO: also write default system layout here
       // when exporting only manual or no breaks, system-distance is not written at all
@@ -1156,12 +1156,12 @@ void ExportMusicXml::credits(Xml& xml)
       // determine page formatting
       const PageFormat* pf = _score->pageFormat();
       if (!pf) return;
-      const double h  = getTenthsFromInches(pf->size().height());
-      const double w  = getTenthsFromInches(pf->size().width());
-      const double lm = getTenthsFromInches(pf->oddLeftMargin());
-      const double rm = getTenthsFromInches(pf->oddRightMargin());
-      //const double tm = getTenthsFromInches(pf->oddTopMargin());
-      const double bm = getTenthsFromInches(pf->oddBottomMargin());
+      const double h  = pf->size().height()   * PageFormat::SCALE_XML;
+      const double w  = pf->size().width()    * PageFormat::SCALE_XML;
+      const double lm = pf->oddLeftMargin()   * PageFormat::SCALE_XML;
+      const double rm = pf->oddRightMargin()  * PageFormat::SCALE_XML;
+      //const double tm = pf->oddTopMargin()  * PageFormat::SCALE_XML;
+      const double bm = pf->oddBottomMargin() * PageFormat::SCALE_XML;
       //qDebug("page h=%g w=%g lm=%g rm=%g tm=%g bm=%g", h, w, lm, rm, tm, bm);
 
       // write the credits
@@ -2268,7 +2268,7 @@ static int determineTupletNormalTicks(ChordRest const* const chord)
       for (unsigned int i = 1; i < t->elements().size(); ++i)
             if (t->elements().at(0)->duration().ticks() != t->elements().at(i)->duration().ticks())
                   return t->baseLen().ticks();
-      if (t->elements().size() != (unsigned)(t->ratio().numerator()))
+      if (t->elements().size() != (unsigned)t->ratio().numerator())
             return t->baseLen().ticks();
       return 0;
       }
@@ -2363,8 +2363,8 @@ void ExportMusicXml::chord(Chord* chord, int staff, const std::vector<Lyrics*>* 
 #endif
 
       const PageFormat* pf = _score->pageFormat();
-      const double pageHeight  = getTenthsFromInches(pf->size().height());
-      // const double pageWidth  = getTenthsFromInches(pf->size().width());
+      const double pageHeight  = pf->size().height() * PageFormat::SCALE_XML;
+      // const double pageWidth  = pf->size().width() * PageFormat::SCALE_XML;
 
       for (Note* note : nl) {
             QString val;
@@ -2909,7 +2909,8 @@ static void directionTag(Xml& xml, Attributes& attr, Element const* const el = 0
                   qDebug("directionTag()  center diff=%g", el->y() + el->height() / 2 - bb.y() - bb.height() / 2);
                    */
 
-                  if (el->isHairpin() || el->isOttava() || el->isPedal() || el->isTextLine()) {
+                  if (el->type() == Element::Type::HAIRPIN || el->type() == Element::Type::OTTAVA
+                      || el->type() == Element::Type::PEDAL || el->type() == Element::Type::TEXTLINE) {
                         // for the line type elements the reference point is vertically centered
                         // actual position info is in the segments
                         // compare the segment's canvas ypos with the staff's center height
@@ -2917,12 +2918,6 @@ static void directionTag(Xml& xml, Attributes& attr, Element const* const el = 0
                               tagname += " placement=\"above\"";
                         else
                               tagname += " placement=\"below\"";
-                        }
-                  else if (el->isDynamic()) {
-                        tagname += " placement=\"";
-                        tagname += el->placement() == Element::Placement::ABOVE
-                           ? "above" : "below";
-                        tagname += "\"";
                         }
                   else {
                         /*
@@ -4460,10 +4455,10 @@ void ExportMusicXml::print(Measure* m, int idx, int staffCount, int staves)
             if (doLayout) {
                   xml.stag(QString("print%1").arg(newThing));
                   const PageFormat* pf = score()->pageFormat();
-                  const double pageWidth  = getTenthsFromInches(pf->size().width());
-                  const double lm = getTenthsFromInches(pf->oddLeftMargin());
-                  const double rm = getTenthsFromInches(pf->oddRightMargin());
-                  const double tm = getTenthsFromInches(pf->oddTopMargin());
+                  const double pageWidth  = pf->size().width() * PageFormat::SCALE_XML;
+                  const double lm = pf->oddLeftMargin()  * PageFormat::SCALE_XML;
+                  const double rm = pf->oddRightMargin() * PageFormat::SCALE_XML;
+                  const double tm = pf->oddTopMargin()   * PageFormat::SCALE_XML;
 
                   // System Layout
 
@@ -5429,7 +5424,7 @@ bool saveMxl(Score* score, const QString& name)
 
 double ExportMusicXml::getTenthsFromInches(double inches)
       {
-      return inches * INCH / millimeters * tenths;
+      return inches * MMPI / millimeters * tenths;
       }
 
 double ExportMusicXml::getTenthsFromDots(double dots)
