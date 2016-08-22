@@ -1326,7 +1326,7 @@ void SvgPaintEngine::freezeDef(int idxStaff)
     QString     key, content, type;
     QTextStream qts;
     StrPtrList* spl;
-    const qreal timeX =_xLeft + 4 + 16 + xOffsetTimeSig + 3; //!!! fixed margin between KeySig/TimeSig. Default setting is 0.5 * spatium, but it ends up more like 3 than 2.5. not sure why.;
+    const qreal timeX =_xLeft + 4 + 16 + xOffsetTimeSig + 3; //!!! fixed margin between KeySig/TimeSig. Default setting is 0.5 * spatium, but it ends up more like 3 than 2.5. not sure why.
 
     // If the current cue_id is missing elements, fill them in with _prevDef
     FDef* def = frozenDefs[_cue_id];
@@ -1422,7 +1422,7 @@ void SvgPaintEngine::freezeDef(int idxStaff)
     // The width of the entire frozen pane for this _cue_id
     // if (_isMulti) this runs more than once, so we use the widest value.
     // If MuseScore ever allows different keysigs by staff, this code is ready. :-)
-    w = qRound(timeX + 12);                                                     //!!! 12 = timesig width plus 2 for margin/rounding
+    w = qRound(timeX + 13);                                                     //!!! 13 = timesig width plus 3 for margin/rounding
     if (!frozenWidths.contains(_cue_id) || frozenWidths[_cue_id] < w)
         frozenWidths.insert(_cue_id, w);
 
