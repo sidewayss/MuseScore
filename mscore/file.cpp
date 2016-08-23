@@ -4849,7 +4849,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                        << SVG_PRESERVE_XYMIN_SLICE         << endl << SVG_4SPACES
                        << SVG_POINTER_EVENTS << SVG_CURSOR << endl << SVG_4SPACES
                        << SVG_CLASS << SMAWS << SVG_QUOTE
-                       << (hasRulers ? SVG_ONLOAD : SVG_TOP_ONLOAD)
+                       << (hasRulers ? SVG_ONLOAD : "")
                     << SVG_GT << endl
                     // <title>
                     << SVG_TITLE_BEGIN << score->title() << SVG_TITLE_END << endl
