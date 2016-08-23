@@ -190,6 +190,7 @@ protected:
     bool    _isSMAWS;          // In order to use SMAWS code only when necessary
     bool    _isScrollVertical; // Only 2 axes: x = false, y = true.
     bool    _isMulti;          // Multi-Select Staves file formats/formatting
+    bool    _isFullMatrix;     // A full matrix requires different handling of the y-offset for Multi-Select Staves
     qreal   _cursorTop;        // For calculating the height of (vertical bar)
     qreal   _cursorHeight;     // Sheet music playback position cursor.
     qreal   _yOffset;          // Y axis offset used by Multi-Select Staves
@@ -630,17 +631,19 @@ void SvgPaintEngine::updateState(const QPaintEngineState &state)
         // No transformation except translation
         _dx = t.m31();
         _dy = t.m32();
+        _isFullMatrix = false;
     }
     else {
         // Other transformations are more straightforward with a full matrix
         _dx = 0;
         _dy = 0;
+        _isFullMatrix = true;
         qts << SVG_MATRIX << t.m11() << SVG_COMMA
                           << t.m12() << SVG_COMMA
                           << t.m21() << SVG_COMMA
                           << t.m22() << SVG_COMMA
                           << t.m31() << SVG_COMMA
-                          << t.m32() << SVG_RPAREN_QUOTE;
+                          << t.m32() + _yOffset << SVG_RPAREN_QUOTE;
     }
 
     // Set attributes for element types not styled by CSS
@@ -829,14 +832,16 @@ void SvgPaintEngine::drawImage(const QRectF &r, const QImage &image,
     Q_UNUSED(sr);
     Q_UNUSED(flags);
 
+    const qreal yOff = _isFullMatrix ? 0 : _yOffset;
+
     if (_isMulti)
         stream() << SVG_4SPACES;
 
-    stream() << SVG_IMAGE           << classState  << styleState
-             << SVG_X << SVG_QUOTE  << r.x() + _dx            << SVG_QUOTE
-             << SVG_Y << SVG_QUOTE  << r.y() + _dy + _yOffset << SVG_QUOTE
-             << SVG_WIDTH           << r.width()              << SVG_QUOTE
-             << SVG_HEIGHT          << r.height()             << SVG_QUOTE;
+    stream() << SVG_IMAGE           << classState         << styleState
+             << SVG_X << SVG_QUOTE  << r.x() + _dx        << SVG_QUOTE
+             << SVG_Y << SVG_QUOTE  << r.y() + _dy + yOff << SVG_QUOTE
+             << SVG_WIDTH           << r.width()          << SVG_QUOTE
+             << SVG_HEIGHT          << r.height()         << SVG_QUOTE;
 
     QByteArray data;
     QBuffer buffer(&data);
@@ -849,6 +854,8 @@ void SvgPaintEngine::drawImage(const QRectF &r, const QImage &image,
 
 void SvgPaintEngine::drawPath(const QPainterPath &p)
 {
+    const qreal yOff = _isFullMatrix ? 0 : _yOffset;
+
     if (_isMulti)
         stream() << SVG_4SPACES;
 
@@ -858,7 +865,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
         // I hardcode to the rect style that I like. The size of the rect in
         // MuseScore is wrong to begin with, so this looks the best in the end.
         _textFrame.setX(_dx);
-        _textFrame.setY(qMax(_dy - _e->height(), 2.0) + _yOffset);
+        _textFrame.setY(qMax(_dy - _e->height(), 2.0) + yOff);
         _textFrame.setWidth(qMax(_e->width() + 2, 16.0));
         _textFrame.setHeight(13);
 
@@ -896,7 +903,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     for (int i = 0; i < p.elementCount(); ++i) {
         const QPainterPath::Element &ppe = p.elementAt(i);
         qreal x = ppe.x + _dx;
-        qreal y = ppe.y + _dy + _yOffset;
+        qreal y = ppe.y + _dy + yOff;
         switch (ppe.type) {
         case QPainterPath::MoveToElement:
             stream() << SVG_M << x << SVG_COMMA << y;
@@ -911,7 +918,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
                 const QPainterPath::Element &ppeCurve = p.elementAt(i);
                 if (ppeCurve.type == QPainterPath::CurveToDataElement) {
                     stream() << SVG_SPACE << ppeCurve.x + _dx
-                             << SVG_COMMA << ppeCurve.y + _dy + _yOffset;
+                             << SVG_COMMA << ppeCurve.y + _dy + yOff;
                     ++i;
                 }
                 else {
@@ -933,6 +940,8 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 {
     Q_ASSERT(pointCount >= 2);
 
+    const qreal yOff = _isFullMatrix ? 0 : _yOffset;
+
     if (mode == PolylineMode) {
         if (_isMulti) stream() << SVG_4SPACES;
 
@@ -940,7 +949,7 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
         for (int i = 0; i < pointCount; ++i) {
             const QPointF &pt = points[i];
 
-            stream() << pt.x() + _dx << SVG_COMMA << pt.y() + _dy + _yOffset;
+            stream() << pt.x() + _dx << SVG_COMMA << pt.y() + _dy + yOff;
 
             if (i != pointCount - 1)
                 stream() << SVG_SPACE;
@@ -973,7 +982,7 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 
             qts << SVG_POINTS
                 << fixedFormat("", points[0].x() + _dx, 2, false) << SVG_COMMA    // !!!literal value: start of staff lines is always < 100
-                << fixedFormat("", points[0].y() + _dy + _yOffset, d_func()->yDigits, false)
+                << fixedFormat("", points[0].y() + _dy + yOff, d_func()->yDigits, false)
                 << SVG_SPACE;
 
             if (isStaffLines) {
@@ -985,7 +994,7 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
                 qts << fixedFormat("", points[1].x() + _dx, 3, false);
 
             qts << SVG_COMMA
-                << fixedFormat("", points[1].y() + _dy + _yOffset, d_func()->yDigits, false)
+                << fixedFormat("", points[1].y() + _dy + yOff, d_func()->yDigits, false)
                 << SVG_QUOTE << SVG_ELEMENT_END << endl;
         }
     }
@@ -1006,7 +1015,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
 
     // Variables, constants, initial setup
     qreal x = p.x() + _dx; // The de-translated coordinates
-    qreal y = p.y() + _dy + _yOffset;
+    qreal y = p.y() + _dy + (_isFullMatrix ? 0 : _yOffset);
 
     const QFont   font       = textItem.font();
     const QString fontFamily = font.family();
