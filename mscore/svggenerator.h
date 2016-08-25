@@ -227,6 +227,8 @@ using IntListVectList = QList<IntListVect*>;
 #define CLASS_CLEF_COURTESY "ClefCourtesy"
 #define CLASS_CURSOR        "cursor"
 #define CLASS_GRAY          "gray"
+#define CLASS_NOTES         "notes"
+#define CLASS_TABS          "tablature"
 #define CLASS_GRID          "grid"       // for HTML drum machine tables
 #define CLASS_TITLE         "title"      // ditto
 #define CLASS_INSTRUMENT    "instrument" // ditto

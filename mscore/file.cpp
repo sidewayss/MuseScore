@@ -2829,6 +2829,7 @@ static void paintStaffLines(Score*        score,
         pINames->append(qs.replace(SVG_SPACE, SVG_DASH));
 
         const bool isTab     = score->staff(idxStaff)->isTabStaff();
+        const int gridHeight = 30;
         const int tabHeight  = 53;
         const int stdHeight  = 45;                //!!! see below
         const int idxVisible = (*pVisibleStaves)[idxStaff];
@@ -2864,14 +2865,15 @@ static void paintStaffLines(Score*        score,
         if (bot < 0)
             bot = page->height() - pStaffTops->value(0) - page->bm();
 
-        // Standard notation or tablature? I need to know by staff
-        const QString className = (isTab ? "tablature" : "notes");
-        printer->beginMultiGroup(pINames,
-                                 score->staff(idxStaff)->part()->shortName(0),
-                                 className,
-                                 bot - top,
-                                 top,
-                                 getGrayOutCues(score, idxStaff, pVTT));
+        // Standard notation, tablature, or grid? I need to know by staff
+        const QString shortName = score->staff(idxStaff)->part()->shortName(0);
+        const bool    isGrid    = (shortName == STAFF_GRID);
+        const qreal   height    = (isGrid ? gridHeight : bot - top);
+        const QString className = (isGrid ? CLASS_GRID
+                                          : (isTab ? CLASS_TABS
+                                                   : CLASS_NOTES));
+        printer->beginMultiGroup(pINames, shortName, className, height, top,
+                                 getGrayOutCues(score, idxStaff, pVTT));     //!!! these gray-out cues are not currently used
         printer->setCueID("");
     }
 
@@ -5159,8 +5161,8 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                     // The data cells (and grid cells if isPage == false)
                     if (isPages && r != idxGrid) {
                         tableStream << SVG_4SPACES  << SVG_GROUP_BEGIN
-                                       << SVG_ID    << id      << SVG_QUOTE
-                                       << SVG_CLASS << "notes" << SVG_QUOTE
+                                       << SVG_ID    << id          << SVG_QUOTE
+                                       << SVG_CLASS << CLASS_NOTES << SVG_QUOTE
                                     << SVG_GT << endl;
                     }
 
