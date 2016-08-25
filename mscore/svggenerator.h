@@ -61,6 +61,7 @@ using StrPtrVectList  = QList<StrPtrVect*>;
 using StrPtrListVect  = QVector<StrPtrList*>;
 using StrPtrListVectList = QList<StrPtrListVect*>;
 using Str2IntMap      = QMap<QString, int>;
+using Str2RealMap     = QMap<QString, qreal>;
 using BoolVect        = QVector<bool>;
 using RealVect        = QVector<qreal>;
 using RealList        = QList<qreal>;
@@ -233,9 +234,10 @@ using IntListVectList = QList<IntListVect*>;
 // Miscellaneous SMAWS constants
 #define TEXT_BPM     "bpm"
 #define CUE_ID_ZERO  "0000000_0000000"
-#define NATURAL_SIGN 57953     // 0xE261, natural signs excluded from frozen panes
+#define NATURAL_SIGN 57953   // 0xE261, natural signs excluded from frozen panes
 #define FROZEN_WIDTH 100.00
 #define RULER_HEIGHT 40
+#define STAFF_GRID    "grid" // Yes, it's the same as CLASS_GRID, but they serve different roles, STAFF_GRID is used outside of saveSMAWS_Tables() too.
 
 // Imaginary MIDI note values for rests and invisible "cells" in SVG "tables"
 #define MIDI_REST  -1

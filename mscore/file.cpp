@@ -2846,7 +2846,7 @@ static void paintStaffLines(Score*        score,
             }
         }
 
-        if (idxVisible < nVisible - 1) {
+        if (idxVisible >= 0 && idxVisible < nVisible - 1) {
             // Get the next visible staff (below)
             for (int i = idxStaff + 1; i < pVisibleStaves->size(); i++) {
                 if ((*pVisibleStaves)[i] > 0) {
@@ -2877,13 +2877,6 @@ static void paintStaffLines(Score*        score,
 
     for (System* s : page->systems()) {
         for (int i = 0, n = s->staves()->size(); i < n; i++) {
-            qreal staffTop;
-            StaffLines* sl;
-
-            // Ignore invisible staves
-            if (score->staff(i)->invisible())
-                continue;
-
             if (idxStaff > -1)
                 i = idxStaff; // Only one staff's lines being drawn
 
@@ -2894,8 +2887,8 @@ static void paintStaffLines(Score*        score,
             if (pVisibleStaves != 0) {
                 printer->setStaffIndex(pVisibleStaves->value(i));
                 if (isFirstSystem) {
-                    sl        = s->firstMeasure()->staffLines(i);
-                    staffTop  = sl->bbox().top() + sl->pagePos().y();
+                    StaffLines* sl = s->firstMeasure()->staffLines(i);
+                    qreal staffTop = sl->bbox().top() + sl->pagePos().y();
                     int j;
                     // Get the first visible staff index (in the first system)
                     for (j = 0; j < pVisibleStaves->size(); j++) {
@@ -2928,6 +2921,10 @@ static void paintStaffLines(Score*        score,
                     }
                 }
             }
+
+            // staff with invisible staff lines = nothing to draw here
+            if (score->staff(i)->invisible())
+                continue;
 
             // The goal here is to draw SVG staff lines more efficiently.
             // MuseScore draws staff lines by measure, but for SVG they can
@@ -3340,7 +3337,7 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
     visibleStaves.resize(score->nstaves());
     int nVisible = 0;
     for (int i = 0; i < score->nstaves(); i++)
-        visibleStaves[i] = score->staff(i)->invisible() ? -1 : nVisible++;
+        visibleStaves[i] = score->staff(i)->part()->show() ? nVisible++ : -1;
     printer.setNStaves(nVisible);
 
     // The sort order for elmPtrs is critical: if (isMulti) by type, by staff;
@@ -3516,6 +3513,7 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
                         &visibleStaves, &staffTops, idxStaff, isMulti);
 
         // Paint the staff-independent elements
+        // No staff lines, no bar lines, so no call to paintStaffLines()
         iNames.append("system");
         printer.setStaffIndex(nVisible); // only affects fancy formatting
         printer.setYOffset(0);
@@ -3978,7 +3976,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
 
     for (idxStaff = 0; idxStaff < nStaves; idxStaff++) {
         if (score->staff(idxStaff)->small()) {
-            if (score->staff(idxStaff)->partName() == GRID)
+            if (score->staff(idxStaff)->partName() == STAFF_GRID)
                 idxGrid = idxStaff;
             else if (score->staff(idxStaff)->partName() == CHORDS)
                 idxChords = idxStaff;
@@ -4414,7 +4412,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             // Required if the idxGrid is not the first staff (which may not be plausible anyway...)
                             cue_id = getCueID(startTick, startTick + gridTicks);
 
-                            QString ref = GRID;
+                            QString ref = STAFF_GRID;
                             if (isPages && idxPage > 0)
                                 ref += LO;
                             else
@@ -4448,7 +4446,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                 qts << SVG_TEXT_BEGIN
                                     << formatInt(SVG_X, cellX + (cellWidth  / 2), maxDigits, true)
                                     << formatInt(SVG_Y, cellY + (cellHeight / 2), maxDigits, true)
-                                    << SVG_CLASS << GRID << NO << SVG_QUOTE // grid <text> LO = invisible = >empty content<
+                                    << SVG_CLASS << CLASS_GRID << NO << SVG_QUOTE // grid <text> LO = invisible = >empty content<
                                     << SVG_CUE   << cue_id;
 
                                 if (!isPages)
@@ -5004,7 +5002,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             for (int p = 0; p < idxPage; p++) {
                                 tableStream << SVG_COMMA     << pageIDs[p]
                                             << SVG_SEMICOLON << SVG_HASH
-                                            << GRID;
+                                            << CLASS_GRID;
                                 if (g < pageCols[p])
                                     tableStream << NO;
                                 else

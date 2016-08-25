@@ -200,9 +200,10 @@ protected:
 ////////////////////
 // for Frozen Pane:
 //
-    bool    _isFrozen; // Is _e part of a frozen pane?
-    int     _nStaves;  // Number of staves in the current score
-    int     _idxStaff; // Number of staves in the current score
+    bool _isFrozen; // Is _e part of a frozen pane?
+    int  _nStaves;  // Number of staves in the current score
+    int  _idxStaff; // The current staff index
+    int  _idxGrid;  // The grid staff index
 
     // These vary by Staff:
     StrPtrVect   frozenLines; // vector by staff, frozen pane staff/system lines
@@ -215,8 +216,8 @@ protected:
     QStringList* _iNames;   // Multi-Select Staves: list of instrument names
     QStringList  _multiUse; // ditto: list of <use> element text starters
 
-    // These do not vary by Staff:
-    qreal xOffsetTimeSig; // TimeSig x-coord varies by KeySig.
+    // These only vary by cue_id, not by Staff
+    Str2RealMap xOffsetTimeSig; // TimeSig x-coord varies by KeySig, and thus by cue_id.
 
     // Completes open fDef in frozenDefs. Called by SvgGenerator::freezeIt().
     void freezeDef(int idxStaff);
@@ -243,6 +244,8 @@ protected:
                           << SVG_CLASS     << className     << SVG_QUOTE
                           << SVG_INAME     << fullName      << SVG_QUOTE
                           << cues          << SVG_GT        << endl;
+        if (fullName == STAFF_GRID)
+            _idxGrid = _iNames->size() - 1;
     }
 
     void endMultiGroup() {*d_func()->stream << SVG_GROUP_END << endl;}
@@ -266,15 +269,15 @@ public:
         _e  = NULL;
         _et = Ms::Element::Type::INVALID;
 
-        _prevDef       = 0; // FDef*
-        _iNames        = 0; // QStringList*
-        _nStaves       = 0; // int
-        _maxNote       = 0; // int
-        _xLeft         = 0; // qreal
-        _cursorTop     = 0; // qreal
-        _cursorHeight  = 0; // qreal
-        _yOffset       = 0; // qreal
-        xOffsetTimeSig = 0; // qreal
+        _prevDef       = 0;   // FDef*
+        _iNames        = 0;   // QStringList*
+        _nStaves       = 0;   // int
+        _idxGrid       = -1;  // int
+        _maxNote       = 0.0; // int
+        _xLeft         = 0.0; // qreal
+        _cursorTop     = 0.0; // qreal
+        _cursorHeight  = 0.0; // qreal
+        _yOffset       = 0.0; // qreal
 
         _isScrollVertical = false;
         _isMulti          = false;
@@ -455,17 +458,17 @@ bool SvgPaintEngine::end()
                              << SVG_GT      << endl;
 
                     if (_isMulti) {
-                        if (idx < _nStaves)
-                            // StaffLines/System BarLine(s) in all defs except System staff
+                        if (idx < _nStaves && idxStaff != _idxGrid)
+                            // StaffLines/System BarLine(s) in all defs except System and Grid staves
                             stream() << *(frozenLines[idx]);
                     }
                     else
                         // Tempo, once per def, not per staff (it looks nice at the top)
-                        stream() << *(def.value()->value(tempoKey)->value(0));
+                        stream() << *((*(*def.value())[tempoKey])[0]);
                 }
                 if (_isMulti || elms.key() != tempoKey) {
                     for (int i = 0; i < elms.value()->size();  i++)
-                        stream() << *(elms.value()->value(i));
+                        stream() << *((*elms.value())[i]);
                 }
             }
             stream() << SVG_4SPACES << SVG_GROUP_END << endl;
@@ -959,7 +962,7 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 
         // For Frozen Pane (horizontal scrolling only):
         // StaffLines and System BarLine(s)
-        if (_isFrozen) {
+        if (_isFrozen && _idxStaff != _idxGrid) {
             if (frozenLines[_idxStaff] == 0)
                 frozenLines[_idxStaff] = new QString;
 
@@ -1164,7 +1167,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
             break;
 
         case EType::KEYSIG :
-            if (!def->contains(key) || def->value(key)->size() == 0) {
+            if (!def->contains(key) || (*def)[key]->size() == 0) {
                 // First accidental in new KeySig:
                 // Reset the list of frozen keysigs for this staff
                 frozenKeyY[_idxStaff].clear();
@@ -1172,9 +1175,12 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
                 // Reset any Clef-induced y-axis offset
                 yOffsetKeySig[_idxStaff] = 0;
 
-                // The x-offset for the ensuing time signature
-                xOffsetTimeSig = qAbs((int)(static_cast<const Ms::KeySig*>(_e)->keySigEvent().key()))
-                               * 5; //!!! literal keysig-accidental-width
+                // The x-offset for the ensuing time signature is determined by the number of accidentals
+                const qreal xOff = qAbs((int)(static_cast<const Ms::KeySig*>(_e)->keySigEvent().key())) * 5; //!!! literal keysig-accidental-width
+                if (!xOffsetTimeSig.contains(_cue_id))
+                    xOffsetTimeSig.insert(_cue_id, xOff);
+                else if (xOff > xOffsetTimeSig[_cue_id])
+                    xOffsetTimeSig[_cue_id] = xOff;
             }
             // Natural signs are not frozen
             if (*(textItem.text().unicode()) != NATURAL_SIGN)
@@ -1199,26 +1205,28 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         QString* elm = new QString;
         QTextStream qts(elm);
         initStream(&qts);
-        if (_et == EType::KEYSIG || _et == EType::TIMESIG)
-            // KeySigs/TimeSigs simply cache the text content until freezeDef()
-            qts << textContent;
-        else
-            // The other element types cache a fully-defined <text> element
-            qts << getFrozenElement(textContent, defClass, x, y);
+        if (_idxStaff != _idxGrid || _et == EType::TIMESIG) {
+            if (_et == EType::KEYSIG || _et == EType::TIMESIG)
+                // KeySigs/TimeSigs simply cache the text content until freezeDef()
+                qts << textContent;
+            else if (_idxStaff != _idxGrid)
+                // The other element types cache a fully-defined <text> element
+                qts << getFrozenElement(textContent, defClass, x, y);
 
-        // Add the value to the list for key = idxStaff-EType
-        if (!def->contains(key)) {
-            StrPtrList* spl = new StrPtrList;
-            def->insert(key, spl);
-        }
+            // Add the value to the list for key = idxStaff-EType
+            if (!def->contains(key)) {
+                StrPtrList* spl = new StrPtrList;
+                def->insert(key, spl);
+            }
 
-        if (_et == EType::KEYSIG) {
-            // Set KeySig order: left-to-right (and exclude natural signs)
-            if (*(textItem.text().unicode()) != NATURAL_SIGN)
-                def->value(key)->insert(0, elm);
+            if (_et == EType::KEYSIG) {
+                // Set KeySig order: left-to-right (and exclude natural signs)
+                if (*(textItem.text().unicode()) != NATURAL_SIGN)
+                    (*def)[key]->insert(0, elm);
+            }
+            else
+                (*def)[key]->append(elm);
         }
-        else
-            def->value(key)->append(elm);
     }
 }
 
@@ -1335,64 +1343,64 @@ void SvgPaintEngine::freezeDef(int idxStaff)
     QString     key, content, type;
     QTextStream qts;
     StrPtrList* spl;
-    const qreal timeX =_xLeft + 4 + 16 + xOffsetTimeSig + 3; //!!! fixed margin between KeySig/TimeSig. Default setting is 0.5 * spatium, but it ends up more like 3 than 2.5. not sure why.
+    const qreal timeX =_xLeft + 4 + 16 + xOffsetTimeSig[_cue_id] + 3; //!!! fixed margin between KeySig/TimeSig. Default setting is 0.5 * spatium, but it ends up more like 3 than 2.5. not sure why.
 
-    // If the current cue_id is missing elements, fill them in with _prevDef
     FDef* def = frozenDefs[_cue_id];
 
     // Tempo is staff-independent. if (isMulti) there is no need for every cue
     // id to have all the frozen element types present. No need for _prevDef.
-    if (!_isMulti) {
+    if (!_isMulti  && _prevDef != 0) {
         key = QString("0%1%2").arg(SVG_DASH).arg(int(EType::TEMPO_TEXT));
-        if (!def->contains(key)
-         && _prevDef != 0 && _prevDef->contains(key)) // Nothing new for this cue
-            def->insert(key, _prevDef->value(key));   // id, use the prevDef.
+        if (!def->contains(key) && _prevDef->contains(key)) // Nothing new for this cue
+            def->insert(key, (*_prevDef)[key]);         // id, use the prevDef.
     }
 
+    // If the current cue_id is missing elements, fill them in with _prevDef
     for (idx = 0; idx < _nStaves; idx++) {
         if (idxStaff > -1)
             idx = idxStaff; // Freeze one staff only
 
-        // InstrumentNames
-        key = QString("%1%2%3").arg(idx).arg(SVG_DASH).arg(int(EType::INSTRUMENT_NAME));
-        if (!def->contains(key) && _prevDef != 0 && _prevDef->contains(key))
-            def->insert(key, _prevDef->value(key));
+        if (idx != _idxGrid) {   // grid staff frozen pane only has timesigs
+            if (_prevDef != 0) {
+                // InstrumentNames
+                key = QString("%1%2%3").arg(idx).arg(SVG_DASH).arg(int(EType::INSTRUMENT_NAME));
+                if (!def->contains(key) && _prevDef->contains(key))
+                    def->insert(key, (*_prevDef)[key]);
 
-        // Clefs
-        key = QString("%1%2%3").arg(idx).arg(SVG_DASH).arg(int(EType::CLEF));
-        if (!def->contains(key) && _prevDef != 0 && _prevDef->contains(key))
-            def->insert(key, _prevDef->value(key));
+                // Clefs
+                key = QString("%1%2%3").arg(idx).arg(SVG_DASH).arg(int(EType::CLEF));
+                if (!def->contains(key) && _prevDef->contains(key))
+                    def->insert(key, (*_prevDef)[key]);
+            }
 
-        // KeySigs
-        key = QString("%1%2%3").arg(idx).arg(SVG_DASH).arg(int(EType::KEYSIG));
-        type = _e->name(EType::KEYSIG);
-        if (!def->contains(key)) {
-            spl = new StrPtrList;
-            def->insert(key, spl);
-        }
-        for (i = 0; i < frozenKeyY[idx].size(); i++) {
-            if (def->value(key)->size() == i) {
-                if (_prevDef != 0 && _prevDef->contains(key)
-                 && _prevDef->value(key)->size() > i)
-                {                                             // Better than maintaining another vector by staff
-                    elm     = _prevDef->value(key)->value(i); // EType::KEYSIG = 1 accidental = 1 XML element
-                    content = elm->mid(elm->size() - 16, 8);  // &#xE260;          =  8 chars
-                }                                             // &#xE260;</text>\n = 16 chars
-                else
-                    content = QString("Staff number %1 has a key signature problem.")
-                                      .arg(idx);
-                elm = new QString;
-                spl->append(elm);
+            // KeySigs
+            key = QString("%1%2%3").arg(idx).arg(SVG_DASH).arg(int(EType::KEYSIG));
+            type = _e->name(EType::KEYSIG);
+            if (!def->contains(key)) {
+                spl = new StrPtrList;
+                def->insert(key, spl);
             }
-            else {
-                elm     = def->value(key)->value(i);
-                content = *elm;
-                elm->resize(0);
+            for (i = 0; i < frozenKeyY[idx].size(); i++) {
+                if ((*def)[key]->size() == i) {
+                    if (_prevDef != 0 && _prevDef->contains(key) && (*_prevDef)[key]->size() > i)
+                    {                                            // Better than maintaining another vector by staff
+                        elm     = (*(*_prevDef)[key])[i];        // EType::KEYSIG = 1 accidental = 1 XML element
+                        content = elm->mid(elm->size() - 16, 8); // &#xE260;          =  8 chars
+                    }                                            // &#xE260;</text>\n = 16 chars
+                    else
+                        content = QString("Staff number %1 has a key signature problem.").arg(idx);
+
+                    elm = new QString;
+                    spl->append(elm);
+                }
+                else {
+                    elm     = (*(*def)[key])[i];
+                    content = *elm;
+                    elm->resize(0);
+                }
+                qts.setString(elm);
+                qts << getFrozenElement(content, type, _xLeft + 4 + 16 + (i * 5), frozenKeyY[idx][i] + yOffsetKeySig[idx]); //!!! literal values: clefOffset + clefWidth. literal value: not SPATIUM20! SPATIUM20 = height, this = width.
             }
-            qts.setString(elm);
-            qts << getFrozenElement(content, type,
-                        _xLeft + 4 + 16 + (i * 5),                           //!!! literal values: clefOffset + clefWidth. literal value: not SPATIUM20! SPATIUM20 = height, this = width.
-                        frozenKeyY[idx][i] + yOffsetKeySig[idx]);
         }
 
         // TimeSigs
@@ -1403,13 +1411,12 @@ void SvgPaintEngine::freezeDef(int idxStaff)
             def->insert(key, spl);
         }
         for (i = 0; i < frozenTimeY[idx].size(); i++) {
-            if (def->value(key)->size() == i) {
-                if (_prevDef != 0 && _prevDef->contains(key)
-                 && _prevDef->value(key)->size() > i)
-                {                                             // Better than maintaining another vector by staff
-                    elm     = _prevDef->value(key)->value(i); // EType::TIMESIG = 1 char = 1 XML element (no support for sub-divided numerators, like 7/8 as 4+3/8. It's a frozen pane width issue too.)
-                    content = elm->mid(elm->size() - 16, 8);  // &#xE084;          =  8 chars
-                }                                             // &#xE084;</text>\n = 16 chars
+            if ((*def)[key]->size() == i) {
+                if (_prevDef != 0 && _prevDef->contains(key) && (*_prevDef)[key]->size() > i)
+                {                                            // Better than maintaining another vector by staff
+                    elm     = (*(*_prevDef)[key])[i];        // EType::TIMESIG = 1 char = 1 XML element (no support for sub-divided numerators, like 7/8 as 4+3/8. It's a frozen pane width issue too.)
+                    content = elm->mid(elm->size() - 16, 8); // &#xE084;          =  8 chars
+                }                                            // &#xE084;</text>\n = 16 chars
                 else
                     content = QString("Staff number %1 has a key signature problem.")
                                       .arg(idx);
@@ -1417,7 +1424,7 @@ void SvgPaintEngine::freezeDef(int idxStaff)
                 spl->append(elm);
             }
             else {
-                elm     = def->value(key)->value(i);
+                elm     = (*(*def)[key])[i];
                 content = *elm;
                 elm->resize(0);
             }
@@ -1826,7 +1833,6 @@ void SvgGenerator::setNStaves(int n) {
 void SvgGenerator::setStaffIndex(int idx) {
     SvgPaintEngine* pe = static_cast<SvgPaintEngine*>(paintEngine());
     pe->_idxStaff      = idx;
-    pe->xOffsetTimeSig = 0;
 }
 
 /*!
