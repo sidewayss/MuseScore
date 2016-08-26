@@ -4408,7 +4408,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         // Grid staff cells are simple
                         if (isHTML)
                             qts << HTML_TH_BEGIN << SVG_GT
-                                << crGrid->lyrics(0)->plainText()
+                                << crGrid->lyrics()[0]->plainText()
                                 << HTML_TH_END;
                         else {
                             // Required if the idxGrid is not the first staff (which may not be plausible anyway...)
@@ -4442,7 +4442,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             }
 
                             // Grid <text> element
-                            const QString lyrics = crGrid->lyrics(0)->plainText();
+                            const QString lyrics = crGrid->lyrics()[0]->plainText();
 
                             if (!isPages || idxCol == gridText.size()) {
                                 qts << SVG_TEXT_BEGIN
@@ -4602,9 +4602,9 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             }
                             else { // Lyrics
                                 if (isChord)
-                                    cellValue = crData->lyrics(0)->plainText();
+                                    cellValue = crData->lyrics()[0]->plainText();
                                 if (isChord2)
-                                    cellValue2 = cr2->lyrics(0)->plainText();
+                                    cellValue2 = cr2->lyrics()[0]->plainText();
                             }
 
                             int x  = cellX + (cellWidth / 2);
@@ -4742,10 +4742,10 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                 if (isLED)
                                     qts << SVG_ELEMENT_END << endl;
                                 else if (isChord)
-                                    qts << SVG_GT << crData->lyrics(0)->plainText()
+                                    qts << SVG_GT << crData->lyrics()[0]->plainText()
                                         << SVG_TEXT_END;
                                 else if (isChord2)
-                                    qts2 << SVG_GT << cr2->lyrics(0)->plainText()
+                                    qts2 << SVG_GT << cr2->lyrics()[0]->plainText()
                                          << SVG_TEXT_END;
                             }
                         } // else: SVG
@@ -5690,11 +5690,11 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
                             isPrevRest = false;
                             startTick  = cr->tick();
 ///!!! looping over lyricsList vector will be necessary soon, tied in with repeats, which are also 100% unhandled in SMAWS today!!!
-                            lyricsItalic = (cr->lyrics(0)->textStyle().italic() ? "Italic" : "");
-                            lyricsText   = lyricsStaff + lyricsItalic + SVG_SPACE + cr->lyrics(0)->plainText();
+                            lyricsItalic = (cr->lyrics()[0]->textStyle().italic() ? "Italic" : "");
+                            lyricsText   = lyricsStaff + lyricsItalic + SVG_SPACE + cr->lyrics()[0]->plainText();
                         }
                         else {            // Add to existing line of lyrics
-                            switch (cr->lyrics(0)->syllabic()) {
+                            switch (cr->lyrics()[0]->syllabic()) {
                             case Lyrics::Syllabic::SINGLE :
                             case Lyrics::Syllabic::BEGIN  :
                                 lyricsText += SVG_SPACE;   // new word, precede it with a space
@@ -5706,7 +5706,7 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
                             lyricsText += ticks2VTTmsecs(cr->tick(), tempos);
                             lyricsText += SVG_GT;
 ///!!! looping over lyricsList vector will be necessary soon, tied in with repeats, which are also 100% unhandled in SMAWS today!!!
-                            lyricsText += cr->lyrics(0)->plainText();
+                            lyricsText += cr->lyrics()[0]->plainText();
                         }
                     }
                     break;
