@@ -3136,7 +3136,8 @@ static void paintStaffSMAWS(Score*        score,
                             QVector<int>* pVisibleStaves =  0,
                             QList<qreal>* pStaffTops     =  0,
                             int           idxStaff = -1,
-                            bool          isMulti  = false)
+                            bool          isMulti  = false,
+                            int           lyricsHeight = -1)
 {
     QString cue_id;
 
@@ -3183,7 +3184,7 @@ static void paintStaffSMAWS(Score*        score,
             printer->beginMultiGroup(0,
                                      score->staff(idxStaff)->part()->shortName(0),
                                      "lyrics",
-                                     20,
+                                     lyricsHeight,
                                      pStaffTops->last() - pStaffTops->first(),
                                      QString());
 
@@ -3338,8 +3339,26 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
     QVector<int> visibleStaves;
     visibleStaves.resize(score->nstaves());
     int nVisible = 0;
-    for (int i = 0; i < score->nstaves(); i++)
+
+    // Lyrics staves. Managing preset staff height for the lyrics pseudo-staves
+    // is dicey. It only affects the display of lyrics w/o notes. This is so
+    // that the last (lowest) lyrics staff has an extra 10 pixels of height.
+    int idxLastLyrics = -1;
+
+    for (int i = 0; i < score->nstaves(); i++) {
+        // Visible staves
         visibleStaves[i] = score->staff(i)->part()->show() ? nVisible++ : -1;
+
+        // Last lyrics staff !!!bool Staff::hasLyrics() would be a good thing
+        Segment::Type st = Segment::Type::ChordRest;
+        for (Segment* seg = score->firstMeasureMM()->first(st); seg; seg = seg->next1MM(st)) {
+            ChordRest* cr = seg->cr(i * VOICES);
+            if (cr && !cr->lyrics().empty()) {
+                idxLastLyrics = i;
+                break;
+            }
+        }
+    }
     printer.setNStaves(nVisible);
 
     // The sort order for elmPtrs is critical: if (isMulti) by type, by staff;
@@ -3369,9 +3388,10 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
         const int idx = e->staffIdx();
         if (isMulti && idxStaff != idx) {
             if (idxStaff > -1) {
+                const int lyricsHeight = (idxStaff != idxLastLyrics ? 20 : 30);
                 // Paint the previous staff's animated elements
                 paintStaffSMAWS(score, &p, &printer, &mapFrozen, &mapSVG, &mapLyrics,
-                                &visibleStaves, &staffTops, idxStaff, isMulti);
+                                &visibleStaves, &staffTops, idxStaff, isMulti, lyricsHeight);
                 mapFrozen.clear();
                 mapLyrics.clear();
                 mapSVG.clear();
