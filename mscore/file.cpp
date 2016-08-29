@@ -102,12 +102,12 @@
 #define EXT_HTML ".html"
 #define EXT_JS   ".js"
 
-#define FILE_PLAY_BUTTS "SMAWS_PlayButts.svg.txt" // sheet music playback buttons
+#define FILE_PLAY_BUTTS "SMAWS_PlayButts.svg.txt"     // sheet music playback buttons
 #define FILE_DRUM_DEFS  "SMAWS_DrumDefs.svg.txt"
-#define FILE_DRUM_PLAY  "SMAWS_DrumPlayButts.svg.txt"  // Drum Machine playback buttons
-#define FILE_DRUM_PAGE  "SMAWS_DrumPageButts.svg.txt"  // Drum Machine page buttons
-#define FILE_DRUM_BOTH  "SMAWS_DrumPageButts.svg.txt"  // Drum Machine playback + page buttons
-#define FILE_DRUM_CTRLS "SMAWS_DrumCtrls.svg.txt"      // Drum machine controls by row/channel
+#define FILE_DRUM_PLAY  "SMAWS_DrumPlayButts.svg.txt" // Drum Machine playback buttons
+#define FILE_DRUM_TEMPO "SMAWS_DrumTempo.svg.txt"     // Drum Machine page buttons
+#define FILE_DRUM_BOTH  "SMAWS_DrumPageButts.svg.txt" // Drum Machine playback + page buttons
+#define FILE_DRUM_CTRLS "SMAWS_DrumCtrls.svg.txt"     // Drum machine controls by row/channel
 
 #define FILTER_SMAWS               "SMAWS SVG+VTT"
 #define FILTER_SMAWS_MULTI         "SMAWS Multi-Staff"
@@ -4506,6 +4506,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                 if (tempoCues.isEmpty()) {
                                     qts << SVG_CUE       << CUE_ID_ZERO
                                         << SVG_SEMICOLON << initialBPM * 1.0 << TEXT_BPM;
+                                    prevTempoPage = 1;
                                 }
 
                                 // Any missing page cues
@@ -4841,8 +4842,9 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
 
             } // if (isHtml)
             else { // SVG = One file per table
-                fnTable = QString("%1%2%3").arg(fnRoot).arg(SVG_DASH)
-                                           .arg(tableTitle);
+                const bool isOneTable = (m->no() == score->lastMeasure()->no() && startOffset == 0);
+                const QString tblTtl  = (isOneTable ? "" : QString("%1%2").arg(SVG_DASH).arg(tableTitle));
+                fnTable = QString("%1%2").arg(fnRoot).arg(tblTtl);
                 tableFile.setFileName(QString("%1%2").arg(fnTable).arg(EXT_SVG));
                 tableFile.open(QIODevice::WriteOnly | QIODevice::Text);  // TODO: check for failure here!!!
                 tableStream.setDevice(&tableFile);
@@ -5100,17 +5102,18 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         // Display name (text element's innerHTML)
                         name = score->staff(r)->part()->longName(startOffset);
 
-                        isLED = !score->staff(r)->small();
-
                         // This id value works best with only alphanumeric chars.
                         id = name;
                         id.remove(QRegExp("[^a-zA-Z\\d]"));
+
+                        isLED = !score->staff(r)->small();
 
                         // Each staff (row) is wrapped in a group
                         tableStream << SVG_GROUP_BEGIN
                                        << SVG_ID        << id            << SVG_QUOTE
                                        << SVG_CLASS     << "staff"
                                        << (!isLED && r != idxChords ? " lyrics" : "") << SVG_QUOTE
+                                       << SVG_INAME     << score->staff(r)->part()->shortName(startOffset) << SVG_QUOTE
                                        << SVG_TRANSFORM << SVG_TRANSLATE << SVG_ZERO
                                        << SVG_SPACE     << cellY         << SVG_RPAREN_QUOTE
                                     << SVG_GT << endl;
@@ -5375,7 +5378,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 // Rulers, but no pages == only play buttons
                 // Rulers + pages       == both page and play buttons
                 qf.setFileName(QString("%1/%2").arg(qfi->path())
-                                               .arg(!hasRulers ? FILE_DRUM_PAGE
+                                               .arg(!hasRulers ? FILE_DRUM_TEMPO
                                                                : (isPages ? FILE_DRUM_BOTH
                                                                           : FILE_DRUM_PLAY)));
 
