@@ -3872,13 +3872,13 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
     const int wButts =   91; // Width of the playback buttons
 
     // Boilerplate header
-    const QString hdr = QString("<?xml-stylesheet type=\"text/css\" href=\"SMAWS_22.css\"?>\n<svg width=\"%1\" height=\"%2\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\">\n\n").arg(wRuler).arg(hRuler);
+    const QString hdr = QString("<?xml-stylesheet type=\"text/css\" href=\"../SMAWS_22.css\"?>\n<svg width=\"%1\" height=\"%2\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\">\n\n").arg(wRuler).arg(hRuler);
 
     // The root file name, without the .ext
     const QString fileRoot = qfi->filePath().left(qfi->filePath().size() - 4);
 
     // The rulers file name, with the .ext
-    const QString fn = QString("%1_%2%3").arg(fileRoot).arg("rulers").arg(EXT_SVG);
+    const QString fn = QString("%1_%2%3").arg(fileRoot).arg("Rulers").arg(EXT_SVG);
 
     // Event handler for clicking on ruler lines/text. Note the "top." prefix
     // to the function name. It's calling the (HTML) container's function.

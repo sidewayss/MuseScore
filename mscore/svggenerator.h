@@ -195,12 +195,12 @@ using IntListVectList = QList<IntListVect*>;
 #define XML_ENTITY_END   ';'
 
 // Boilerplate header text
-#define XML_STYLESHEET "<?xml-stylesheet type=\"text/css\" href=\"MuseScore.svg.css\"?>\n"
-#define XML_STYLEDRUMS "<?xml-stylesheet type=\"text/css\" href=\"SMAWS-Drums.svg.css\"?>\n<?xml-stylesheet type=\"text/css\" href=\"SMAWS-DrumButts.svg.css\"?>\n"
+#define XML_STYLESHEET "<?xml-stylesheet type=\"text/css\" href=\"../MuseScore.svg.css\"?>\n"
+#define XML_STYLEDRUMS "<?xml-stylesheet type=\"text/css\" href=\"../SMAWS-Drums.svg.css\"?>\n<?xml-stylesheet type=\"text/css\" href=\"../SMAWS-DrumButts.svg.css\"?>\n"
 #define XML_NAMESPACE  " xmlns=\"http://www.w3.org/2000/svg\"\n"
 #define XML_XLINK      "     xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n"
 #define VTT_HEADER     "WEBVTT\n\nNOTE\n    SMAWS  - Sheet Music Animation w/Sound -\n    This file links to one or more SVG files via the\n    cue ids, which are in this format: 0000000_1234567\nNOTE\n\n"
-#define HTML_HEADER    "<!DOCTYPE html>\n<!-- SMAWS HTML Tables -->\n<html>\n<head>\n    <meta charset=\"utf-8\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">\n    <link rel=\"stylesheet\" href=\"SMAWS_22.css\">\n</head>\n\n<body onload=\"onLoadHTMLTables()\">\n\n"
+#define HTML_HEADER    "<!DOCTYPE html>\n<!-- SMAWS HTML Tables -->\n<html>\n<head>\n    <meta charset=\"utf-8\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">\n    <link rel=\"stylesheet\" href=\"../SMAWS_22.css\">\n</head>\n\n<body onload=\"onLoadHTMLTables()\">\n\n"
 
 // Boilerplate events
 #define SVG_ONCLICK    " onclick=\"top.musicClick(evt)\""
