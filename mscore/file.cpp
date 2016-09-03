@@ -4854,6 +4854,9 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 else
                     height -= cellHeight;   // No ruler == no title bar/playback buttons either
 
+                if (isPages)
+                    pageCues += SVG_QUOTE;  // This needs termination:
+
                 // Stream the SVG header elements CSS, <svg>, <title>, <desc>:
                 tableStream
                     // CSS Stylesheet
@@ -4872,6 +4875,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                        << SVG_POINTER_EVENTS << SVG_CURSOR << endl << SVG_4SPACES
                        << SVG_CLASS << SMAWS << SVG_QUOTE
                        << (hasRulers ? SVG_ONLOAD : "")
+                       << (isPages   ? pageCues   : "")
                     << SVG_GT << endl
                     // <title>
                     << SVG_TITLE_BEGIN << score->title() << SVG_TITLE_END << endl
@@ -5061,9 +5065,6 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         tableStream << SVG_TEXT_END  << endl;
                     }
                     tableStream << endl;
-
-                    // ...on a side note, this needs termination:
-                    pageCues += SVG_QUOTE;
                 }
 
                 // Handle variable pitch in the rows that have it
@@ -5385,7 +5386,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
                 qts.setDevice(&qf);
 
-                // Only FILE_DRUM_BOTH has all these fields, but the numbering is the same across all three files
+                // The %N numbering is the same across all three files
                 tableStream << qts.readAll().replace("%0", evtPrefix)
                                             .replace("%1", QString::number(height - 47))
                                             .replace("%2", QString::number(height - 10.5))
@@ -5393,9 +5394,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                             .replace("%4", qfi->completeBaseName())
                                             .replace("%5", QString::number(width - 8))
                                             .replace("%6", tempoCues)
-                                            .replace("%7", QString::number(initialBPM, 'f', BPM_PRECISION))
-                                            .replace("%8", pageCues) // if (isPages)
-                                            .replace("%9", QString("%1").arg(idxPage, 2, 10, QLatin1Char(SVG_ZERO)));
+                                            .replace("%7", QString::number(initialBPM, 'f', BPM_PRECISION));
                 // </svg>
                 tableStream << SVG_END;
 
