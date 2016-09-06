@@ -3388,7 +3388,7 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
         const int idx = e->staffIdx();
         if (isMulti && idxStaff != idx) {
             if (idxStaff > -1) {
-                const int lyricsHeight = (idxStaff != idxLastLyrics ? 20 : 30);
+                const int lyricsHeight = (idxStaff != idxLastLyrics ? 20 : 25);
                 // Paint the previous staff's animated elements
                 paintStaffSMAWS(score, &p, &printer, &mapFrozen, &mapSVG, &mapLyrics,
                                 &visibleStaves, &staffTops, idxStaff, isMulti, lyricsHeight);
@@ -3679,16 +3679,16 @@ static void streamRulers(Score*         score,
     int     iY1, iY2; // Integer version of y1 and y2 coordinates
     int     iBarNo;   // Integer version of measure number
 
-    // Counters: Min:Sec and Bar#000
+    // Counters: Min:Sec and Bar 000
     const QString cntrRect    = QString("<rect class=\"counter\" x=   \"0.5\" y= \"0.5\" width=  \"%1\" height=\"19\"/>\n").arg(cntrWidth);
     const QString cntrText    = "<text class=\"cntrNo\"  x=  \"%2\"   y=\"16\" id=\"%1\">%3</text>\n";
 
     // Min:Sec
     *streamMarks << indent << cntrRect
                  << indent << QString(cntrText).arg("cntrTime").arg(cntrWidth / 2).arg("00:00");
-    // Bar#000
+    // Bar 000
     *streamBars  << indent << cntrRect
-                 << indent << QString(cntrText).arg("cntrBars").arg(cntrWidth / 2).arg(QString("Bar#%1").arg(score->firstMeasureMM()->no() + 1, 3, int(10), QLatin1Char(SVG_ZERO)));
+                 << indent << QString(cntrText).arg("cntrBars").arg(cntrWidth / 2).arg(QString("Bar %1").arg(score->firstMeasureMM()->no() + 1, 3, int(10), QLatin1Char(SVG_ZERO)));
 
     // Rulers: Bars and RehearsalMarks
     cntrWidth++;
@@ -4871,7 +4871,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                        << SVG_WIDTH     << width     << SVG_QUOTE
                        << SVG_HEIGHT    << height    << SVG_QUOTE
                                                            << endl << SVG_4SPACES
-                       << SVG_PRESERVE_XYMIN_SLICE         << endl << SVG_4SPACES
+                       << SVG_PRESERVE_XYMIN_MEET          << endl << SVG_4SPACES
                        << SVG_POINTER_EVENTS << SVG_CURSOR << endl << SVG_4SPACES
                        << SVG_CLASS << SMAWS << SVG_QUOTE
                        << (hasRulers ? SVG_ONLOAD : "")

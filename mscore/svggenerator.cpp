@@ -212,7 +212,8 @@ protected:
     RealVect   yLineKeySig;   // vector by staff, clef's start "staff line" for first accidental (range = 0-9 top-to-bottom for 5-line staff)
     RealVect yOffsetKeySig;   // vector by staff, non-zero if clef changes
 
-    FDef*        _prevDef;  // The previous def, used by freezeDef()
+    FDef*        _prevDef;  // The previous def,    used by freezeDef()
+    QString      _prevCue;  // The previous cue_id, used by freezeDef()
     QStringList* _iNames;   // Multi-Select Staves: list of instrument names
     QStringList  _multiUse; // ditto: list of <use> element text starters
 
@@ -435,7 +436,7 @@ bool SvgPaintEngine::end()
         for (def = frozenDefs.begin(); def != frozenDefs.end(); ++def) {
             int idxStaff = -1;
 
-            // elms.key() == QString(idx-EType) .value() == QList<QString*>*
+            // elms.key() == QString(idx-EType).value() == QList<QString*>*
             for (elms = def.value()->begin(); elms != def.value()->end(); ++elms) {
                 const int idx = elms.key().section(SVG_DASH, 0, 0).toInt();
 
@@ -1343,7 +1344,8 @@ void SvgPaintEngine::freezeDef(int idxStaff)
     QString     key, content, type;
     QTextStream qts;
     StrPtrList* spl;
-    const qreal timeX =_xLeft + 4 + 16 + xOffsetTimeSig[_cue_id] + 3; //!!! fixed margin between KeySig/TimeSig. Default setting is 0.5 * spatium, but it ends up more like 3 than 2.5. not sure why.
+    qreal       timeX;                  // x-coord where timesig starts
+    const qreal keyX = _xLeft + 4 + 16; // x-coord where keysig  starts
 
     FDef* def = frozenDefs[_cue_id];
 
@@ -1352,7 +1354,7 @@ void SvgPaintEngine::freezeDef(int idxStaff)
     if (!_isMulti  && _prevDef != 0) {
         key = QString("0%1%2").arg(SVG_DASH).arg(int(EType::TEMPO_TEXT));
         if (!def->contains(key) && _prevDef->contains(key)) // Nothing new for this cue
-            def->insert(key, (*_prevDef)[key]);         // id, use the prevDef.
+            def->insert(key, (*_prevDef)[key]);             // id, use the prevDef.
     }
 
     // If the current cue_id is missing elements, fill them in with _prevDef
@@ -1382,11 +1384,11 @@ void SvgPaintEngine::freezeDef(int idxStaff)
             }
             for (i = 0; i < frozenKeyY[idx].size(); i++) {
                 if ((*def)[key]->size() == i) {
-                    if (_prevDef != 0 && _prevDef->contains(key) && (*_prevDef)[key]->size() > i)
-                    {                                            // Better than maintaining another vector by staff
-                        elm     = (*(*_prevDef)[key])[i];        // EType::KEYSIG = 1 accidental = 1 XML element
-                        content = elm->mid(elm->size() - 16, 8); // &#xE260;          =  8 chars
-                    }                                            // &#xE260;</text>\n = 16 chars
+                    if (_prevDef != 0 && _prevDef->contains(key) && (*_prevDef)[key]->size() > i) {
+                        elm     = (*(*_prevDef)[key])[i];                   // Better than maintaining another vector by staff
+                        content = elm->mid(elm->size() - 16, 8);            // EType::KEYSIG = 1 accidental = 1 XML element
+                        xOffsetTimeSig[_cue_id] = xOffsetTimeSig[_prevCue]; // &#xE260;          =  8 chars
+                    }                                                       // &#xE260;</text>\n = 16 chars
                     else
                         content = QString("Staff number %1 has a key signature problem.").arg(idx);
 
@@ -1399,11 +1401,12 @@ void SvgPaintEngine::freezeDef(int idxStaff)
                     elm->resize(0);
                 }
                 qts.setString(elm);
-                qts << getFrozenElement(content, type, _xLeft + 4 + 16 + (i * 5), frozenKeyY[idx][i] + yOffsetKeySig[idx]); //!!! literal values: clefOffset + clefWidth. literal value: not SPATIUM20! SPATIUM20 = height, this = width.
+                qts << getFrozenElement(content, type, keyX + (i * 5), frozenKeyY[idx][i] + yOffsetKeySig[idx]); //!!! literal values: clefOffset + clefWidth. literal value: not SPATIUM20! SPATIUM20 = height, this = width.
             }
         }
 
         // TimeSigs
+        timeX = keyX + xOffsetTimeSig[_cue_id] + 3; //!!! fixed margin between KeySig/TimeSig. Default setting is 0.5 * spatium, but it ends up more like 3 than 2.5. not sure why.
         key = QString("%1%2%3").arg(idx).arg(SVG_DASH).arg(int(EType::TIMESIG));
         type = _e->name(EType::TIMESIG);
         if (!def->contains(key)) {
@@ -1447,6 +1450,7 @@ void SvgPaintEngine::freezeDef(int idxStaff)
     // calls svgGenerator::beginMultiGroup(). Each staff must begin with a clef
     // and a timesig, so the risk of null pointer errors should be zero.
     _prevDef = def;
+    _prevCue = _cue_id;
 }
 
 // Returns a fully defined <text> element for frozen pane def

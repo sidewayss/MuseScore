@@ -126,6 +126,7 @@ using IntListVectList = QList<IntListVect*>;
 // SVG element attributes
 #define SVG_VIEW_BOX             " viewBox=\""
 #define SVG_PRESERVE_XYMIN_SLICE " preserveAspectRatio=\"xMinYMin slice\""
+#define SVG_PRESERVE_XYMIN_MEET  " preserveAspectRatio=\"xMinYMin meet\""
 #define SVG_POINTER_EVENTS       " pointer-events=\"visible\""
 #define SVG_CURSOR               " cursor=\"default\""  // to avoid pesky I-Beam cursor
 
