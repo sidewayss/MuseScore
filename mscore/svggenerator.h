@@ -350,6 +350,7 @@ public:
     void setSMAWS();
     void setCueID(const QString& qs);
     void setScrollAxis(bool axis);
+    void setNonStandardStaves(QVector<int>* nonStdStaves);
     void setNStaves(int n);
     void setStaffIndex(int idx);
     void setCursorTop(qreal top);

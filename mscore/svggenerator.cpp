@@ -205,6 +205,8 @@ protected:
     int  _idxStaff; // The current staff index
     int  _idxGrid;  // The grid staff index
 
+    QVector<int>* _nonStdStaves; // Vector of staff indices for the tablature and percussion staves in this score
+
     // These vary by Staff:
     StrPtrVect   frozenLines; // vector by staff, frozen pane staff/system lines
     RealListVect frozenKeyY;  // vector by staff, list = y-coords left-to-right
@@ -220,11 +222,17 @@ protected:
     // These only vary by cue_id, not by Staff
     Str2RealMap xOffsetTimeSig; // TimeSig x-coord varies by KeySig, and thus by cue_id.
 
-    // Completes open fDef in frozenDefs. Called by SvgGenerator::freezeIt().
+    // Streams the beginning of a frozen pane <def>
+    void beginDef(const int idx, const QString& cue_id);
+
+    // Completes open FDef in frozenDefs. Called by SvgGenerator::freezeIt().
     void freezeDef(int idxStaff);
 
     // Completes keysig and timesig defs. Called by freezeDef()
     void freezeSig(FDef* def, int idx, RealListVect& frozenY, EType eType, qreal x);
+
+    // Encapsulates a frequently used line of code (with variables)
+    QString getDefKey(int idx, EType eType);
 
     // Switch the target string for stream().
     // Called by SvgGenerator functions of the same name.
@@ -275,6 +283,7 @@ public:
 
         _prevDef       = 0;   // FDef*
         _iNames        = 0;   // QStringList*
+        _nonStdStaves  = 0;   // QVector<int>*
         _nStaves       = 0;   // int
         _idxGrid       = -1;  // int
         _maxNote       = 0.0; // int
@@ -427,8 +436,7 @@ bool SvgPaintEngine::end()
     if (_isFrozen) {
         // Frozen defs
         stream().setString(&d->defs);
-        const QString tempoKey = QString("0%1%2").arg(SVG_DASH)
-                                                 .arg(int(EType::TEMPO_TEXT));
+        const QString tempoKey = getDefKey(0, EType::TEMPO_TEXT);
         FDefs::iterator def;
         FDef::iterator  elms;
 
@@ -436,47 +444,75 @@ bool SvgPaintEngine::end()
         stream() << "    <linearGradient id=\"gradFader\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"0\">\n        <stop stop-color=\"white\" stop-opacity=\"1\" offset=\"0.50\"/>\n        <stop stop-color=\"white\" stop-opacity=\"0\" offset=\"0.55\"/>\n    </linearGradient>\n";
         stream() << "    <linearGradient id=\"gradFrozenLines\" x1=\"0\" y1=\"0\" x2=\"100\" y2=\"0\" gradientUnits=\"userSpaceOnUse\">\n        <stop stop-color=\"black\" stop-opacity=\"1\" offset=\"0.50\"/>\n        <stop stop-color=\"black\" stop-opacity=\"0\" offset=\"0.55\"/>\n    </linearGradient>\n";
 
+        // Iterate by cue_id
         for (def = frozenDefs.begin(); def != frozenDefs.end(); ++def) {
-            int idxStaff = -1;
+            int     i;
+            int     idxStaff  = -1;
+            int     idxStd    = -1;
+            bool    hasKeySig = false;
+            QString cue_id    = def.key();
+            FDef*   value     = def.value();
 
-            // elms.key() == QString(idx-EType).value() == QList<QString*>*
-            for (elms = def.value()->begin(); elms != def.value()->end(); ++elms) {
+            // Iterate by staff
+            // elms.key() == QString(idx-EType) elms.value() == QList<QString*>*
+            for (elms = value->begin(); elms != value->end(); ++elms) {
                 const int idx = elms.key().section(SVG_DASH, 0, 0).toInt();
 
                 if (idxStaff < 0 || (_isMulti && idxStaff != idx)) {
-                    const QString id  = !_isMulti ? def.key()
-                                                  : QString("%1%2%3")
-                                                       .arg((*_iNames)[idx])
-                                                       .arg(SVG_DOT)
-                                                       .arg(def.key());
-
                     // Close previous group if _isMulti == true && _nStaves > 1
                     if (idxStaff > -1)
                         stream() << SVG_4SPACES << SVG_GROUP_END << endl;
 
+                    beginDef(idx, cue_id);
                     idxStaff = idx;
 
-                    stream() << SVG_4SPACES << SVG_GROUP_BEGIN
-                             << SVG_ID      << id                      << SVG_QUOTE
-                             << SVG_WIDTH   << frozenWidths[def.key()] << SVG_QUOTE
-                             << SVG_GT      << endl;
-
-                    if (_isMulti) {
-                        if (idx < _nStaves && idxStaff != _idxGrid)
-                            // StaffLines/System BarLine(s) in all defs except System and Grid staves
-                            stream() << *(frozenLines[idx]);
-                    }
-                    else
-                        // Tempo, once per def, not per staff (it looks nice at the top)
-                        stream() << *((*(*def.value())[tempoKey])[0]);
+                    if (!_isMulti) // Non-multi tempo, once per def, not per staff
+                        stream() << *((*(*value)[tempoKey])[0]);
                 }
                 if (_isMulti || elms.key() != tempoKey) {
-                    for (int i = 0; i < elms.value()->size();  i++)
+                    // Iterate by element type, clef, keysig, etc.
+                    for (i = 0; i < elms.value()->size();  i++) {
+                        // Stream the intrument name, clef, keysig, or timesig
                         stream() << *((*elms.value())[i]);
+
+                        // For non-standard staves: (see the bottom of the outer for loop)
+                        if (!hasKeySig && elms.key().section(SVG_DASH, 1, 1).toInt() == (int)EType::KEYSIG) {
+                            hasKeySig = true;
+                            idxStd = idx; // reference staff index for a standard staff
+                        }
+                    }
                 }
             }
             stream() << SVG_4SPACES << SVG_GROUP_END << endl;
-        } // end of frozen defs
+
+            // Percussion and tablature staves do not have key signatures, but
+            // they do have time sigs, and those should be aligned with the
+            // time sigs in the other staves. When a key sig changes, and the
+            // time sig moves horizontally in all the standard notation staves,
+            // the time sig must also move in the non-standard staves. But
+            // those staves don't have any change at this cue_id. All the clef
+            // and key sig activity is in the standard staves exclusively.
+            // This code finds the places where this happens and creates defs
+            // with the proper time sig x-coord for the non-standard staves.
+            // It assumes that non-standard staves never have clef changes.
+            if (hasKeySig && _nonStdStaves != 0 && _nonStdStaves->size() > 0 && cue_id != CUE_ID_ZERO) {
+                for (i = 0; i < _nonStdStaves->size(); i++) {
+                    QString timeKey = getDefKey(i, EType::TIMESIG);
+                    if ((*frozenDefs[cue_id])[timeKey] != 0 && (*frozenDefs[cue_id])[timeKey]->size() > 0) {
+                        beginDef((*_nonStdStaves)[i], cue_id);
+
+                        if ((*_nonStdStaves)[i] != _idxGrid) // Slashes-only "grid" staff has no clef either (it should be a percussion staff)
+                            stream() << *((*(*frozenDefs[CUE_ID_ZERO])[getDefKey((*_nonStdStaves)[i], EType::CLEF)])[0]); // only one element for clefs
+
+                        const StrPtrList* spl = (*frozenDefs[cue_id])[getDefKey(idxStd, EType::TIMESIG)];
+                        for (int j = 0; j < spl->size(); j++)
+                            stream() << *((*spl)[j]); // 1 or 2 elements for timesig, possibly more
+
+                        stream() << SVG_4SPACES << SVG_GROUP_END << endl;
+                    }
+                }
+            }
+        } // end for(each frozen def)
 
         // Frozen body
         stream().setString(&d->body);
@@ -1123,8 +1159,8 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     // Handle Frozen Pane elements
     if (_isFrozen)
     {
-        const int i = _isMulti && _et == EType::TEMPO_TEXT ? _nStaves :_idxStaff;
-        const QString key = QString("%1%2%3").arg(i).arg(SVG_DASH).arg(int(_et));
+        const int     i   = _isMulti && _et == EType::TEMPO_TEXT ? _nStaves : _idxStaff;
+        const QString key = getDefKey(i, _et);
 
         FDef*       def;
         QString     defClass;
@@ -1180,11 +1216,8 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
                 yOffsetKeySig[_idxStaff] = 0;
 
                 // The x-offset for the ensuing time signature is determined by the number of accidentals
-                const qreal xOff = qAbs((int)(static_cast<const Ms::KeySig*>(_e)->keySigEvent().key())) * 5; //!!! literal keysig-accidental-width
-                if (!xOffsetTimeSig.contains(_cue_id))
-                    xOffsetTimeSig.insert(_cue_id, xOff);
-                else if (xOff > xOffsetTimeSig[_cue_id])
-                    xOffsetTimeSig[_cue_id] = xOff;
+                if (!xOffsetTimeSig.contains(_cue_id) && _e->staff()->isPitchedStaff())
+                    xOffsetTimeSig.insert(_cue_id, qAbs((int)(static_cast<const Ms::KeySig*>(_e)->keySigEvent().key())) * 5); //!!! literal keysig-accidental-width
             }
             // Natural signs are not frozen
             if (*(textItem.text().unicode()) != NATURAL_SIGN)
@@ -1334,6 +1367,29 @@ QString SvgPaintEngine::fixedFormat(const QString& attr,
     return qs;
 }
 
+// Streams the start of a frozen pane def, including the staff lines,
+// consolidating some code in SvgPaintEngine::end()
+void SvgPaintEngine::beginDef(const int      idx,
+                              const QString& cue_id)
+{
+    const QString id  = !_isMulti ? cue_id
+                                  : QString("%1%2%3")
+                                       .arg((*_iNames)[idx])
+                                       .arg(SVG_DOT)
+                                       .arg(cue_id);
+
+    stream() << SVG_4SPACES << SVG_GROUP_BEGIN
+             << SVG_ID      << id                   << SVG_QUOTE
+             << SVG_WIDTH   << frozenWidths[cue_id] << SVG_QUOTE
+             << SVG_GT      << endl;
+
+    if (_isMulti) {
+        if (idx < _nStaves && idx != _idxGrid)
+            // StaffLines/System BarLine(s) in all defs except System and Grid staves
+            stream() << *(frozenLines[idx]);
+    }
+}
+
 // Completes the open frozen pane definition in the frozenDefs collection.
 // Conceptually: _cue_id + this function freeze the staves at a moment in time.
 // Called by SaveSMAWS() in mscore/file.cpp.
@@ -1351,7 +1407,7 @@ void SvgPaintEngine::freezeDef(int idxStaff)
     // Tempo is staff-independent. if (isMulti) there is no need for every cue
     // id to have all the frozen element types present. No need for _prevDef.
     if (!_isMulti  && _prevDef != 0) {
-        key = QString("0%1%2").arg(SVG_DASH).arg(int(EType::TEMPO_TEXT));
+        key = getDefKey(0, EType::TEMPO_TEXT);
         if (!def->contains(key) && _prevDef->contains(key)) // Nothing new for this cue
             def->insert(key, (*_prevDef)[key]);             // id, use the prevDef.
     }
@@ -1364,12 +1420,12 @@ void SvgPaintEngine::freezeDef(int idxStaff)
         if (idx != _idxGrid) {   // grid staff frozen pane only has timesigs
             if (_prevDef != 0) {
                 // InstrumentNames
-                key = QString("%1%2%3").arg(idx).arg(SVG_DASH).arg(int(EType::INSTRUMENT_NAME));
+                key = getDefKey(idx, EType::INSTRUMENT_NAME);
                 if (!def->contains(key) && _prevDef->contains(key))
                     def->insert(key, (*_prevDef)[key]);
 
                 // Clefs
-                key = QString("%1%2%3").arg(idx).arg(SVG_DASH).arg(int(EType::CLEF));
+                key = getDefKey(idx, EType::CLEF);
                 if (!def->contains(key) && _prevDef->contains(key))
                     def->insert(key, (*_prevDef)[key]);
             }
@@ -1408,7 +1464,7 @@ void SvgPaintEngine::freezeSig(FDef* def, int idx, RealListVect& frozenY, EType 
     StrPtrList* spl;
     const bool  isKeySig = (eType == EType::KEYSIG);
 
-    key = QString("%1%2%3").arg(idx).arg(SVG_DASH).arg(int(eType));
+    key  = getDefKey(idx, eType);
     type = _e->name(eType);
     if (!def->contains(key)) {
         spl = new StrPtrList;
@@ -1461,6 +1517,12 @@ QString SvgPaintEngine::getFrozenElement(const QString& textContent,
         << textContent << SVG_TEXT_END << endl;
 
     return qs;
+}
+
+// One line of code, but it's long enougn and used often enough to consolidate
+QString SvgPaintEngine::getDefKey(int idx, EType eType)
+{
+    return QString("%1%2%3").arg(idx).arg(SVG_DASH).arg((int)eType);
 }
 
 // Most of the streams are initialized with the same properties.
@@ -1800,6 +1862,15 @@ void SvgGenerator::setScrollAxis(bool axis) {
 }
 
 /*!
+    setNonStandardStaves() function
+    Sets the _hasNonStandard variable in SvgPaintEngine.
+    Called by paintStaffLines() in mscore/file.cpp.
+*/
+void SvgGenerator::setNonStandardStaves(QVector<int>* nonStdStaves) {
+    static_cast<SvgPaintEngine*>(paintEngine())->_nonStdStaves = nonStdStaves;
+}
+
+/*!
     setNStaves() function
     Sets the _nStaves variable in SvgPaintEngine: number of visible staves
     Called by saveSMAWS() in mscore/file.cpp.
@@ -1864,7 +1935,7 @@ void SvgGenerator::setStartMSecs(int start) {
 /*!
     freezeIt() function (SMAWS)
     Calls SvgPaintEngine::freezeDef() to complete a frozen pane def
-    Called by saveSMAWS() in mscore/file.cpp.
+    Called by paintStaffSMAWS() in mscore/file.cpp.
 */
 void SvgGenerator::freezeIt(int idxStaff) {
     static_cast<SvgPaintEngine*>(paintEngine())->freezeDef(idxStaff);

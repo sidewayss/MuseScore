@@ -3340,14 +3340,28 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
     visibleStaves.resize(score->nstaves());
     int nVisible = 0;
 
+    // nonStdStaves - Tablature and percussion staves require special treatment
+    // in the frozen pane. They don't have keysigs, and the clef never changes,
+    // but the timesig needs to be properly aligned with the other staves. The
+    // slashes-only "grid" staff behaves this same way - it should be created
+    // as a percussion staff, that will group it into this vector and not make
+    // it a non-standard height like tablature staves.
+    QVector<int> nonStdStaves;
+
     // Lyrics staves. Managing preset staff height for the lyrics pseudo-staves
     // is dicey. It only affects the display of lyrics w/o notes. This is so
     // that the last (lowest) lyrics staff has an extra 10 pixels of height.
     int idxLastLyrics = -1;
 
     for (int i = 0; i < score->nstaves(); i++) {
+        const Staff* staff = score->staff(i);
+
         // Visible staves
-        visibleStaves[i] = score->staff(i)->part()->show() ? nVisible++ : -1;
+        visibleStaves[i] = staff->part()->show() ? nVisible++ : -1;
+
+        // Non-standard staves
+        if (staff->isDrumStaff() || staff->isTabStaff())
+            nonStdStaves.push_back(i);
 
         // Last lyrics staff !!!bool Staff::hasLyrics() would be a good thing
         Segment::Type st = Segment::Type::ChordRest;
@@ -3360,6 +3374,7 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
         }
     }
     printer.setNStaves(nVisible);
+    printer.setNonStandardStaves(&nonStdStaves);
 
     // The sort order for elmPtrs is critical: if (isMulti) by type, by staff;
     //                                         else         by type;
