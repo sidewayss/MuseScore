@@ -508,6 +508,8 @@ bool SvgPaintEngine::end()
                         for (int j = 0; j < spl->size(); j++)
                             stream() << *((*spl)[j]); // 1 or 2 elements for timesig, possibly more
 
+                        stream() << *((*(*frozenDefs[CUE_ID_ZERO])[getDefKey((*_nonStdStaves)[i], EType::INSTRUMENT_NAME)])[0]); // only one element for instrument name - this does not handle instrument name changes!!! not easy to do, as I would need to completely rebuild this svg element text using the cue_id start tick - or keep track of the last def-cue_id for this staff, which is a bummer.
+
                         stream() << SVG_4SPACES << SVG_GROUP_END << endl;
                     }
                 }
