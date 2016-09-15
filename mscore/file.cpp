@@ -102,6 +102,7 @@
 #define EXT_HTML ".html"
 #define EXT_JS   ".js"
 
+#define FILE_RULER_HDR  "SMAWS_RulerHdr.txt"          // ruler svg boilerplate header/title
 #define FILE_PLAY_BUTTS "SMAWS_PlayButts.svg.txt"     // sheet music playback buttons
 #define FILE_DRUM_DEFS  "SMAWS_DrumDefs.svg.txt"
 #define FILE_DRUM_PLAY  "SMAWS_DrumPlayButts.svg.txt" // Drum Machine playback buttons
@@ -3623,20 +3624,21 @@ static void streamRulers(Score*         score,
                          const QString& indent = "")
 {
     // Strings for the ruler's <line> and <text> element attributes
-    QString label;  // <text> element contents
+    QString label; // <text> element contents
 
-    QString y;      // y = one of these two values, depending on element type
-    const QString yBars       = " y=\"18\"";
-    const QString yMarks      = " y=\"17\"";
+    QString y;     // y = one of these two values, depending on element type
+    const QString yBars  = " y=\"18\"";
+    const QString yMarks = " y=\"17\"";
 
     // Ruler lines don't start at zero or end at width, left=right margin
     const int margin =  8; // margin on either side of ruler
     int    cntrWidth = 80; // counter width
 
     // Score::duration() returns # of seconds as an int, I need more accuracy
-    const TempoMap* tempos = score->tempomap();
-    const qreal duration = tempos->tick2time(score->lastMeasure()->tick()
+    const TempoMap* tempos   = score->tempomap();
+    const qreal     duration = tempos->tick2time(score->lastMeasure()->tick()
                                            + score->lastMeasure()->ticks());
+
     // Pixels of width per millisecond, left + right margins
     const qreal pxPerMSec = (width - cntrWidth - (margin * 2)) / (duration * 1000);
 
@@ -3714,8 +3716,6 @@ static void streamRulers(Score*         score,
     const QString grayRect    =         "<rect class=\"gray\"    x=   \"0\"   y= \"1\"   width=   \"0\" height=\"18\" fill-opacity=\"0\" pointer-events=\"none\"/>\n";
     const QString cursorBars  = QString("<polygon class=\"cursNo\" points=\"-6,1 6,1 0,15\" transform=\"translate(%1,0)\"/>\n").arg(margin + cntrWidth);
     const QString cursorMarks = QString("<polygon class=\"cursNo\" points=\"-6,19 6,19 0,5\" transform=\"translate(%1,0)\"/>\n").arg(margin + cntrWidth);
-    const QString loopStart   = QString("<polygon class=\"cursLoopLo\" points=\"-6,1 6,1 0,18\" transform=\"translate(%1,0)\" data-start=\"0\" onmousedown=\"%2cursorDown(evt)\" onmouseup=\"%3cursorUp(evt)\"/>\n").arg(margin + cntrWidth).arg(evtPrefix).arg(evtPrefix);
-    const QString loopEnd     = QString("<polygon class=\"cursLoopLo\" points=\"-6,19 6,19 0,2\" transform=\"translate(%1.5,0)\"%2 onmousedown=\"%3cursorDown(evt)\" onmouseup=\"%4cursorUp(evt)\"/>\n").arg(width - margin).arg(dataStart).arg(evtPrefix).arg(evtPrefix);
 
     *streamBars  << indent << border;
     *streamMarks << indent << border;
@@ -3725,6 +3725,9 @@ static void streamRulers(Score*         score,
     *streamMarks << indent << grayRect;
     *streamBars  << indent << cursorBars;
     *streamMarks << indent << cursorMarks;
+
+    const QString loopStart   = QString("<polygon class=\"cursLoopLo\" points=\"-6,1 6,1 0,18\" transform=\"translate(%1,0)\" data-start=\"0\" onmousedown=\"%2cursorDown(evt)\" onmouseup=\"%3cursorUp(evt)\"/>\n").arg(margin + cntrWidth).arg(evtPrefix).arg(evtPrefix);
+    const QString loopEnd     = QString("<polygon class=\"cursLoopLo\" points=\"-6,19 6,19 0,2\" transform=\"translate(%1.5,0)\"%2 onmousedown=\"%3cursorDown(evt)\" onmouseup=\"%4cursorUp(evt)\"/>\n").arg(width - margin).arg(dataStart).arg(evtPrefix).arg(evtPrefix);
 
     // Display floating point numbers with consistent precision
     streamBars->setRealNumberPrecision(SVG_PRECISION);
@@ -3886,8 +3889,8 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
     const int wRuler = 1900; // Width of buttons + rulers + counters = 1920(HD width) - 20(safety?)
     const int wButts =   91; // Width of the playback buttons
 
-    // Boilerplate header
-    const QString hdr = QString("<?xml-stylesheet type=\"text/css\" href=\"../SMAWS_22.css\"?>\n<svg width=\"%1\" height=\"%2\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\">\n\n").arg(wRuler).arg(hRuler);
+    const QString hdr   = QString("<?xml-stylesheet type=\"text/css\" href=\"../SMAWS_22.css\"?>\n<svg width=\"%1\" height=\"%2\" cursor=\"default\" pointer-events=\"visible\" xmlns=\"http://www.w3.org/2000/svg\">\n").arg(wRuler).arg(hRuler);
+    const QString title = QString("<title>%1</title>\n\n").arg(score->title());
 
     // The root file name, without the .ext
     const QString fileRoot = qfi->filePath().left(qfi->filePath().size() - 4);
@@ -3905,16 +3908,21 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
     rulersFile.setFileName(fn);
     rulersFile.open(QIODevice::WriteOnly | QIODevice::Text);  // TODO: check for failure here!!!
 
-    // Stream the headers
-    fileStream  << hdr;
-
-    // Stream the fixed playback buttons from a file
+    // Boilerplate header/title, configured in an external file
     QFile       qf;
     QTextStream qts;
+    qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_RULER_HDR));
+    qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
+    qts.setDevice(&qf);
+    fileStream << qts.readAll().replace("%1", QString::number(wRuler))
+                               .replace("%2", QString::number(hRuler))
+                               .replace("%3", score->title());
+
+    // Stream the fixed playback buttons from a file
     qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_PLAY_BUTTS));
     qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
     qts.setDevice(&qf);
-    fileStream << qts.readAll() << endl;
+    fileStream << qts.readAll();
 
     // streamRulers() takes separate streams for bars/markers
     // Bars goes first because it's full-height (38px) invisible rects are

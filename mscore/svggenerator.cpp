@@ -1285,7 +1285,7 @@ QString SvgPaintEngine::getClass()
     switch(_et) {
     case EType::BAR_LINE :
         // BarLine sub-types
-        if (_e->parent()->type() == EType::SYSTEM) {
+        if (static_cast<Ms::Segment*>(_e->parent())->segmentType() == Ms::Segment::Type::BeginBarLine) {
             // System BarLines - the system start-of-bar line
             eName = _e->name(EType::SYSTEM);
         }
