@@ -5699,7 +5699,7 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
 {
     const TempoMap* tempos          = score->tempomap();
     const QString   VTT_CLASS_BEGIN = "<c.";
-    const QString   VTT_CLASS_END   = "/c>";
+    const QString   VTT_CLASS_END   = "</c>";
 
     int     i;
     int     startTick  = 0;
@@ -5734,9 +5734,8 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
                         if (isPrevRest) { // New line of lyrics
                             isPrevRest = false;
                             startTick  = cr->tick();
-///!!! looping over lyricsList vector will be necessary soon, tied in with repeats, which are also 100% unhandled in SMAWS today!!!
                             lyricsItalic = (cr->lyrics()[0]->textStyle().italic() ? "Italic" : "");
-                            lyricsText   = lyricsStaff + lyricsItalic + SVG_SPACE + cr->lyrics()[0]->plainText();
+                            lyricsText   = lyricsStaff + lyricsItalic + SVG_SPACE;
                         }
                         else {            // Add to existing line of lyrics
                             switch (cr->lyrics()[0]->syllabic()) {
@@ -5747,12 +5746,12 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
                             default :
                                 break; // multi-syllable word with separate timestap tags, no preceding space
                             }
-                            lyricsText += SVG_LT;
-                            lyricsText += ticks2VTTmsecs(cr->tick(), tempos);
-                            lyricsText += SVG_GT;
-///!!! looping over lyricsList vector will be necessary soon, tied in with repeats, which are also 100% unhandled in SMAWS today!!!
-                            lyricsText += cr->lyrics()[0]->plainText();
                         }
+                        lyricsText += SVG_LT;
+                        lyricsText += ticks2VTTmsecs(cr->tick(), tempos);
+                        lyricsText += SVG_GT;
+///!!! looping over lyricsList vector will be necessary soon, tied in with repeats, which are also 100% unhandled in SMAWS today!!!
+                        lyricsText += cr->lyrics()[0]->plainText();
                     }
                     break;
                 case EType::REST :
