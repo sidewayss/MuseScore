@@ -2735,6 +2735,11 @@ static QString getScrollCueID(Score* score, const Element* e)
 // Returns a full data-cue="cue1,cue2,..." string of comma-separated cue ids
 static QString getGrayOutCues(Score* score, int idxStaff, QStringList* pVTT)
 {
+    ///!!!For now these cues are not used in sheet music .svg files. The only
+    ///!!!gray-out cues are in the Mix Tree .vtt file.
+    return(QString(""));
+    ///!!!
+
     int  startTick;
     bool hasCues    = false;
     bool isPrevRest = false;
