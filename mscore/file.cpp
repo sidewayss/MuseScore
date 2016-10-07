@@ -3499,7 +3499,7 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
             cue_id = getScrollCueID(score, e);
             setVTT.append(cue_id);
             if (isMulti && eType == EType::REHEARSAL_MARK) {
-                mapMulti.insert("", e); // no cue id in music svg file
+                mapMulti.insert(cue_id, e);
                 continue;
             }
             break;
@@ -3537,11 +3537,6 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
         // are clickable in the Markers timeline ruler.
         printer.setStartMSecs(startMSecsFromCueID(score, cue_id));
 
-        // RehearsalMarks only animate in the Ruler, not in the score.
-        // Same VTT file, different SVG file. See saveSMAWS_Rulers().
-        if (eType == EType::REHEARSAL_MARK)
-            cue_id = "";
-
         // Set the cue_id, even if it's empty (especially if it's empty)
         printer.setCueID(cue_id);
 
@@ -3563,8 +3558,10 @@ bool MuseScore::saveSMAWS(Score* score, QFileInfo* qfi, bool isMulti)
         printer.beginMultiGroup(&iNames, "system", "system", 35, 0, QString()); ///!!! 35 is standard top staff line y-coord, I'm being lazy here by hardcoding it
         for (SVGMap::iterator i = mapMulti.begin(); i != mapMulti.end(); ++i) {
             cue_id = i.key();
-            printer.setCueID(cue_id);
             printer.setStartMSecs(startMSecsFromCueID(score, cue_id));
+            if (i.value()->type() == EType::REHEARSAL_MARK)
+                cue_id = ""; // no cue id in music svg file - !!!flex tempos might require it
+            printer.setCueID(cue_id);
             printer.setElement(i.value());
             paintElement(p, i.value());
         }
