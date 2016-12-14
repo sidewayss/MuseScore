@@ -522,7 +522,18 @@ bool SvgPaintEngine::end()
         if (_isMulti) // Terminate the group started a few lines below
             stream() << SVG_GROUP_END << endl;
 
-        // The fader <rect>
+        // Two gray-out <rect>s (left/right) for graying out inactive bars
+        for (int i = 0; i < 2; i++)
+            stream() << SVG_RECT
+                        << SVG_CLASS          << CLASS_GRAY  << SVG_QUOTE
+                        << SVG_X << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
+                        << SVG_Y << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
+                        << SVG_WIDTH          << SVG_ZERO    << SVG_QUOTE
+                        << SVG_FILL_OPACITY   << SVG_ZERO    << SVG_QUOTE
+                        << SVG_HEIGHT << d->viewBox.height() << SVG_QUOTE
+                     << SVG_ELEMENT_END << endl;
+
+        // The fader <rect> for crossfading between frozen and thawed
         stream() << SVG_RECT
                     << SVG_ID       << "Fader"             << SVG_QUOTE
                     << SVG_WIDTH    << FROZEN_WIDTH        << SVG_QUOTE
@@ -532,12 +543,19 @@ bool SvgPaintEngine::end()
 
         int i;
         if (_isMulti) {
-            // Frozen <use> element(s) by staff
+            // Frozen <use> elements by staff. SVG_GROUP_ consolidates events.
+            //!!! FOR NOW THIS IS ALWAYS "top.funcName(evt)". The "top." should be an option somewhere, somehow.
+            const QString frozenEvents = " onclick=\"top.frozenClick(evt)\" onmouseover=\"top.frozenOver(evt)\" onmouseout=\"top.frozenOut(evt)\" onmouseup=\"top.frozenUp(evt)\"";
+
+            stream() << SVG_GROUP_BEGIN << frozenEvents << SVG_GT << endl;
+
             for (i = 0; i < _iNames->size(); i++)
-                stream() << _multiUse[i]
+                stream() << SVG_4SPACES << _multiUse[i]
                          << SVG_ID     << (*_iNames)[i] << SVG_QUOTE
                          << XLINK_HREF << (*_iNames)[i] << SVG_DOT << CUE_ID_ZERO << SVG_QUOTE
                          << SVG_ELEMENT_END << endl;
+
+            stream() << SVG_GROUP_END << endl;
         }
         else {
             // StaffLines/SystemBarLine(s) once, in the body, not in the defs
@@ -549,6 +567,15 @@ bool SvgPaintEngine::end()
                      << SVG_QUOTE  << SVG_ELEMENT_END << endl;
         }
     } //if(Frozen Pane)
+
+    // The vertical bar (pseudo I-Beam) cursor, Applies to vertical scroll too.
+    stream() << SVG_RECT
+                << SVG_CLASS          << CLASS_CURSOR  << SVG_QUOTE
+                << SVG_X << SVG_QUOTE << "-5"          << SVG_QUOTE
+                << SVG_Y << SVG_QUOTE << _cursorTop    << SVG_QUOTE
+                << SVG_WIDTH          << SVG_ZERO      << SVG_QUOTE
+                << SVG_HEIGHT         << _cursorHeight << SVG_QUOTE
+             << SVG_ELEMENT_END << endl;
 
     // Point the stream at the real output device (the .svg file)
     stream().setDevice(d->outputDevice);
@@ -567,32 +594,6 @@ bool SvgPaintEngine::end()
         stream() << SVG_GROUP_BEGIN  << SVG_ID << "Staves" << SVG_QUOTE << SVG_GT << endl;
 
     stream() << d->body;
-
-    // SMAWS: 1) vertical bar cursor to indicate playback position, off-canvas
-    // until playback begins (see negative x-coordinate below). Fill and width
-    // are set by the container.
-    //        2) two <rect> elements (left/right) for graying out inactive bars
-    if (_isSMAWS) {
-        stream() << SVG_RECT
-                    << SVG_CLASS          << CLASS_CURSOR  << SVG_QUOTE
-                    << SVG_X << SVG_QUOTE << "-5"          << SVG_QUOTE
-                    << SVG_WIDTH          << SVG_ZERO      << SVG_QUOTE
-                    << SVG_Y << SVG_QUOTE << _cursorTop    << SVG_QUOTE
-                    << SVG_HEIGHT         << _cursorHeight << SVG_QUOTE
-                 << SVG_ELEMENT_END << endl;
-
-        if (!_isScrollVertical) {
-            for (int i = 0; i < 2; i++)
-                stream() << SVG_RECT
-                            << SVG_CLASS          << CLASS_GRAY  << SVG_QUOTE
-                            << SVG_X << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
-                            << SVG_Y << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
-                            << SVG_WIDTH          << SVG_ZERO    << SVG_QUOTE
-                            << SVG_FILL_OPACITY   << SVG_ZERO    << SVG_QUOTE
-                            << SVG_HEIGHT << d->viewBox.height() << SVG_QUOTE
-                         << SVG_ELEMENT_END << endl;
-        }
-    }
 
     // </svg>\n
     stream() << SVG_END << endl;
@@ -1159,8 +1160,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     stream() << textContent << SVG_TEXT_END << endl;
 
     // Handle Frozen Pane elements
-    if (_isFrozen)
-    {
+    if (_isFrozen) {
         const int     i   = _isMulti && _et == EType::TEMPO_TEXT ? _nStaves : _idxStaff;
         const QString key = getDefKey(i, _et);
 
@@ -1251,6 +1251,27 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
             else if (_idxStaff != _idxGrid)
                 // The other element types cache a fully-defined <text> element
                 qts << getFrozenElement(textContent, defClass, x, y);
+
+            // Ensure that tempo defs have the correct width
+            if (_isMulti && _et == EType::TEMPO_TEXT) {
+                // Tempos are part of the "system" staff, and always paint last
+                if (!frozenWidths.contains(_cue_id)) {
+                    // No other frozen elements for this cue_id, find the previous
+                    // cue_id. This code only runs when there is a tempo change w/o
+                    // a key/timesig or clef change. Very rarely > twice per score.
+                    int width = 0;
+                    QStringList::iterator i;
+                    QStringList keys = frozenWidths.keys();
+                    keys.sort();
+                    for (i = keys.begin(); i != keys.end(); ++i) {
+                        if (*i < _cue_id)
+                            width = frozenWidths[*i];
+                        else if (*i > _cue_id)
+                            break;
+                    }
+                    frozenWidths.insert(_cue_id, width);
+                }
+            }
 
             // Add the value to the list for key = idxStaff-EType
             if (!def->contains(key)) {
@@ -1406,8 +1427,11 @@ void SvgPaintEngine::freezeDef(int idxStaff)
     const qreal keyX = _xLeft + 4 + 16;     // x-coord where keysig  starts
     FDef*       def  = frozenDefs[_cue_id]; // the frozen def we'll be updating
 
-    // Tempo is staff-independent. if (isMulti) there is no need for every cue
-    // id to have all the frozen element types present. No need for _prevDef.
+    // Tempo is in the "system" staff, which is always based on the topmost
+    // staff in the score, idx == 0. if (_isMulti) these are always the last
+    // frozen defs in the file, all grouped together, tempo-only definitions.
+    // This procedure is never called for the "system" staff, so this procedure
+    // only deals with tempo for NOT(_isMulti) exports.
     if (!_isMulti  && _prevDef != 0) {
         key = getDefKey(0, EType::TEMPO_TEXT);
         if (!def->contains(key) && _prevDef->contains(key)) // Nothing new for this cue

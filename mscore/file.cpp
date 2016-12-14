@@ -108,7 +108,7 @@
 #define FILE_DRUM_PLAY  "SMAWS_DrumPlayButts.svg.txt" // Drum Machine playback buttons
 #define FILE_DRUM_TEMPO "SMAWS_DrumTempo.svg.txt"     // Drum Machine page buttons
 #define FILE_DRUM_BOTH  "SMAWS_DrumPageButts.svg.txt" // Drum Machine playback + page buttons
-#define FILE_DRUM_CTRLS "SMAWS_DrumCtrls.svg.txt"     // Drum machine controls by row/channel
+#define FILE_DRUM_INSTRUMENT "SMAWS_DrumInst.svg.txt"     // Drum machine controls by row/channel
 
 #define FILTER_SMAWS               "SMAWS SVG+VTT"
 #define FILTER_SMAWS_MULTI         "SMAWS Multi-Staff"
@@ -4130,6 +4130,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
     const int cellWidth  =  48;
     const int cellHeight =  48;
     const int baseline   = cellHeight - 14; // text baseline for lyrics/instrument names
+    const int nameLeft   =  19; // this value is duplicated in FILE_DRUM_INSTRUMENT
     const int iNameWidth = 144; // Instrument names are in the left-most column
     const int maxDigits  =   4; // for x/y value formatting, range = 0-9999px
 
@@ -4363,10 +4364,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                 iNames[r] = new QString;
                                 pqs = iNames[r];
                                 qts.setString(pqs);
-                                qts << SVG_TEXT_BEGIN
-                                    << formatInt(SVG_X, cellX,    maxDigits, true)
-                                    << formatInt(SVG_Y, baseline, maxDigits, true)
-                                    << SVG_CLASS << style << SVG_QUOTE;
+                                qts << SVG_CLASS << style << SVG_QUOTE;
                             }
                             if (isPageStart) {
                                 (*pageStyles[idxPage])[r] = new QString(style);
@@ -5136,23 +5134,30 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
 
                         // Each staff (row) is wrapped in a group
                         tableStream << SVG_GROUP_BEGIN
-                                       << SVG_ID        << id            << SVG_QUOTE
+                                       << SVG_ID        << id  << SVG_QUOTE
                                        << SVG_CLASS     << "staff"
                                        << (!isLED && r != idxChords ? " lyrics" : "") << SVG_QUOTE
                                        << SVG_INAME     << score->staff(r)->part()->shortName(startOffset) << SVG_QUOTE
                                        << SVG_TRANSFORM << SVG_TRANSLATE << SVG_ZERO
-                                       << SVG_SPACE     << cellY         << SVG_RPAREN_QUOTE
+                                       << SVG_SPACE     << cellY << SVG_RPAREN_QUOTE
                                     << SVG_GT << endl;
 
-                        // Import the row header controls (solo, gain, pan), but not for idxChord
                         if (r != idxChords) {
-                            qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_DRUM_CTRLS));
+                            // Import the row header controls (solo, gain, pan), but not for idxChord
+                            qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_DRUM_INSTRUMENT));
                             qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
                             qts.setDevice(&qf);
-                            tableStream << qts.readAll().replace("%0", evtPrefix).replace("%1", id);
+                            tableStream << qts.readAll().replace("%0", evtPrefix)
+                                                        .replace("%1", id)
+                                                        .replace("%2", *iNames[r]);
                         }
+                        else // the one and only chords row, no controls, but it has a name/label
+                            tableStream << SVG_TEXT_BEGIN
+                                        << formatInt(SVG_X, nameLeft, maxDigits, true)
+                                        << formatInt(SVG_Y, baseline, maxDigits, true)
+                                        << SVG_ID << id << SVG_QUOTE
+                                        << *iNames[r];
 
-                        tableStream << SVG_4SPACES << *iNames[r] << SVG_ID << id << SVG_QUOTE;
                         if (isPages) {
                             bool changesName  = false;
                             pqs = (*pageNames[0])[r];
