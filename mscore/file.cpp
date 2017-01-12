@@ -113,6 +113,8 @@
 #define FILE_FRET_BUTTS "SMAWS_FretButts.svg.txt"     // Fretboard buttons
 #define FILE_FRETS_12_6 "SMAWS_Frets12-6.svg.txt"     // 12-fret, 6-string fretboard template
 #define FILE_FRETS_12_4 "SMAWS_Frets12-4.svg.txt"     // 12-fret, 4-string fretboard template
+#define FILE_FRETS_14_6 "SMAWS_Frets14-6.svg.txt"     // 14-fret, 6-string fretboard template
+#define FILE_FRETS_14_4 "SMAWS_Frets14-4.svg.txt"     // 14-fret, 4-string fretboard template
 
 #define FILTER_SMAWS               "SMAWS SVG+VTT"
 #define FILTER_SMAWS_MULTI         "SMAWS Multi-Staff"
@@ -5692,7 +5694,7 @@ bool MuseScore::saveSMAWS_Fretboard(Score* score, QFileInfo* qfi)
                 (*spv)[str] = new QString(
                                     tpc2unicode(
                                       pitch2tpc(
-                                        staff->part()->instrument()->stringData()->stringList()[str].pitch,
+                                        staff->part()->instrument()->stringData()->stringList()[nStrings - str - 1].pitch, // the list itself is in opposite order from note.string() return value - messy, but true
                                         score->staves()[stavesTPC[tmp]]->key(0),
                                         Prefer::NEAREST),
                                       NoteSpellingType::STANDARD,
@@ -5800,7 +5802,7 @@ bool MuseScore::saveSMAWS_Fretboard(Score* score, QFileInfo* qfi)
     file.setDevice(&qfSVG);
 
     // The headers
-    height = 816; //!!! 12-fret height. With diff # of frets per staff, this must become very dynamic!!!
+    height = 894; //!!! 14-fret height. With diff # of frets per staff, this must become very dynamic!!!
     file << XML_STYLEFRETS // CSS Stylesheet
          << SVG_BEGIN      // <svg>
             << XML_NAMESPACE << XML_XLINK << SVG_4SPACES
@@ -5828,10 +5830,10 @@ bool MuseScore::saveSMAWS_Fretboard(Score* score, QFileInfo* qfi)
         nStrings = values[i]->size();
         switch (nStrings) {
         case 6:
-            fileName = FILE_FRETS_12_6;
+            fileName = FILE_FRETS_14_6;
             break;
         case 4:
-            fileName = FILE_FRETS_12_4;
+            fileName = FILE_FRETS_14_4;
             break;
         default:
             continue; // not currently supported
