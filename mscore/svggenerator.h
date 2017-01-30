@@ -71,6 +71,7 @@ using IntList         = QList<int>;
 using IntListList     = QList<IntList*>;
 using IntListVect     = QVector<IntList*>;
 using IntListVectList = QList<IntListVect*>;
+using IntSet          = std::set<int>;
 
 ///////////////////////////////////////////////////////////////////////////////
 // SVG and SMAWS constants
@@ -220,6 +221,7 @@ using IntListVectList = QList<IntListVect*>;
 #define SVG_STAVES " data-staves=\""      // number of staves for the score
 #define SVG_MAX    " data-maxnote=\""     // max note duration for the score
 #define SVG_CUE    " data-cue=\""         // the cue id
+#define SVG_CUE_NQ " data-cue="           // the cue id with no quote char
 #define SVG_START  " data-start=\""       // cue start time in milliseconds
 #define SVG_INAME  " data-iname=\""       // full instrument name == MuseScore "short" instrument name
 #define SVG_BARNUM " data-barnum=\""      // measure (bar) number for rulers/counters
@@ -241,7 +243,7 @@ using IntListVectList = QList<IntListVect*>;
 #define CUE_ID_ZERO  "0000000_0000000"
 #define NATURAL_SIGN 57953   // 0xE261, natural signs excluded from frozen panes
 #define FROZEN_WIDTH 100.00
-#define RULER_HEIGHT 40
+#define RULER_HEIGHT 43
 #define STAFF_GRID    "grid" // Yes, it's the same as CLASS_GRID, but they serve different roles, STAFF_GRID is used outside of saveSMAWS_Tables() too.
 
 // Imaginary MIDI note values for rests and invisible "cells" in SVG "tables"
