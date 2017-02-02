@@ -1009,39 +1009,46 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
             if (frozenLines[_idxStaff] == 0)
                 frozenLines[_idxStaff] = new QString;
 
-            const bool isStaffLines = _et == EType::STAFF_LINES;
+            const bool isStaffLines = (_et == EType::STAFF_LINES);
+
+            const qreal x1 = points[0].x() + _dx;
+            const qreal x2 = points[1].x() + _dx;
+            const qreal y1 = points[0].y() + _dy + yOff;
+            const qreal y2 = points[1].y() + _dy + yOff;
 
             QTextStream qts(frozenLines[_idxStaff]);
             initStream(&qts);
 
             if (_isMulti) qts << SVG_8SPACES;
 
-            // These are straight lines, only two points (StaffLines" = 11)
-            const QString className = (isStaffLines ? "FrozenLines" : _classValue);
-            qts << SVG_POLYLINE  << SVG_CLASS;
-            qts.setFieldWidth(11);
-            qts << QString("%1%2").arg(className).arg(SVG_QUOTE);
-            qts.setFieldWidth(0);
-
-            if (isStaffLines)
-                qts << SVG_STROKE_URL << "gradFrozenLines" << SVG_RPAREN_QUOTE;
-
-            qts << SVG_POINTS
-                << fixedFormat("", points[0].x() + _dx, 2, false) << SVG_COMMA    // !!!literal value: start of staff lines is always < 100
-                << fixedFormat("", points[0].y() + _dy + yOff, d_func()->yDigits, false)
-                << SVG_SPACE;
-
             if (isStaffLines) {
+                // Frozen pane staff lines must be <line>, not <polyline>,
+                // due to CSS color management and user color control.
+                qts << SVG_LINE
+                       << SVG_CLASS      << "FrozenLines"     << SVG_QUOTE // a variation on StaffLines
+                       << SVG_STROKE_URL << "gradFrozenLines" << SVG_RPAREN_QUOTE
+                       << SVG_X1         << x1                << SVG_QUOTE
+                       << SVG_Y1         << y1                << SVG_QUOTE
+                       << SVG_X2         << FROZEN_WIDTH      << SVG_QUOTE
+                       << SVG_Y2         << y2                << SVG_QUOTE
+                    << SVG_ELEMENT_END        << endl;
+
                 if (_xLeft == 0)
                     _xLeft = points[0].x() + _dx;
-                qts << FROZEN_WIDTH;
             }
-            else
-                qts << fixedFormat("", points[1].x() + _dx, 3, false);
-
-            qts << SVG_COMMA
-                << fixedFormat("", points[1].y() + _dy + yOff, d_func()->yDigits, false)
-                << SVG_QUOTE << SVG_ELEMENT_END << endl;
+            else {
+                qts << SVG_POLYLINE  << SVG_CLASS;
+                qts.setFieldWidth(11); // literal value: StaffLines" = 11
+                qts << QString("%1%2").arg(_classValue).arg(SVG_QUOTE);
+                qts.setFieldWidth(0);
+                qts << SVG_POINTS
+                    << fixedFormat("", x1, 3, false) << SVG_COMMA // literal value: frozen pane max width is 100
+                    << fixedFormat("", y1, d_func()->yDigits, false)
+                    << SVG_SPACE
+                    << fixedFormat("", x2, 3, false) << SVG_COMMA // literal value: frozen pane max width is 100
+                    << fixedFormat("", y2, d_func()->yDigits, false)
+                    << SVG_QUOTE << SVG_ELEMENT_END << endl;
+            }
         }
     }
     else { // not PolylineMode

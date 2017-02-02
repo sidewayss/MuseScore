@@ -6038,6 +6038,7 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
     const QString   VTT_CLASS_END   = "</c>";
 
     int     i;
+    int     tick;
     int     startTick  = 0;
     bool    isSVG;
     bool    isRest;
@@ -6084,11 +6085,12 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
                 // the SVG file. Actual rests shouldn't have articulations...
                 isOmit = cr->hasArticulation(art);
 
+                tick   = cr->tick();
                 isRest = cr->isRest();
                 if (!isRest) { // It's a Chord
                     if (cr->lyrics().size() > 0) {
                         if (isPrevRest) { // New line of lyrics
-                            startTick  = cr->tick();
+                            startTick  = tick;
                             isItalic   = cr->lyrics()[0]->textStyle().italic();
                             lyricsItalic = (isItalic ? "Italic" : "");
                             lyricsVTT    = lyricsStaff + lyricsItalic + SVG_SPACE;
@@ -6109,7 +6111,7 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
                             }
                         }
                         lyricsVTT += SVG_LT;
-                        lyricsVTT += ticks2VTTmsecs(cr->tick(), tempos);
+                        lyricsVTT += ticks2VTTmsecs(tick, tempos);
                         lyricsVTT += SVG_GT;                        
                         lyricsVTT += cr->lyrics()[0]->plainText(); ///!!! looping over lyricsList vector will be necessary soon, tied in with repeats, which are also 100% unhandled in SMAWS today!!! though for animated scores it may not be necessary.  Repeats require multiple cue_ids per animated note.
                         if (isSVG && !isOmit)
@@ -6117,9 +6119,9 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
                     }
                 }
                 else { // It's a rest
-                    if (!isPrevRest && cr->tick() != 0) {
+                    if (!isPrevRest && tick != 0) {
                         lyricsVTT += VTT_CLASS_END;
-                        mapVTT.insert(getCueID(startTick, cr->tick()), lyricsVTT);
+                        mapVTT.insert(getCueID(startTick, tick), lyricsVTT);
 
                         if (isSVG && !isPrevOmit) {
                             mapSVG.insert(startTick, lyricsSVG);
@@ -6133,10 +6135,11 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
                     // SVG_LT distinguishes this from lyrics text in mapSVG.
                     if (isRest && isSVG) { // no good way to restrict this further, every rest in this staff...
                         for (Element* eAnn : s->annotations()) {
-                            if (eAnn->type() == EType::REHEARSAL_MARK) {
+                            if (eAnn->type()  == EType::REHEARSAL_MARK
+                             && setVTT.find(tick) == setVTT.end()) { // rehearsal marks are system-level, not staff-level
                                 lyricsEmpty = static_cast<RehearsalMark*>(eAnn)->xmlText() + SVG_LT;
-                                mapSVG.insert(cr->tick(), lyricsEmpty);
-                                setVTT.insert(cr->tick());
+                                mapSVG.insert(tick, lyricsEmpty);
+                                setVTT.insert(tick);
                                 break; // only one marker per segment
                             }
                         }
@@ -6170,7 +6173,7 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
     const QString fnLyrics = QString("%1%2").arg(fnRoot).arg("_Lyrics");
 
     // Open a stream into the subtitles VTT file
-    qf.setFileName(QString("%1%2%3").arg(fnRoot).arg("_Subtitles").arg(EXT_VTT));
+    qf.setFileName(QString("%1%2%3").arg(fnRoot).arg("_Video").arg(EXT_VTT));
     qf.open(QIODevice::WriteOnly | QIODevice::Text);  // TODO: check for failure here!!!
     qts.setDevice(&qf);
 
@@ -6208,6 +6211,7 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
     const int maxDigits =  4; // max y value for vertically aligned number formatting == 9999, extremely reasonable value
 
     int y = startY;
+    int msecs;
 
     QTextStream qtsRead;  // SVG file is fully based on a template file
     QString     className;
@@ -6232,10 +6236,12 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
             else
                 className = "lyricsNo";
 
+            msecs = qRound(score->tempomap()->tick2time(*tick) * 1000);
             qts << SVG_8SPACES << SVG_TEXT_BEGIN
-                   << formatInt(SVG_X,      lyricsX, maxDigits,          true)
-                   << formatInt(SVG_Y,      y,       maxDigits,          true)
-                   << formatInt(SVG_CUE_NQ, *tick,   CUE_ID_FIELD_WIDTH, true)
+                   << formatInt(SVG_X,        lyricsX, maxDigits,        true)
+                   << formatInt(SVG_Y,        y,       maxDigits,        true)
+                   << formatInt(SVG_CUE_NQ,   *tick, CUE_ID_FIELD_WIDTH, true)
+                   << formatInt(SVG_START_NQ, msecs, CUE_ID_FIELD_WIDTH, true)
                    << SVG_CLASS << className  << SVG_QUOTE
                    << lyricsItalic
                    << SVG_GT    << *i

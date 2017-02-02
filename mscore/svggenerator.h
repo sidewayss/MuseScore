@@ -198,9 +198,9 @@ using IntSet          = std::set<int>;
 #define XML_ENTITY_END   ';'
 
 // Boilerplate header text
-#define XML_STYLESHEET "<?xml-stylesheet type=\"text/css\" href=\"../MuseScore.svg.css\"?>\n"
-#define XML_STYLEDRUMS "<?xml-stylesheet type=\"text/css\" href=\"../SMAWS-Drums.svg.css\"?>\n<?xml-stylesheet type=\"text/css\" href=\"../SMAWS-DrumButts.svg.css\"?>\n"
-#define XML_STYLEFRETS "<?xml-stylesheet type=\"text/css\" href=\"../SMAWS-Frets.svg.css\"?>\n"
+#define XML_STYLESHEET "<?xml-stylesheet type=\"text/css\" href=\"../../MuseScore.svg.css\"?>\n"
+#define XML_STYLEDRUMS "<?xml-stylesheet type=\"text/css\" href=\"../../SMAWS-Drums.svg.css\"?>\n<?xml-stylesheet type=\"text/css\" href=\"../../SMAWS-DrumButts.svg.css\"?>\n"
+#define XML_STYLEFRETS "<?xml-stylesheet type=\"text/css\" href=\"../../SMAWS-Frets.svg.css\"?>\n"
 #define XML_NAMESPACE  " xmlns=\"http://www.w3.org/2000/svg\"\n"
 #define XML_XLINK      "     xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n"
 #define VTT_HEADER     "WEBVTT\n\nNOTE\n    SMAWS  - Sheet Music Animation w/Sound -\n    This file links to one or more SVG files via the\n    cue ids, which are in this format: 0000000_1234567\nNOTE\n\n"
@@ -216,15 +216,16 @@ using IntSet          = std::set<int>;
 #define SMAWS_VERSION "2.2"
 
 // Custom SVG attributes (and some default settings)
-#define SVG_ATTR   " data-attr=\"fill\""  // the only animated attribute so far
-#define SVG_SCROLL " data-scroll=\""      // "x" or "y", horizontal or vertical
-#define SVG_STAVES " data-staves=\""      // number of staves for the score
-#define SVG_MAX    " data-maxnote=\""     // max note duration for the score
-#define SVG_CUE    " data-cue=\""         // the cue id
-#define SVG_CUE_NQ " data-cue="           // the cue id with no quote char
-#define SVG_START  " data-start=\""       // cue start time in milliseconds
-#define SVG_INAME  " data-iname=\""       // full instrument name == MuseScore "short" instrument name
-#define SVG_BARNUM " data-barnum=\""      // measure (bar) number for rulers/counters
+#define SVG_ATTR     " data-attr=\"fill\""  // the only animated attribute so far
+#define SVG_SCROLL   " data-scroll=\""      // "x" or "y", horizontal or vertical
+#define SVG_STAVES   " data-staves=\""      // number of staves for the score
+#define SVG_MAX      " data-maxnote=\""     // max note duration for the score
+#define SVG_CUE      " data-cue=\""         // the cue id
+#define SVG_CUE_NQ   " data-cue="           // the cue id with no quote char
+#define SVG_START    " data-start=\""       // cue start time in milliseconds
+#define SVG_START_NQ " data-start="         // cue start time in milliseconds with no quote character
+#define SVG_INAME    " data-iname=\""       // full instrument name == MuseScore "short" instrument name
+#define SVG_BARNUM   " data-barnum=\""      // measure (bar) number for rulers/counters
 
 #define SVG_PREFIX_TAB "tab" // For tablature class names
 
