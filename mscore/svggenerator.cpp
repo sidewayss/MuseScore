@@ -432,7 +432,7 @@ bool SvgPaintEngine::end()
              << SVG_DESC_BEGIN  << d->attributes.desc  << SVG_DESC_END  << endl;
 
 
-    if (_isSMAWS) { // Cursor element at the end of the current body
+    if (_isSMAWS) { // Cursor, Fade, Gray rects at the end of the current body
         stream().setString(&d->body);
         stream() << SVG_RECT
                     << SVG_CLASS          << CLASS_CURSOR  << SVG_QUOTE
@@ -442,18 +442,64 @@ bool SvgPaintEngine::end()
                     << SVG_HEIGHT         << _cursorHeight << SVG_QUOTE
                  << SVG_ELEMENT_END << endl;
 
+        // Two gray-out <rect>s (left/right) for graying out inactive bars
+        for (int i = 0; i < 2; i++)
+            stream() << SVG_RECT
+                        << SVG_CLASS          << CLASS_GRAY  << SVG_QUOTE
+                        << SVG_X << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
+                        << SVG_Y << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
+                        << SVG_WIDTH          << SVG_ZERO    << SVG_QUOTE
+                        << SVG_FILL_OPACITY   << SVG_ZERO    << SVG_QUOTE
+                        << SVG_HEIGHT << d->viewBox.height() << SVG_QUOTE
+                     << SVG_ELEMENT_END << endl;
+
+        // The fader <rect> for crossfading between frozen and thawed
+        stream() << SVG_RECT
+                    << SVG_ID       << "Fader"             << SVG_QUOTE
+                    << SVG_WIDTH    << FROZEN_WIDTH        << SVG_QUOTE
+                    << SVG_HEIGHT   << d->viewBox.height() << SVG_QUOTE
+                    << SVG_FILL_URL << "gradFader"         << SVG_RPAREN_QUOTE
+                 << SVG_ELEMENT_END << endl;
+
         if (_isMulti) // Terminate the Staves group
             stream() << SVG_GROUP_END << endl;
     }
 
     // Deal with Frozen Pane, if it exists
     if (_isFrozen) {
-        // Frozen defs
-        stream().setString(&d->defs);
-        const QString tempoKey = getDefKey(0, EType::TEMPO_TEXT);
+        // Frozen body - _isFrozen depends on _isSMAWS, setString(&d->body) above
+        int i;
         FDefs::iterator def;
         FDef::iterator  elms;
+        const QString tempoKey = getDefKey(0, EType::TEMPO_TEXT);
 
+        if (_isMulti) {
+            // Frozen <use> elements by staff. SVG_GROUP_ consolidates events.
+            //!!! FOR NOW THIS IS ALWAYS "top.funcName(evt)". The "top." should be an option somewhere, somehow.
+            const QString frozenEvents = " onclick=\"top.frozenClick(evt)\" onmouseover=\"top.frozenOver(evt)\" onmouseout=\"top.frozenOut(evt)\" onmouseup=\"top.frozenUp(evt)\"";
+
+            stream() << SVG_GROUP_BEGIN << frozenEvents << SVG_GT << endl;
+
+            for (i = 0; i < _iNames->size(); i++)
+                stream() << SVG_4SPACES << _multiUse[i]
+                         << SVG_ID     << (*_iNames)[i] << SVG_QUOTE
+                         << XLINK_HREF << (*_iNames)[i] << SVG_DOT << CUE_ID_ZERO << SVG_QUOTE
+                         << SVG_ELEMENT_END << endl;
+
+            stream() << SVG_GROUP_END << endl;
+        }
+        else {
+            // StaffLines/SystemBarLine(s) once, in the body, not in the defs
+            for (i = 0; i < _nStaves; i++)
+                stream() << *(frozenLines[i]);
+
+            // One <use> element
+            stream() << SVG_USE    << XLINK_HREF      << CUE_ID_ZERO
+                     << SVG_QUOTE  << SVG_ELEMENT_END << endl;
+        }
+
+        // Frozen defs
+        stream().setString(&d->defs);
         // The Fader and FrozenLines gradients (!!!note literal 100 in x2 value for gradFrozenLines)
         stream() << "    <linearGradient id=\"gradFader\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"0\">\n        <stop stop-color=\"white\" stop-opacity=\"1\" offset=\"0.50\"/>\n        <stop stop-color=\"white\" stop-opacity=\"0\" offset=\"0.55\"/>\n    </linearGradient>\n";
         stream() << "    <linearGradient id=\"gradFrozenLines\" x1=\"0\" y1=\"0\" x2=\"100\" y2=\"0\" gradientUnits=\"userSpaceOnUse\">\n        <stop stop-color=\"black\" stop-opacity=\"1\" offset=\"0.50\"/>\n        <stop stop-color=\"black\" stop-opacity=\"0\" offset=\"0.55\"/>\n    </linearGradient>\n";
@@ -529,54 +575,6 @@ bool SvgPaintEngine::end()
                 }
             }
         } // end for(each frozen def)
-
-        // Frozen body
-        stream().setString(&d->body);
-
-        // Two gray-out <rect>s (left/right) for graying out inactive bars
-        for (int i = 0; i < 2; i++)
-            stream() << SVG_RECT
-                        << SVG_CLASS          << CLASS_GRAY  << SVG_QUOTE
-                        << SVG_X << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
-                        << SVG_Y << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
-                        << SVG_WIDTH          << SVG_ZERO    << SVG_QUOTE
-                        << SVG_FILL_OPACITY   << SVG_ZERO    << SVG_QUOTE
-                        << SVG_HEIGHT << d->viewBox.height() << SVG_QUOTE
-                     << SVG_ELEMENT_END << endl;
-
-        // The fader <rect> for crossfading between frozen and thawed
-        stream() << SVG_RECT
-                    << SVG_ID       << "Fader"             << SVG_QUOTE
-                    << SVG_WIDTH    << FROZEN_WIDTH        << SVG_QUOTE
-                    << SVG_HEIGHT   << d->viewBox.height() << SVG_QUOTE
-                    << SVG_FILL_URL << "gradFader"         << SVG_RPAREN_QUOTE
-                 << SVG_ELEMENT_END << endl;
-
-        int i;
-        if (_isMulti) {
-            // Frozen <use> elements by staff. SVG_GROUP_ consolidates events.
-            //!!! FOR NOW THIS IS ALWAYS "top.funcName(evt)". The "top." should be an option somewhere, somehow.
-            const QString frozenEvents = " onclick=\"top.frozenClick(evt)\" onmouseover=\"top.frozenOver(evt)\" onmouseout=\"top.frozenOut(evt)\" onmouseup=\"top.frozenUp(evt)\"";
-
-            stream() << SVG_GROUP_BEGIN << frozenEvents << SVG_GT << endl;
-
-            for (i = 0; i < _iNames->size(); i++)
-                stream() << SVG_4SPACES << _multiUse[i]
-                         << SVG_ID     << (*_iNames)[i] << SVG_QUOTE
-                         << XLINK_HREF << (*_iNames)[i] << SVG_DOT << CUE_ID_ZERO << SVG_QUOTE
-                         << SVG_ELEMENT_END << endl;
-
-            stream() << SVG_GROUP_END << endl;
-        }
-        else {
-            // StaffLines/SystemBarLine(s) once, in the body, not in the defs
-            for (i = 0; i < _nStaves; i++)
-                stream() << *(frozenLines[i]);
-
-            // One <use> element
-            stream() << SVG_USE    << XLINK_HREF      << CUE_ID_ZERO
-                     << SVG_QUOTE  << SVG_ELEMENT_END << endl;
-        }
     } //if(Frozen Pane)
 
     // Point the stream at the real output device (the .svg file)
