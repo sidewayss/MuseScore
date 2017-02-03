@@ -427,10 +427,24 @@ bool SvgPaintEngine::end()
             stream()             << _cue_id; // ??? is this still needed? it's for gray-out cues, right? Here it is, a full data-cue="" string of comma-separated cue ids
     }
 
-    stream() << SVG_GT << endl
-    // Document attributes:
+    stream() << SVG_GT << endl  // Document attributes:
              << SVG_TITLE_BEGIN << d->attributes.title << SVG_TITLE_END << endl
              << SVG_DESC_BEGIN  << d->attributes.desc  << SVG_DESC_END  << endl;
+
+
+    if (_isSMAWS) { // Cursor element at the end of the current body
+        stream().setString(&d->body);
+        stream() << SVG_RECT
+                    << SVG_CLASS          << CLASS_CURSOR  << SVG_QUOTE
+                    << SVG_X << SVG_QUOTE << "-5"          << SVG_QUOTE
+                    << SVG_Y << SVG_QUOTE << _cursorTop    << SVG_QUOTE
+                    << SVG_WIDTH          << SVG_ZERO      << SVG_QUOTE
+                    << SVG_HEIGHT         << _cursorHeight << SVG_QUOTE
+                 << SVG_ELEMENT_END << endl;
+
+        if (_isMulti) // Terminate the Staves group
+            stream() << SVG_GROUP_END << endl;
+    }
 
     // Deal with Frozen Pane, if it exists
     if (_isFrozen) {
@@ -519,9 +533,6 @@ bool SvgPaintEngine::end()
         // Frozen body
         stream().setString(&d->body);
 
-        if (_isMulti) // Terminate the group started a few lines below
-            stream() << SVG_GROUP_END << endl;
-
         // Two gray-out <rect>s (left/right) for graying out inactive bars
         for (int i = 0; i < 2; i++)
             stream() << SVG_RECT
@@ -567,15 +578,6 @@ bool SvgPaintEngine::end()
                      << SVG_QUOTE  << SVG_ELEMENT_END << endl;
         }
     } //if(Frozen Pane)
-
-    // The vertical bar (pseudo I-Beam) cursor, Applies to vertical scroll too.
-    stream() << SVG_RECT
-                << SVG_CLASS          << CLASS_CURSOR  << SVG_QUOTE
-                << SVG_X << SVG_QUOTE << "-5"          << SVG_QUOTE
-                << SVG_Y << SVG_QUOTE << _cursorTop    << SVG_QUOTE
-                << SVG_WIDTH          << SVG_ZERO      << SVG_QUOTE
-                << SVG_HEIGHT         << _cursorHeight << SVG_QUOTE
-             << SVG_ELEMENT_END << endl;
 
     // Point the stream at the real output device (the .svg file)
     stream().setDevice(d->outputDevice);
