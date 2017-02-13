@@ -460,12 +460,13 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       void switchLayoutMode(LayoutMode);
 
 ///// SMAWS ///////////////////////////////////////////////////////////////////
-      bool saveSMAWS          (Score* score, QFileInfo* qfi, bool isMulti);
-      bool saveSMAWS_Rulers   (Score* score, QFileInfo* qfi);
-      bool saveSMAWS_Tables   (Score* score, QFileInfo* qfi, bool isHTML, bool hasRulers);
-      bool saveSMAWS_Fretboard(Score* score, QFileInfo* qfi);
-      bool saveSMAWS_MixTree  (Score* score, QFileInfo* qfi);
-      bool saveSMAWS_Lyrics   (Score* score, QFileInfo* qfi);
+      bool autoSMAWS        (Score* score, QFileInfo* qfi, bool isAll);
+      bool saveSMAWS_Music  (Score* score, QFileInfo* qfi, bool isMulti, bool isAuto);
+      bool saveSMAWS_Rulers (Score* score, QFileInfo* qfi);
+      bool saveSMAWS_Tables (Score* score, QFileInfo* qfi, bool isHTML, bool hasRulers);
+      bool saveSMAWS_Frets  (Score* score, QFileInfo* qfi);
+      bool saveSMAWS_Tree   (Score* score, QFileInfo* qfi);
+      bool saveSMAWS_Lyrics (Score* score, QFileInfo* qfi);
 ///////////////////////////////////////////////////////////////////////////////
 
    private slots:

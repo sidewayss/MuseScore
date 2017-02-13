@@ -51,6 +51,7 @@
 #include "libmscore/barline.h"   // for BarLine class
 #include "libmscore/mscore.h"    // for BarLineType enum
 #include "libmscore/staff.h"     // for Tablature staves
+#include "libmscore/text.h"      // for Measure numbers
 using BLType = Ms::BarLineType;  // for convenience, and consistency w/EType
 
 static void translate_color(const QColor &color, QString *color_string,
@@ -194,7 +195,7 @@ protected:
     qreal   _cursorTop;        // For calculating the height of (vertical bar)
     qreal   _cursorHeight;     // Sheet music playback position cursor.
     qreal   _yOffset;          // Y axis offset used by Multi-Select Staves
-    int     _startMSecs;       // The elements start time in milliseconds -Yes, it kind of duplicates _cue_id, but it serves a different purpose for now. an oddly important yet minor kludge.
+///!!!OBSOLETE!!!    int     _startMSecs;       // The elements start time in milliseconds -Yes, it kind of duplicates _cue_id, but it serves a different purpose for now. an oddly important yet minor kludge.
     int     _maxNote;          // The max duration for notes in this score (in ticks)
 
 ////////////////////
@@ -402,7 +403,7 @@ bool SvgPaintEngine::end()
     const QString scrollAxis = _isScrollVertical ? "y" : "x";
 
     if (_isSMAWS) // SMAWS uses an external CSS file
-        stream() << XML_STYLESHEET;
+        stream() << XML_STYLE_MUSE;
 
     // The <svg> element:
     stream() << SVG_BEGIN
@@ -917,12 +918,12 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
 
         stream() << SVG_RECT    << classState << styleState;
         streamXY(_textFrame.x(),_textFrame.y());
-        stream() << SVG_ONCLICK << SVG_START  << _startMSecs << SVG_QUOTE
+        stream() << SVG_CUE     << _cue_id                   << SVG_QUOTE
                  << SVG_WIDTH   << _textFrame.width()        << SVG_QUOTE
                  << SVG_HEIGHT  << _textFrame.height()       << SVG_QUOTE
                  << SVG_RX      << SVG_ONE                   << SVG_QUOTE
                  << SVG_RY      << SVG_ONE                   << SVG_QUOTE
-                 << SVG_ELEMENT_END                          << endl;
+                 << SVG_ONCLICK << SVG_ELEMENT_END           << endl;
         return; // That's right, we're done here, no path to draw
     }
 
@@ -1126,15 +1127,24 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     // Stream the fancily formatted x and y coordinates
     streamXY(x, y);
 
-    // These elements get onClick events and data-start attribute
+    // These elements get onClick events, which requires pointer-events="visible"
     switch (_et) {
-    case EType::HARMONY        :
-    case EType::LYRICS         :
     case EType::NOTE           :
     case EType::NOTEDOT        :
     case EType::REST           :
+    case EType::ACCIDENTAL     :
+    case EType::STEM           :
+    case EType::HOOK           :
+    case EType::BEAM           :
+    case EType::BAR_LINE       :
     case EType::REHEARSAL_MARK :
-        stream() << SVG_ONCLICK << SVG_START << _startMSecs << SVG_QUOTE;
+    case EType::LYRICS         :
+    case EType::HARMONY        :
+        stream() << SVG_ONCLICK << SVG_POINTER_EVENTS;
+        break;
+    case EType::TEXT :
+        if (static_cast<const Ms::Text*>(_e)->textStyleType() == Ms::TextStyleType::MEASURE_NUMBER)
+            stream() << SVG_ONCLICK << SVG_POINTER_EVENTS;
         break;
     default:
         break;
@@ -1370,25 +1380,18 @@ void SvgPaintEngine::streamXY(const qreal x, const qreal y)
     stream() << fixedFormat(SVG_Y, y, d_func()->yDigits, true);
 }
 
+// Duplicated in file.cpp, formatReal()...
 QString SvgPaintEngine::fixedFormat(const QString& attr,
                                     const qreal    n,
                                     const int      maxDigits,
                                     const bool     withQuotes)
 {
-    int w;
-    w  = maxDigits + SVG_PRECISION + 1; // 1 for decimal point
-    w += withQuotes ? 2: 0;
-
-    QString qsN;
-    QTextStream qtsN(&qsN);
-    initStream(&qtsN);
-    qtsN << n;
-
+    QString qsN = QString::number(n, 'f', SVG_PRECISION);
     QString qs;
     QTextStream qts(&qs);
     qts << attr;
     qts.setFieldAlignment(QTextStream::AlignRight);
-    qts.setFieldWidth(w);
+    qts.setFieldWidth(maxDigits + SVG_PRECISION + (withQuotes ? 2: 0) + 1);
     if (withQuotes)
         qts << QString("%1%2%3").arg(SVG_QUOTE).arg(qsN).arg(SVG_QUOTE);
     else
@@ -1957,13 +1960,13 @@ void SvgGenerator::setCursorHeight(qreal height) {
 }
 
 /*!
-    setStartMSecs() function
+    !!!OBSOLETE!!! setStartMSecs() function
     Sets the _startMSecs variable in SvgPaintEngine.
     Called by saveSMAWS() in mscore/file.cpp.
 */
-void SvgGenerator::setStartMSecs(int start) {
-    static_cast<SvgPaintEngine*>(paintEngine())->_startMSecs = start;
-}
+//void SvgGenerator::setStartMSecs(int start) {
+//    static_cast<SvgPaintEngine*>(paintEngine())->_startMSecs = start;
+//}
 
 /*!
     freezeIt() function (SMAWS)

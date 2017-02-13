@@ -138,14 +138,16 @@ using IntSet          = std::set<int>;
 #define SVG_VISIBLE "visibility=\"visible\""
 #define SVG_HIDDEN  "visibility=\"hidden\""
 
-#define SVG_X  " x=" // No quote char due to floating point formatting
-#define SVG_Y  " y=" // ditto
-#define SVG_X1 " x1=\""
-#define SVG_X2 " x2=\""
-#define SVG_Y1 " y1=\""
-#define SVG_Y2 " y2=\""
-#define SVG_RX " rx=\""
-#define SVG_RY " ry=\""
+#define SVG_X     " x="  // No quote char due to floating point formatting
+#define SVG_Y     " y="  // ditto
+#define SVG_X1_NQ " x1=" // ditto
+#define SVG_X2_NQ " x2=" // ditto
+#define SVG_X1    " x1=\""
+#define SVG_X2    " x2=\""
+#define SVG_Y1    " y1=\""
+#define SVG_Y2    " y2=\""
+#define SVG_RX    " rx=\""
+#define SVG_RY    " ry=\""
 
 #define XLINK_HREF " xlink:href=\"#"
 #define SVG_CLASS  " class=\""
@@ -198,12 +200,12 @@ using IntSet          = std::set<int>;
 #define XML_ENTITY_END   ';'
 
 // Boilerplate header text
-#define XML_STYLESHEET "<?xml-stylesheet type=\"text/css\" href=\"../../MuseScore.svg.css\"?>\n"
-#define XML_STYLEDRUMS "<?xml-stylesheet type=\"text/css\" href=\"../../SMAWS-Drums.svg.css\"?>\n<?xml-stylesheet type=\"text/css\" href=\"../../SMAWS-DrumButts.svg.css\"?>\n"
-#define XML_STYLEFRETS "<?xml-stylesheet type=\"text/css\" href=\"../../SMAWS-Frets.svg.css\"?>\n"
+#define XML_STYLE_MUSE "<?xml-stylesheet type=\"text/css\" href=\"../../MuseScore.svg.css\"?>\n"
+#define XML_STYLE_GRID "<?xml-stylesheet type=\"text/css\" href=\"../../SMAWS_Grid.svg.css\"?>\n<?xml-stylesheet type=\"text/css\" href=\"../../SMAWS_GridButts.svg.css\"?>\n"
 #define XML_NAMESPACE  " xmlns=\"http://www.w3.org/2000/svg\"\n"
 #define XML_XLINK      "     xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n"
 #define VTT_HEADER     "WEBVTT\n\nNOTE\n    SMAWS  - Sheet Music Animation w/Sound -\n    This file links to one or more SVG files via the\n    cue ids, which are in this format: 0000000_1234567\nNOTE\n\n"
+#define VTT_START_ONLY "WEBVTT\n\nNOTE\n    SMAWS  - Sheet Music Animation w/Sound -\n    This file links to one or more SVG files via the\n    cue ids, which are integer MIDI tick values formatted variable-length\nNOTE\n\n"
 #define HTML_HEADER    "<!DOCTYPE html>\n<!-- SMAWS HTML Tables -->\n<html>\n<head>\n    <meta charset=\"utf-8\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">\n    <link rel=\"stylesheet\" href=\"../SMAWS_22.css\">\n</head>\n\n<body onload=\"onLoadHTMLTables()\">\n\n"
 
 // Boilerplate events
@@ -225,7 +227,7 @@ using IntSet          = std::set<int>;
 #define SVG_START    " data-start=\""       // cue start time in milliseconds
 #define SVG_START_NQ " data-start="         // cue start time in milliseconds with no quote character
 #define SVG_INAME    " data-iname=\""       // full instrument name == MuseScore "short" instrument name
-#define SVG_BARNUM   " data-barnum=\""      // measure (bar) number for rulers/counters
+#define SVG_BARNUMB  " data-barnumb="       // measure (bar) number for rulers/counters - no quotes!!
 
 #define SVG_PREFIX_TAB "tab" // For tablature class names
 
@@ -235,9 +237,9 @@ using IntSet          = std::set<int>;
 #define CLASS_GRAY          "gray"
 #define CLASS_NOTES         "notes"
 #define CLASS_TABS          "tablature"
-#define CLASS_GRID          "grid"       // for HTML drum machine tables
-#define CLASS_TITLE         "title"      // ditto
-#define CLASS_INSTRUMENT    "instrument" // ditto
+#define CLASS_GRID          "grid"
+#define CLASS_TITLE         "title"
+#define CLASS_INSTRUMENT    "instrument"
 
 // Miscellaneous SMAWS constants
 #define TEXT_BPM     "bpm"
