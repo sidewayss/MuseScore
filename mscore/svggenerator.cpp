@@ -916,8 +916,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
 
         stream() << SVG_RECT    << classState << styleState;
         streamXY(_textFrame.x(),_textFrame.y());
-        stream() << SVG_CUE     << _cue_id                   << SVG_QUOTE
-                 << SVG_WIDTH   << _textFrame.width()        << SVG_QUOTE
+        stream() << SVG_WIDTH   << _textFrame.width()        << SVG_QUOTE
                  << SVG_HEIGHT  << _textFrame.height()       << SVG_QUOTE
                  << SVG_RX      << SVG_ONE                   << SVG_QUOTE
                  << SVG_RY      << SVG_ONE                   << SVG_QUOTE

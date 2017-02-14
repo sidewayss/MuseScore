@@ -136,13 +136,13 @@
 
 #define FILTER_SMAWS_AUTO_OPEN   "Auto-SMAWS: Open Files"
 #define FILTER_SMAWS_AUTO_ALL    "Auto-SMAWS:  All Files"
-#define FILTER_SMAWS             "SMAWS SVG+VTT"
-#define FILTER_SMAWS_MULTI       "SMAWS Multi-Staff"
+#define FILTER_SMAWS             "SMAWS Part"
+#define FILTER_SMAWS_MULTI       "SMAWS Score"
 #define FILTER_SMAWS_RULERS      "SMAWS Rulers"
 #define FILTER_SMAWS_TABLES      "SMAWS HTML Tables"
-#define FILTER_SMAWS_GRID        "SMAWS SVG Grids"
-#define FILTER_SMAWS_GRID_RULERS "SMAWS SVG Grids w/built-in Rulers"
-#define FILTER_SMAWS_FRETS       "SMAWS Fretboard"
+#define FILTER_SMAWS_GRID        "SMAWS Grids"
+#define FILTER_SMAWS_GRID_RULERS "SMAWS Grids w/built-in Rulers"
+#define FILTER_SMAWS_FRETS       "SMAWS Fretboards"
 #define FILTER_SMAWS_MIX_TREE    "SMAWS MixTree"
 #define FILTER_SMAWS_LYRICS      "SMAWS Lyrics"
 
@@ -1651,15 +1651,15 @@ void MuseScore::exportFile()
 // SMAWS options
       fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS_AUTO_OPEN).arg(EXT_VTT));
       fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS_AUTO_ALL).arg(EXT_VTT));
-      fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS).arg(EXT_VTT));
       fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS_MULTI).arg(EXT_VTT));
-      fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS_RULERS).arg(EXT_VTT));
+      fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS).arg(EXT_VTT));
       fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS_GRID).arg(EXT_VTT));
       fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS_GRID_RULERS).arg(EXT_VTT));
       fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS_TABLES).arg(EXT_VTT));
       fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS_FRETS).arg(EXT_VTT));
-      fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS_MIX_TREE).arg(EXT_VTT));
       fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS_LYRICS).arg(EXT_VTT));
+      fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS_MIX_TREE).arg(EXT_VTT));
+      fl.append(tr("%1 (*%2)").arg(FILTER_SMAWS_RULERS).arg(EXT_VTT));
 // SMAWS end
 
       QString saveDialogTitle = tr("MuseScore: Export");
