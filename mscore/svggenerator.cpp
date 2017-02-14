@@ -636,10 +636,8 @@ void SvgPaintEngine::updateState(const QPaintEngineState &state)
     qts << SVG_CLASS;
     _classValue = getClass();
     if ((_cue_id.isEmpty() || _et == EType::BAR_LINE) && !(_isMulti && _idxStaff == _nStaves)) {
-        // No cue id or BarLine = no fancy formatting
-        qts << _classValue << SVG_QUOTE;
-        if (!_cue_id.isEmpty())
-            // But bar lines need cue ids
+        qts << _classValue << SVG_QUOTE; // no cue id or BarLine = no fancy formatting
+        if (!_cue_id.isEmpty())          // but bar lines need cue ids - staff lines too, see drawPolygon()
             qts << SVG_CUE << _cue_id << SVG_QUOTE;
     }
     else {
@@ -655,7 +653,7 @@ void SvgPaintEngine::updateState(const QPaintEngineState &state)
         qts << QString("%1%2").arg(_classValue).arg(SVG_QUOTE);
         qts.setFieldWidth(0);
         // Then stream the Cue ID
-        if (!_cue_id.isEmpty())
+        if (!_cue_id.isEmpty() && _et != EType::STAFF_LINES)
             qts << SVG_CUE << _cue_id << SVG_QUOTE;
     }
 
@@ -987,10 +985,11 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 {
     Q_ASSERT(pointCount >= 2);
 
-    const qreal yOff = _isFullMatrix ? 0 : _yOffset;
-
     if (mode == PolylineMode) {
-        if (_isMulti) stream() << SVG_4SPACES;
+        const qreal yOff = _isFullMatrix ? 0 : _yOffset;
+        const bool isStaffLines = (_et == EType::STAFF_LINES);
+
+        if (_isMulti) stream() << SVG_4SPACES; // isMulti staff is inside a <g>
 
         stream() << SVG_POLYLINE << classState << styleState << SVG_POINTS;
         for (int i = 0; i < pointCount; ++i) {
@@ -1002,15 +1001,21 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
                 stream() << SVG_SPACE;
 
         }
-        stream() << SVG_QUOTE << SVG_ELEMENT_END <<endl;
+        stream() << SVG_QUOTE;
+
+        // Staff lines have cue ids for vertical scrolling
+        if (isStaffLines && !_cue_id.isEmpty()) {
+            stream() << SVG_CUE << _cue_id << SVG_QUOTE;
+            _cue_id = ""; // but only the top line's y-coord matters
+        }
+
+        stream() << SVG_ELEMENT_END <<endl;
 
         // For Frozen Pane (horizontal scrolling only):
         // StaffLines and System BarLine(s)
         if (_isFrozen && _idxStaff != _idxGrid) {
             if (frozenLines[_idxStaff] == 0)
                 frozenLines[_idxStaff] = new QString;
-
-            const bool isStaffLines = (_et == EType::STAFF_LINES);
 
             const qreal x1 = points[0].x() + _dx;
             const qreal x2 = points[1].x() + _dx;
@@ -1889,14 +1894,22 @@ void SvgGenerator::setCueID(const QString& qs) {
 }
 
 /*!
-    setScrollAxis() function
+    setScrollVertical() function
     Sets the _isScrollVertical variable in SvgPaintEngine.
     Called by saveSMAWS() in mscore/file.cpp.
 */
-void SvgGenerator::setScrollAxis(bool axis) {
-    static_cast<SvgPaintEngine*>(paintEngine())->_isScrollVertical = axis;
+void SvgGenerator::setScrollVertical(bool isVertical) {
+    static_cast<SvgPaintEngine*>(paintEngine())->_isScrollVertical = isVertical;
 }
 
+/*!
+    isScrollVertical() function
+    Gets the _isScrollVertical variable in SvgPaintEngine.
+    Called by paintStaffLines() in mscore/file.cpp.
+*/
+bool SvgGenerator::isScrollVertical() {
+    return static_cast<SvgPaintEngine*>(paintEngine())->_isScrollVertical;
+}
 /*!
     setNonStandardStaves() function
     Sets the _hasNonStandard variable in SvgPaintEngine.

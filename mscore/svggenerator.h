@@ -356,7 +356,8 @@ public:
     void setElement(const Ms::Element* e);
     void setSMAWS();
     void setCueID(const QString& qs);
-    void setScrollAxis(bool axis);
+    void setScrollVertical(bool isVertical);
+    bool isScrollVertical();
     void setNonStandardStaves(QVector<int>* nonStdStaves);
     void setNStaves(int n);
     void setStaffIndex(int idx);

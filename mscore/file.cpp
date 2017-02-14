@@ -2698,13 +2698,6 @@ static QString getCueID(int startTick, int endTick = -1)
                              .arg(endTick, CUE_ID_FIELD_WIDTH, base, fillChar);
 }
 
-// getCRCueID()
-// Creates a cue ID string from a ChordRest - a minor convenience
-static QString getCRCueID(const ChordRest* cr)
-{
-    return getCueID(cr->tick(), cr->tick() + cr->actualTicks());
-}
-
 // getAnnCueID()
 // Gets the cue ID for an annotation, such as rehearsal mark or chord symbol,
 // where the cue duration lasts until the next element of the same type.
@@ -2936,6 +2929,7 @@ static void paintStaffLines(Score*        score,
         printer->setCueID("");
     }
 
+    bool isVertical = printer->isScrollVertical();
     for (System* s : page->systems()) {
         for (int i = 0, n = s->staves()->size(); i < n; i++) {
             if (idxStaff > -1)
@@ -3020,11 +3014,18 @@ static void paintStaffLines(Score*        score,
                   }
             }
             else { // Draw staff lines once per system
+                QString     cue_id;
                 StaffLines* firstSL = s->firstMeasure()->staffLines(i)->clone();
                 StaffLines*  lastSL =  s->lastMeasure()->staffLines(i);
                 firstSL->bbox().setRight(lastSL->bbox().right()
                                       +  lastSL->pagePos().x()
                                       - firstSL->pagePos().x());
+                if (isVertical && i == 0)
+                    cue_id = getCueID(s->firstMeasure()->tick());
+                else
+                    cue_id = "";
+
+                printer->setCueID(cue_id);
                 printer->setElement(firstSL);
                 paintElement(*p, firstSL);
             }
@@ -3459,13 +3460,13 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
     // setVTT     - a chronologically sorted set of unique cue_ids
     QStringList setVTT;
 
-    // mapSVG    - a real map: key = cue_id; value = list of elements.
-    // mapFrozen - ditto, but for frozen pane elements
-    // mapMulti  - ditto, but for multi-select staves "system" group: tempos, chords, markers
-    // mapLyrics - ditto, but for multi-select staves lyrics as a separate group
+    // mapSVG      - a real map: key = cue_id; value = list of elements.
+    // mapFrozen   - ditto, value = SCORE frozen pane elements
+    // mapSysStaff - ditto, value = SCORE "system" staff: tempos, chords, markers (should be measure numbers!!!)
+    // mapLyrics   - ditto, value = SCORE lyrics as a separate group
     SVGMap mapSVG;
     SVGMap mapFrozen;
-    SVGMap mapMulti;
+    SVGMap mapSysStaff;
     SVGMap mapLyrics;
 
     // Animated elements in a multi-page file? It's unnecessary IMO.
@@ -3485,7 +3486,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
     // MuseScore's landscape vs. portrait is purely based on page dimensions
     // and doesn't exist outside of the pagesettings.ui window.
     const bool isScrollVertical = score->pageFormat()->twosided();
-    printer.setScrollAxis(isScrollVertical);
+    printer.setScrollVertical(isScrollVertical);
 
     // visibleStaves - Frozen Panes and Multi-Select Staves deal with visible
     // staves only. This vector is the same size as score->nstaves(). If a
@@ -3544,11 +3545,11 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
     else // Paint staff lines once, prior to painting anything else
         paintStaffLines(score, &p, &printer, page, &visibleStaves);
 
-    QStringList      iNames;    // Only used by Multi-Select Staves.
-    QList<qreal>     staffTops; // ditto
-    int              idxStaff;  // Everything is grouped by staff.
-    EType            eType;     // Everything is determined by element type.
-    const ChordRest* cr;        // It has start and end ticks for highlighting.
+    QStringList    iNames;    // Only used by Multi-Select Staves.
+    QList<qreal>   staffTops; // ditto
+    int            idxStaff;  // Everything is grouped by staff.
+    EType          eType;     // Everything is determined by element type.
+    const Segment* seg;        // It has start and end ticks for highlighting.
 
     int maxNote = 0; // data-maxnote = Max note duration for this score. Helps optimize
                      // highlighting previous notes when user changes start time.
@@ -3577,14 +3578,14 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
             idxStaff = idx;
         }
 
-        // Paint inanimate elements and collect animated elements.
-        // Ruler elements (BarLines and RehearsalMarks) get special treatment.
+        // Paint inanimate elements and collect animation elements.
+        seg = 0;
         eType = e->type();
         switch (eType) {
         case EType::STAFF_LINES :   /// Not animated, but handled previously.
             continue;
             break;
-                                    /// Highlighted Elements:
+                                        /// Highlighted Elements:
         case EType::REST       : //                = ChordRest subclass Rest
         case EType::LYRICS     : //        .parent = ChordRest
         case EType::NOTE       : //        .parent = ChordRest
@@ -3596,41 +3597,43 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
         case EType::HARMONY    : //     annotation = handled by getAnnCueId()
             switch (eType) {
             case EType::REST :
-                cr = static_cast<const ChordRest*>(e);
+                seg = static_cast<const Segment*>(e->parent());
                 break;
             case EType::LYRICS :
             case EType::NOTE   :
-                cr = static_cast<const ChordRest*>(e->parent());
-                maxNote = qMax(maxNote, cr->actualTicks());
+                seg = static_cast<const Segment*>(e->parent()->parent());
+                maxNote = qMax(maxNote, seg->ticks());
                 break;
             case EType::NOTEDOT    :
             case EType::ACCIDENTAL :
-                cr = static_cast<const ChordRest*>(e->parent()->parent());
+                seg = static_cast<const Segment*>(e->parent()->parent()->parent());
                 break;
             case EType::STEM :
-                cr = static_cast<const ChordRest*>(static_cast<const Stem*>(e)->chord()->parent());
+                seg = static_cast<const Segment*>(static_cast<const Stem*>(e)->chord()->parent()->parent());
                 break;
             case EType::HOOK :
-                cr = static_cast<const ChordRest*>(static_cast<const Hook*>(e)->chord()->parent());
+                seg = static_cast<const Segment*>(static_cast<const Hook*>(e)->chord()->parent()->parent());
                 break;
-            case EType::BEAM :
+            case EType::BEAM : // special case: end tick is last note beamed
                 //This is because a const Beam* cannot call ->elements()!!!
                 b = static_cast<const Beam*>(e)->clone();
                 // Beam cue runs from first element to last
                 cue_id = getCueID(b->elements()[0]->tick(),
                                   b->elements()[b->elements().size() - 1]->tick());
                 break;
-            case EType::HARMONY :    // Highlighted until next HARMONY
+            case EType::HARMONY : // special case: end tick is next HARMONY
                 cue_id = getAnnCueID(score, e, eType);
                 break;
             default:
                 break; // should never happen
             }
-            cue_id = getCRCueID(cr);
+            if (seg != 0) // exclude special cases
+                cue_id = getCueID(seg->tick(), seg->tick() + seg->ticks());
+
             setVTT.append(cue_id);
             if (isMulti) {
                 if(eType == EType::HARMONY)
-                    mapMulti.insert(cue_id, e);  // "system" staff
+                    mapSysStaff.insert(cue_id, e);  // "system" staff
                 else if(eType == EType::LYRICS)
                     mapLyrics.insert(cue_id, e); // lyrics get their own pseudo-staff
             }
@@ -3639,13 +3642,13 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
             continue;
             break;
 
-        case EType::BAR_LINE       :    /// Ruler elements
+        case EType::BAR_LINE       :    /// Ruler/Scrolling elements
         case EType::REHEARSAL_MARK :
             // Add the cue ID to the VTT set.
             cue_id = getScrollCueID(score, e);
             setVTT.append(cue_id);
             if (isMulti && eType == EType::REHEARSAL_MARK) {
-                mapMulti.insert(cue_id, e);
+                mapSysStaff.insert(cue_id, e);
                 continue;
             }
             break;
@@ -3660,7 +3663,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
                 cue_id = getScrollCueID(score, e); // Zero-duration cue
                 setVTT.append(cue_id);
                 if (isMulti && eType == EType::TEMPO_TEXT)
-                    mapMulti.insert(cue_id, e);
+                    mapSysStaff.insert(cue_id, e);
                 else
                     mapFrozen.insert(cue_id, e);
                 continue;
@@ -3669,20 +3672,20 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
                 cue_id = ""; // vertical scrolling: these elements not animated
             break;
 
-        case EType::TEXT       :        /// Assorted special cases
+        case EType::TEXT       :        /// Assorted other elements
         case EType::STAFF_TEXT : {
             TextStyleType tst = static_cast<const Text*>(e)->textStyleType();
             if (tst == TextStyleType::MEASURE_NUMBER) { // zero-duration cue, no highlight, but click
                 cue_id = getCueID(static_cast<const Measure*>(e->parent())->first()->tick());
                 setVTT.append(cue_id);
                 if (isMulti)
-                    mapMulti.insert(cue_id, e);
+                    mapSysStaff.insert(cue_id, e);
                 else
                     mapSVG.insert(cue_id, e);
                 continue;
             }
             else if (isMulti && tst == TextStyleType::SYSTEM) { // add to "system" staff, but no cue
-                mapMulti.insert("", e);
+                mapSysStaff.insert("", e);
                 continue;
             }
             break;}
@@ -3714,7 +3717,8 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
 
         // Paint the (un-animated) element
         paintElement(p, e);
-    }
+
+    } // for (e. elmPtrs)
 
     // Multi-Select Staves
     if (isMulti) {
@@ -3728,7 +3732,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
         printer.setStaffIndex(nVisible); // only affects fancy formatting
         printer.setYOffset(0);
         printer.beginMultiGroup(&iNames, "system", "system", 35, 0, QString()); ///!!! 35 is standard top staff line y-coord, I'm being lazy here by hardcoding it
-        for (SVGMap::iterator i = mapMulti.begin(); i != mapMulti.end(); ++i) {
+        for (SVGMap::iterator i = mapSysStaff.begin(); i != mapSysStaff.end(); ++i) {
             cue_id = i.key();
 ///!!!OBSOLETE!!!            printer.setStartMSecs(startMSecsFromCueID(score, cue_id));
             printer.setCueID(cue_id);
