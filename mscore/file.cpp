@@ -104,7 +104,7 @@
 
 // SMAWS export/file types - stored in a score's movementNumber metaTag
 #define SMAWS_RULERS "Rulers"
-#define SMAWS_TREE   "MixTree"
+#define SMAWS_TREE   "Tree"
 #define SMAWS_SCORE  "Score"
 #define SMAWS_GRID   "Grid"
 #define SMAWS_FRETS  "Frets"
@@ -118,21 +118,22 @@
 #define EXT_VTT  ".vtt"
 #define EXT_HTML ".html"
 
-#define FILE_LYRICS     "SMAWS_Lyrics.svg.txt"        // lyrics svg boilerplate - complete file
-#define FILE_RULER_HDR  "SMAWS_RulerHdr.svg.txt"      // ruler svg boilerplate header/title
-#define FILE_RULER_G    "SMAWS_RulerHdrG.svg.txt"     // initial elements for each ruler <g>
-#define FILE_PLAY_BUTTS "SMAWS_PlayButts.svg.txt"     // sheet music playback buttons
-#define FILE_FRET_DEFS  "SMAWS_FretsDefs.svg.txt"     // Fretboard <defs>
-#define FILE_FRET_BUTTS "SMAWS_FretsButts.svg.txt"    // Fretboard buttons
-#define FILE_FRETS_12_6 "SMAWS_Frets12-6.svg.txt"     // 12-fret, 6-string fretboard template
-#define FILE_FRETS_12_4 "SMAWS_Frets12-4.svg.txt"     // 12-fret, 4-string fretboard template
-#define FILE_FRETS_14_6 "SMAWS_Frets14-6.svg.txt"     // 14-fret, 6-string fretboard template
-#define FILE_FRETS_14_4 "SMAWS_Frets14-4.svg.txt"     // 14-fret, 4-string fretboard template
-#define FILE_GRID_DEFS  "SMAWS_GridDefs.svg.txt"      // Grid <defs>
-#define FILE_GRID_PLAY  "SMAWS_GridPlayButts.svg.txt" // Grid playback buttons
-#define FILE_GRID_TEMPO "SMAWS_GridTempo.svg.txt"     // Grid page buttons
-#define FILE_GRID_BOTH  "SMAWS_GridPageButts.svg.txt" // Grid playback + page buttons
-#define FILE_GRID_INST  "SMAWS_GridInst.svg.txt"      // Grid controls by row/channel
+#define FILE_LYRICS     "templates/SMAWS_Lyrics.svg.txt"        // lyrics svg boilerplate - complete file
+#define FILE_RULER_HDR  "templates/SMAWS_RulerHdr.svg.txt"      // ruler svg boilerplate header/title
+#define FILE_RULER_HG   "templates/SMAWS_RulerHdrG.svg.txt"     // initial elements for each ruler <g>
+#define FILE_RULER_FG   "templates/SMAWS_RulerFtrG.svg.txt"     // initial elements for each ruler <g>
+#define FILE_PLAY_BUTTS "templates/SMAWS_PlayButts.svg.txt"     // sheet music playback buttons
+#define FILE_FRET_DEFS  "templates/SMAWS_FretsDefs.svg.txt"     // Fretboard <defs>
+#define FILE_FRET_BUTTS "templates/SMAWS_FretsButts.svg.txt"    // Fretboard buttons
+#define FILE_FRETS_12_6 "templates/SMAWS_Frets12-6.svg.txt"     // 12-fret, 6-string fretboard template
+#define FILE_FRETS_12_4 "templates/SMAWS_Frets12-4.svg.txt"     // 12-fret, 4-string fretboard template
+#define FILE_FRETS_14_6 "templates/SMAWS_Frets14-6.svg.txt"     // 14-fret, 6-string fretboard template
+#define FILE_FRETS_14_4 "templates/SMAWS_Frets14-4.svg.txt"     // 14-fret, 4-string fretboard template
+#define FILE_GRID_DEFS  "templates/SMAWS_GridDefs.svg.txt"      // Grid <defs>
+#define FILE_GRID_PLAY  "templates/SMAWS_GridPlayButts.svg.txt" // Grid playback buttons
+#define FILE_GRID_TEMPO "templates/SMAWS_GridTempo.svg.txt"     // Grid page buttons
+#define FILE_GRID_BOTH  "templates/SMAWS_GridPageButts.svg.txt" // Grid playback + page buttons
+#define FILE_GRID_INST  "templates/SMAWS_GridInst.svg.txt"      // Grid controls by row/channel
 
 #define FILTER_SMAWS_AUTO_OPEN   "Auto-SMAWS: Open Files"
 #define FILTER_SMAWS_AUTO_ALL    "Auto-SMAWS:  All Files"
@@ -2694,8 +2695,9 @@ static QString getCueID(int startTick, int endTick = -1)
     if (endTick < 0)
         endTick = startTick;
 
-    return QString("%1_%2").arg(startTick, CUE_ID_FIELD_WIDTH, base, fillChar)
-                             .arg(endTick, CUE_ID_FIELD_WIDTH, base, fillChar);
+    return QString("%1%2%3").arg(startTick, CUE_ID_FIELD_WIDTH, base, fillChar)
+                            .arg(SMAWS_)
+                            .arg(endTick,   CUE_ID_FIELD_WIDTH, base, fillChar);
 }
 
 // getAnnCueID()
@@ -3443,7 +3445,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
                                                .arg(score->metaTag(tagWorkNo))
                                                .arg(SMAWS_)
                                                .arg(isMulti ? SMAWS_SCORE
-                                                              : score->staff(0)->part()->longName(0));
+                                                            : score->staff(0)->part()->longName(0));
     // Initialize MuseScore SVG Export variables
     SvgGenerator printer;
     QPainter p;
@@ -3545,16 +3547,16 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
     else // Paint staff lines once, prior to painting anything else
         paintStaffLines(score, &p, &printer, page, &visibleStaves);
 
-    QStringList    iNames;    // Only used by Multi-Select Staves.
-    QList<qreal>   staffTops; // ditto
-    int            idxStaff;  // Everything is grouped by staff.
-    EType          eType;     // Everything is determined by element type.
-    const Segment* seg;        // It has start and end ticks for highlighting.
+    QStringList      iNames;    // Only used by Multi-Select Staves.
+    QList<qreal>     staffTops; // ditto
+    int              idxStaff;  // Everything is grouped by staff.
+    EType            eType;     // Everything is determined by element type.
+    const ChordRest* cr;        // It has start and end ticks for highlighting.
 
     int maxNote = 0; // data-maxnote = Max note duration for this score. Helps optimize
                      // highlighting previous notes when user changes start time.
     idxStaff = -1;
-    Beam* b;
+//    Beam* b;
     foreach (const Element* e, elmPtrs) {
         // Always exclude invisible elements from this pass, except TEMPO_TEXT.
         if (!e->visible() && eType != EType::TEMPO_TEXT)
@@ -3579,56 +3581,56 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
         }
 
         // Paint inanimate elements and collect animation elements.
-        seg = 0;
+        cr = 0;
         eType = e->type();
         switch (eType) {
-        case EType::STAFF_LINES :   /// Not animated, but handled previously.
+        case EType::STAFF_LINES :       /// Not animated, but handled previously.
             continue;
             break;
-                                        /// Highlighted Elements:
+                                        /// Highlighted Elements
         case EType::REST       : //                = ChordRest subclass Rest
         case EType::LYRICS     : //        .parent = ChordRest
         case EType::NOTE       : //        .parent = ChordRest
         case EType::NOTEDOT    : // .parent.parent = ChordRest subclass Chord
         case EType::ACCIDENTAL : // .parent.parent = ChordRest subclass Chord
-        case EType::STEM       : //         .chord = ChordRest subclass Chord
-        case EType::HOOK       : //         .chord = ChordRest subclass Chord
-        case EType::BEAM       : //      .elements = ChordRest vector
+//        case EType::STEM       : //         .chord = ChordRest subclass Chord
+//        case EType::HOOK       : //         .chord = ChordRest subclass Chord
+//        case EType::BEAM       : //      .elements = ChordRest vector
         case EType::HARMONY    : //     annotation = handled by getAnnCueId()
             switch (eType) {
             case EType::REST :
-                seg = static_cast<const Segment*>(e->parent());
+                cr = static_cast<const ChordRest*>(e);
                 break;
             case EType::LYRICS :
             case EType::NOTE   :
-                seg = static_cast<const Segment*>(e->parent()->parent());
-                maxNote = qMax(maxNote, seg->ticks());
+                cr = static_cast<const ChordRest*>(e->parent());
+                maxNote = qMax(maxNote, cr->actualTicks());
                 break;
             case EType::NOTEDOT    :
             case EType::ACCIDENTAL :
-                seg = static_cast<const Segment*>(e->parent()->parent()->parent());
+                cr = static_cast<const ChordRest*>(e->parent()->parent());
                 break;
-            case EType::STEM :
-                seg = static_cast<const Segment*>(static_cast<const Stem*>(e)->chord()->parent()->parent());
-                break;
-            case EType::HOOK :
-                seg = static_cast<const Segment*>(static_cast<const Hook*>(e)->chord()->parent()->parent());
-                break;
-            case EType::BEAM : // special case: end tick is last note beamed
-                //This is because a const Beam* cannot call ->elements()!!!
-                b = static_cast<const Beam*>(e)->clone();
-                // Beam cue runs from first element to last
-                cue_id = getCueID(b->elements()[0]->tick(),
-                                  b->elements()[b->elements().size() - 1]->tick());
-                break;
+//            case EType::STEM :
+//                cr = static_cast<const ChordRest*>(static_cast<const Stem*>(e)->chord());
+//                break;
+//            case EType::HOOK :
+//                cr = static_cast<const ChordRest*>(static_cast<const Hook*>(e)->chord());
+//                break;
+//            case EType::BEAM : // special case: end tick is last note beamed
+//                //This is because a const Beam* cannot call ->elements()!!!
+//                b = static_cast<const Beam*>(e)->clone();
+//                // Beam cue runs from first element to last
+//                cue_id = getCueID(b->elements()[0]->tick(),
+//                                  b->elements()[b->elements().size() - 1]->tick());
+//                break;
             case EType::HARMONY : // special case: end tick is next HARMONY
                 cue_id = getAnnCueID(score, e, eType);
                 break;
             default:
                 break; // should never happen
             }
-            if (seg != 0) // exclude special cases
-                cue_id = getCueID(seg->tick(), seg->tick() + seg->ticks());
+            if (cr != 0) // exclude special cases
+                cue_id = getCueID(cr->tick(), cr->tick() + cr->actualTicks());
 
             setVTT.append(cue_id);
             if (isMulti) {
@@ -3636,19 +3638,21 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
                     mapSysStaff.insert(cue_id, e);  // "system" staff
                 else if(eType == EType::LYRICS)
                     mapLyrics.insert(cue_id, e); // lyrics get their own pseudo-staff
+                else
+                    mapSVG.insert(cue_id, e);
             }
-            else
-                mapSVG.insert(cue_id, e);
             continue;
             break;
 
         case EType::BAR_LINE       :    /// Ruler/Scrolling elements
-        case EType::REHEARSAL_MARK :
-            // Add the cue ID to the VTT set.
+            // Add the cue ID to the VTT set, but don't add to mapSVG
             cue_id = getScrollCueID(score, e);
             setVTT.append(cue_id);
-            if (isMulti && eType == EType::REHEARSAL_MARK) {
-                mapSysStaff.insert(cue_id, e);
+            break;
+
+        case EType::REHEARSAL_MARK :
+            if (isMulti) {
+                mapSysStaff.insert("", e);
                 continue;
             }
             break;
@@ -3675,16 +3679,16 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
         case EType::TEXT       :        /// Assorted other elements
         case EType::STAFF_TEXT : {
             TextStyleType tst = static_cast<const Text*>(e)->textStyleType();
-            if (tst == TextStyleType::MEASURE_NUMBER) { // zero-duration cue, no highlight, but click
-                cue_id = getCueID(static_cast<const Measure*>(e->parent())->first()->tick());
-                setVTT.append(cue_id);
-                if (isMulti)
-                    mapSysStaff.insert(cue_id, e);
-                else
-                    mapSVG.insert(cue_id, e);
-                continue;
-            }
-            else if (isMulti && tst == TextStyleType::SYSTEM) { // add to "system" staff, but no cue
+//            if (tst == TextStyleType::MEASURE_NUMBER) { // zero-duration cue, no highlight, but click
+//                cue_id = getCueID(static_cast<const Measure*>(e->parent())->first()->tick());
+//                setVTT.append(cue_id);
+//                if (isMulti)
+//                    mapSysStaff.insert(cue_id, e);
+//                else
+//                    mapSVG.insert(cue_id, e);
+//                continue;
+//            }
+/*            else*/ if (isMulti && tst == TextStyleType::SYSTEM) { // add to "system" staff, but no cue
                 mapSysStaff.insert("", e);
                 continue;
             }
@@ -3800,7 +3804,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
 static void streamRulers(Score*         score,
                          QFileInfo*     qfi,
                          QTextStream*   streamBars,
-                         QTextStream*   streamMarks,
+                         QTextStream*   streamMrks,
                          IntSet*        setVTT,
                          int            width,
                          const QString& evtPrefix,
@@ -3809,13 +3813,14 @@ static void streamRulers(Score*         score,
     // Strings for the ruler's <line> and <text> element attributes
     QString label; // <text> element contents
 
-    QString y;     // y = one of these two values, depending on element type
-    const QString yBars  = " y=\"18\"";
-    const QString yMarks = " y=\"17\"";
+    QString y;     // <text> y = one of these two values, depending on element type
+    const QString yBars  = " y= \"18\"";
+    const QString yMarks = " y= \"17\"";
 
     // Ruler lines don't start at zero or end at width, left=right margin
-    const int margin =  8; // margin on either side of ruler
-    int    cntrWidth = 80; // counter width
+    const int margin = 8; // margin on either side of ruler
+    int    cntrWidth = 0; // counter width
+    const QString qsMargin = QString::number(margin); // string version comes in handy
 
     // Score::duration() returns # of seconds as an int, I need more accuracy
     const TempoMap* tempos   = score->tempomap();
@@ -3827,15 +3832,15 @@ static void streamRulers(Score*         score,
     // Pixels of width per millisecond, left + right margins
     const qreal pxPerMSec = (width - cntrWidth - (margin * 2)) / (duration * 1000);
 
-    // For CSS Styling
-    QString lineClass;
+    // SVG values and partial values for various attributes
+    QString lineID;
     QString textClass;
-    const QString classRul  = "ruler\" ";
-    const QString classRul5 = "ruler5\"";
-    const QString classMrk  = "marker\"";
-
-    // Ruler event handlers
-    const QString rulerMouse = QString(" onclick=\"%1rulerClick(evt)\" onmouseover=\"%2rulerOver(evt)\" onmouseout=\"%3rulerOut(evt)\" onmouseup=\"%4rulerUp(evt)\"").arg(evtPrefix).arg(evtPrefix).arg(evtPrefix).arg(evtPrefix);
+    const QString line      = "line\"  ";
+    const QString line5     = "line5\" ";
+    const QString line10    = "line10\"";
+    const QString lineMrks  = "lineMrks\"";
+    const QString idBars    = "bars";
+    const QString idMarkers = "mrks";
 
     // Collect the ruler elements
     // A multimap because a barline and a marker can share the same tick
@@ -3866,72 +3871,51 @@ static void streamRulers(Score*         score,
     }
 
     const int xDigits = 4; // x-coord never greater than 9999
-    int   iY1, iY2; // Integer version of y1 and y2 coordinates
     int   iBarNo;   // Integer version of measure number
     qreal pxX;      // Floating point version of x coordinates
     qreal offX;     // x offset for rehearsal mark text
 
     // For the invisible, but clickable, rects around lines
-    const int halfHeight = qFloor(RULER_HEIGHT / 2); // RULER_HEIGHT is an odd number
-    qreal   rectX = cntrWidth + 1;
+    const int halfHeight = qFloor(RULER_HEIGHT / 2); // the smaller half
+    qreal   rectX = cntrWidth;
     qreal   rectWidth;
     qreal   lineX; // The previous bar ruler line x-coord
 
 
-    // End of music tick is required in VTT too
-    tick = score->lastSegment()->tick(); // for endRect and loopEnd
-    setVTT->insert(tick);
+    // End of music tick is required in VTT for endRect and loopEnd
+    setVTT->insert(score->lastSegment()->tick());
 
     // Each ruler is a <g> element with a fixed set of common elements. Those
-    // common elements are configured in a file, with replacement slots as %N.
+    // common elements are configured in two files, a header and a footer, with
+    // replacement slots as %N.
     QFile       qf;
     QTextStream qts;
     QTextStream qtsFile;
     QString     qs;
-    qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_RULER_G));
+    qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_RULER_HG));
     qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
     qtsFile.setDevice(&qf);
     qts.setString(&qs);
 
     // Read the file, replacing text that's the same in both rulers
-    qts << qtsFile.readAll().replace("%10", QString::number(cntrWidth + 1))
-                            .replace("%11", QString::number(width - cntrWidth - 2))
-                            .replace("%12", QString::number(width - margin))
-                            .replace("%13", QString::number(margin - 1))
-                            .replace("%14", QString::number(tick))
-                            .replace("%15", evtPrefix)
-                            .replace("%16", QString::number(cntrWidth + margin + 1));
+    qts << qtsFile.readAll().replace("%4", evtPrefix);
 
     // Stream to each ruler with it's specific text
-    *streamBars  << QString(qs).arg(halfHeight).arg(halfHeight).arg(halfHeight)
-                     /* %4 */  .arg(halfHeight - 1)
-                     /* %5 */  .arg(SVG_ZERO)
-                     /* %6 */  .arg((cntrWidth / 2) + 1)
-                     /* %7 */  .arg("cntrBars")
-                     /* %8 */  .arg(QString("Bar %1").arg(score->firstMeasureMM()->no() + 1, 3, int(10), QLatin1Char(SVG_ZERO)))
-                     /* %9 */  .arg("-6,1 6,1 0,15");
-    *streamMarks << QString(qs).arg(halfHeight - 1).arg(halfHeight - 1).arg(halfHeight - 1)
-                     /* %4 */  .arg(halfHeight - 2)
-                     /* %5 */  .arg(SVG_ONE)
-                     /* %6 */  .arg(cntrWidth / 2)
-                     /* %7 */  .arg("cntrTime")
-                     /* %8 */  .arg("00:00")
-                     /* %9 */  .arg("-6,19 6,19 0,5");
+    *streamBars << QString(qs).arg(idBars)          // %1
+                              .arg(halfHeight)      // %2
+                              .arg(halfHeight - 1); // %3
 
-    cntrWidth++;
-    const QString loopStart = QString("<polygon class=\"cursLoopLo\" points=\"-6,1 6,1 0,18\" transform=\"translate(%1,0)\" onmousedown=\"%2cursorDown(evt)\" onmouseup=\"%3cursorUp(evt)\"/>\n").arg(margin + cntrWidth).arg(evtPrefix).arg(evtPrefix);
-    const QString loopEnd   = QString("<polygon class=\"cursLoopLo\" points=\"-6,19 6,19 0,2\" transform=\"translate(%1.5,0)\" onmousedown=\"%2cursorDown(evt)\" onmouseup=\"%3cursorUp(evt)\"/>\n").arg(width - margin).arg(evtPrefix).arg(evtPrefix);
+    *streamMrks << QString(qs).arg(idMarkers)       // %1
+                              .arg(SVG_ZERO)        // %2
+                              .arg(halfHeight - 2); // %3
 
     // Display floating point numbers with consistent precision
     streamBars->setRealNumberPrecision(SVG_PRECISION);
+    streamMrks->setRealNumberPrecision(SVG_PRECISION);
     streamBars->setRealNumberNotation(QTextStream::FixedNotation);
-    streamMarks->setRealNumberPrecision(SVG_PRECISION);
-    streamMarks->setRealNumberNotation(QTextStream::FixedNotation);
+    streamMrks->setRealNumberNotation(QTextStream::FixedNotation);
 
     // Stream the line and text elements, with all their attributes:
-    //   cue_id, x, x1, x2, y, y1, y2, and label
-    // y and y1 are fixed by element type. That leaves:
-    //   cue_id, x, x1, x2, y2, and label
     int rectCue;  // bars ruler rects apply to the previous bar
     int prevCue;
     for (QMultiMap<int, Element*>::iterator i  = mapSVG.begin();
@@ -3945,10 +3929,9 @@ static void streamRulers(Score*         score,
         // x = x1 = x2, they're all the same: a vertical line or centered text.
         // The exception is x for rehearsal mark text, which is offset right.
         // Y values are varied, but with a limited set of values, by EType.
-        iY1    = 1;
-        iY2    = 9;
-        offX   = 0;
-        lineClass = classRul;
+        offX  = 0;
+        label = "";
+        lineID = line;
 
         // Values for this cue
         tick = i.key();
@@ -3959,17 +3942,14 @@ static void streamRulers(Score*         score,
             iBarNo = static_cast<Measure*>(e)->no() + 1;
             if (iBarNo % 5 == 0) {
                 // Multiples of 5 get a longer, thick line
-                iY2 = 13;
-                lineClass = classRul5;
-                textClass = classRul5;
+                lineID = line5;
+                textClass = idBars;
                 if (iBarNo % 10 == 0) {
                     // Multiples of 10 get text and a shorter, thick line
-                    iY2 = 4;
+                    lineID = line10;
                     label = QString("%1").arg(iBarNo);
                 }
             }
-            else
-                label  = "";
 
             if (tick > 0) {
                 x = rectX;
@@ -3980,13 +3960,11 @@ static void streamRulers(Score*         score,
             break;
         case EType::REHEARSAL_MARK :
             y     = yMarks;
-            iY1   =  7;
-            iY2   = halfHeight - 2;
             offX  =  6;
             x     = pxX - offX;
             label = static_cast<const Text*>(e)->xmlText();
-            lineClass = classRul5;
-            textClass = classMrk;
+            lineID    = lineMrks;
+            textClass = idMarkers;
             rectWidth = offX * 2;
             rectCue   = tick;
             break;
@@ -3996,7 +3974,7 @@ static void streamRulers(Score*         score,
         }
 
         const bool  isMarker = (eType == EType::REHEARSAL_MARK);
-        QTextStream* streamX = isMarker ? streamMarks : streamBars;
+        QTextStream* streamX = isMarker ? streamMrks : streamBars;
 
         // Ruler lines have invisible rects around them, allowing users to be
         // less precise with their mouse clicks. These rects must be after
@@ -4005,14 +3983,13 @@ static void streamRulers(Score*         score,
         // Marker rects have a fixed width rect = text offset from line.
         // BarLine rects split the space around each line, no empty spaces.
         if (isMarker || tick > 0) {
-            *streamX << indent << SVG_RECT
+            *streamX << indent << SVG_4SPACES << SVG_RECT
                      << formatInt(SVG_CUE_NQ, rectCue, CUE_ID_FIELD_WIDTH, true)
                      << formatReal(SVG_X, x, xDigits, true)
-                     << SVG_Y  << SVG_QUOTE << 1 - (isMarker ? 0 : halfHeight) << SVG_QUOTE
+                     << formatInt( SVG_Y, 1 - (isMarker ? 0 : halfHeight), 3, true)
                      << SVG_WIDTH  << rectWidth << SVG_QUOTE
                      << SVG_HEIGHT << (isMarker ? halfHeight : RULER_HEIGHT) - 2 << SVG_QUOTE
                      << SVG_FILL   << SVG_NONE  << SVG_QUOTE
-                     << rulerMouse
                      << SVG_ELEMENT_END << endl;
 
             if (!isMarker) // tick > 0
@@ -4020,27 +3997,21 @@ static void streamRulers(Score*         score,
         }
 
         // Both Markers and Bars get the line and, conditionally, text.
-        *streamX << indent << SVG_LINE
+        *streamX << indent << SVG_4SPACES << SVG_USE << SVG_SPACE // space for horizontal alignment with <rect>
                  << formatInt(SVG_CUE_NQ, tick, CUE_ID_FIELD_WIDTH, true)
+                 << formatReal(SVG_X, pxX, xDigits, true)
+                 << XLINK_HREF << lineID
                  << (isMarker ? "" : formatInt(SVG_BARNUMB, iBarNo, barNoDigits, true))
-                 << SVG_CLASS  << lineClass
-                 << SVG_Y1     << iY1    << SVG_QUOTE
-                 << SVG_Y2     << iY2    << SVG_QUOTE
-                 << formatReal(SVG_X1_NQ, pxX, xDigits, true) // vertical lines
-                 << formatReal(SVG_X2_NQ, pxX, xDigits, true) //    x1 == x2
-                 << (isMarker ? rulerMouse : "")
                  << SVG_ELEMENT_END << endl;
 
         // Only stream the text element if there's text inside it
         if (!label.isEmpty()) {
-            *streamX << indent << SVG_TEXT_BEGIN
+            *streamX << indent << SVG_4SPACES << SVG_TEXT_BEGIN
                      << formatInt(SVG_CUE_NQ, tick, CUE_ID_FIELD_WIDTH, true)
-                     << SVG_CLASS << textClass
                      << formatReal(SVG_X, pxX + offX, xDigits, true)
                      << y
-                     << (isMarker ? rulerMouse : "") << SVG_GT
-                     << label
-                     << SVG_TEXT_END << endl;
+                     << SVG_CLASS << textClass << SVG_QUOTE
+                     << SVG_GT << label << SVG_TEXT_END << endl;
         }
 
         if (!isMarker) { // Bars only
@@ -4051,19 +4022,33 @@ static void streamRulers(Score*         score,
 
     // Invisible <rect> for final bar line
     rectWidth = width - rectX - 1;
-    *streamBars << indent << SVG_RECT
+    *streamBars << indent << SVG_4SPACES << SVG_RECT
                 << formatInt(SVG_CUE_NQ, tick, CUE_ID_FIELD_WIDTH, true)
                 << formatReal(SVG_X, rectX, xDigits, true)
-                << SVG_Y   << SVG_QUOTE << iY1 - halfHeight   << SVG_QUOTE
+                << SVG_Y   << SVG_QUOTE << 1 - halfHeight     << SVG_QUOTE
                 << SVG_WIDTH            << rectWidth - margin << SVG_QUOTE
                 << SVG_HEIGHT           << RULER_HEIGHT - 2   << SVG_QUOTE
                 << SVG_FILL             << SVG_NONE           << SVG_QUOTE
-                << rulerMouse
                 << SVG_ELEMENT_END << endl;
 
-    // The loop cursors
-    *streamMarks << indent << loopStart;
-    *streamBars  << indent << loopEnd;
+    // The cursors are in a footer template file, they must be last in the <g>
+    qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_RULER_FG));
+    qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
+    qtsFile.setDevice(&qf);
+    qts.setString(&qs);
+    qs.clear();
+
+    // Read the file
+    qts << qtsFile.readAll();
+
+    // Stream to each ruler with it's specific text
+    *streamBars << QString(qs).arg(idBars).arg(idBars)
+                              .arg(SVG_ZERO)
+                              .arg(width - margin);
+
+    *streamMrks << QString(qs).arg(idMarkers).arg(idMarkers)
+                              .arg(SVG_ONE)
+                              .arg(qsMargin);
 }
 
 // MuseScore::saveSMAWS_Rulers()
@@ -4081,8 +4066,8 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
 
     IntSet setVTT; // Start-time-only cues
 
-    const int wRuler = 1919; // Width of buttons + rulers + counters = 1920(HD width) - 1, cuz that's how it works with browser maximized
-    const int wButts =   91; // Width of the playback buttons
+    const int wRuler = 1753; // 1920 minus buttons minus counters
+    const int wButts =    0; // Width of the playback buttons
 
     // Event handler for clicking on ruler lines/text. Note the "top." prefix
     // to the function name. It's calling the (HTML) container's function.
@@ -4108,35 +4093,22 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
     qts.setDevice(&qf);
     fileStream << qts.readAll().replace("%1", QString::number(wRuler))
                                .replace("%2", QString::number(RULER_HEIGHT))
-                               .replace("%3", score->title());
-
-    // Stream the fixed playback buttons from a file
-    qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_PLAY_BUTTS));
-    qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
-    qts.setDevice(&qf);
-    fileStream << qts.readAll();
+                               .replace("%3", score->title())
+                               .replace("%4", evtPrefix)
+                               .replace("%5", QString::number(qFloor(RULER_HEIGHT / 2)))
+                               .replace("%6", QString::number(wRuler - 8)) // 8 is margin defined in streamRulers()!!!
+                               .replace("%7", QString::number(score->lastSegment()->tick()));
 
     // streamRulers() takes separate streams for bars/markers
     // Bars goes first because it's full-height (38px) invisible rects are
     // behind the Markers elements - all for mouse event management.
     QString markers;
     QTextStream markStream(&markers);
-    fileStream << SVG_GROUP_BEGIN  << SVG_ID        << "bars"
-               << SVG_QUOTE        << SVG_TRANSFORM << SVG_TRANSLATE
-               << wButts           << SVG_SPACE     << qFloor(RULER_HEIGHT / 2) // This gives the extra pixel to the bars ruler
-               << SVG_RPAREN_QUOTE << SVG_GT        << endl;
 
     streamRulers(score, qfi, &fileStream, &markStream, &setVTT, wRuler - wButts, evtPrefix, SVG_4SPACES);
 
-    fileStream << SVG_GROUP_END    << endl          << endl
-               << SVG_GROUP_BEGIN  << SVG_ID        << "markers"
-               << SVG_QUOTE        << SVG_TRANSFORM << SVG_TRANSLATE
-               << wButts           << SVG_SPACE     << SVG_ZERO
-               << SVG_RPAREN_QUOTE << SVG_GT        << endl
-               << markers          << SVG_GROUP_END << endl << endl;
-
-    // Stream the "footer", terminating the <svg> element
-    fileStream  << SVG_END;
+    // Stream the markers <g> and terminate the <svg> element
+    fileStream << markers << SVG_END;
 
     // Write/close the SVG file
     fileStream.flush();
@@ -5351,7 +5323,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                                         .replace("%2", *iNames[r]);
                         }
                         else // the one and only chords row, no controls, but it has a name/label
-                            tableStream << SVG_TEXT_BEGIN
+                            tableStream << SVG_4SPACES << SVG_TEXT_BEGIN
                                         << formatInt(SVG_X, nameLeft, maxDigits, true)
                                         << formatInt(SVG_Y, baseline, maxDigits, true)
                                         << SVG_ID << id << SVG_QUOTE
@@ -5448,7 +5420,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
 
                         tableStream << *pqs;
 
-                        if (isPages) {                        // Â¿Page Cues?
+                        if (isPages) {                        // ¿Page Cues?
                             bool changesPitch = false;
                             bool changesValue = false;
                             bool hasCues      = ((*dataCues[c])[r] != 0);
@@ -6129,7 +6101,7 @@ bool MuseScore::saveSMAWS_Tree(Score* score, QFileInfo* qfi)
                                 note = note->tieFor()->endNote();
                             cr = static_cast<ChordRest*>(note->parent());
                             mapMix.insert(getCueID(startTick, cr->tick() + cr->actualTicks()), iName);
-                            s = cr->segment(); // Â¡Updates the pointer used in the inner for loop!
+                            s = cr->segment(); // ¡Updates the pointer used in the inner for loop!
                         }
                         break;
                     case EType::REST :

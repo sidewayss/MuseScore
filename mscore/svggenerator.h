@@ -200,8 +200,8 @@ using IntSet          = std::set<int>;
 #define XML_ENTITY_END   ';'
 
 // Boilerplate header text
-#define XML_STYLE_MUSE "<?xml-stylesheet type=\"text/css\" href=\"../../MuseScore.svg.css\"?>\n"
-#define XML_STYLE_GRID "<?xml-stylesheet type=\"text/css\" href=\"../../SMAWS_Grid.svg.css\"?>\n<?xml-stylesheet type=\"text/css\" href=\"../../SMAWS_GridButts.svg.css\"?>\n"
+#define XML_STYLE_MUSE "<?xml-stylesheet type=\"text/css\" href=\"/SMAWS/MuseScore.svg.css\"?>\n"
+#define XML_STYLE_GRID "<?xml-stylesheet type=\"text/css\" href=\"/SMAWS/SMAWS_Grid.svg.css\"?>\n<?xml-stylesheet type=\"text/css\" href=\"/SMAWS/SMAWS_GridPsu.svg.css\"?>\n"
 #define XML_NAMESPACE  " xmlns=\"http://www.w3.org/2000/svg\"\n"
 #define XML_XLINK      "     xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n"
 #define VTT_HEADER     "WEBVTT\n\nNOTE\n    SMAWS  - Sheet Music Animation w/Sound -\n    This file links to one or more SVG files via the\n    cue ids, which are in this format: 0000000_1234567\nNOTE\n\n"

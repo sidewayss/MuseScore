@@ -635,11 +635,8 @@ void SvgPaintEngine::updateState(const QPaintEngineState &state)
 
     qts << SVG_CLASS;
     _classValue = getClass();
-    if ((_cue_id.isEmpty() || _et == EType::BAR_LINE) && !(_isMulti && _idxStaff == _nStaves)) {
+    if ((_cue_id.isEmpty() || _et == EType::BAR_LINE) && !(_isMulti && _idxStaff == _nStaves))
         qts << _classValue << SVG_QUOTE; // no cue id or BarLine = no fancy formatting
-        if (!_cue_id.isEmpty())          // but bar lines need cue ids - staff lines too, see drawPolygon()
-            qts << SVG_CUE << _cue_id << SVG_QUOTE;
-    }
     else {
         // First stream the class attribute, with fancy fixed formatting
         int w;
@@ -990,7 +987,13 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 
         if (_isMulti) stream() << SVG_4SPACES; // isMulti staff is inside a <g>
 
-        stream() << SVG_POLYLINE << classState << styleState << SVG_POINTS;
+        stream() << SVG_POLYLINE << classState << styleState;
+
+         // Barline cues only for the first staff in a system for SCORE
+        if (_et == EType::BAR_LINE && _isMulti && _iNames->size() == 1)
+            stream() << SVG_CUE << _cue_id << SVG_QUOTE;
+
+        stream() << SVG_POINTS;
         for (int i = 0; i < pointCount; ++i) {
             const QPointF &pt = points[i];
 
@@ -1137,18 +1140,9 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     case EType::NOTEDOT        :
     case EType::REST           :
     case EType::ACCIDENTAL     :
-    case EType::STEM           :
-    case EType::HOOK           :
-    case EType::BEAM           :
-    case EType::BAR_LINE       :
-    case EType::REHEARSAL_MARK :
     case EType::LYRICS         :
     case EType::HARMONY        :
         stream() << SVG_ONCLICK << SVG_POINTER_EVENTS;
-        break;
-    case EType::TEXT :
-        if (static_cast<const Ms::Text*>(_e)->textStyleType() == Ms::TextStyleType::MEASURE_NUMBER)
-            stream() << SVG_ONCLICK << SVG_POINTER_EVENTS;
         break;
     default:
         break;
