@@ -250,13 +250,15 @@ protected:
     void beginMultiGroup(const QString& iName, const QString& fullName, const QString& className, qreal height, qreal top, const QString& cues)
     {
         *d_func()->stream << SVG_GROUP_BEGIN
-                          << SVG_TRANSFORM << SVG_TRANSLATE << SVG_ZERO
-                          << SVG_SPACE     << top           << SVG_RPAREN_QUOTE
-                          << SVG_HEIGHT    << height        << SVG_QUOTE
-                          << SVG_ID        << iName         << SVG_QUOTE
-                          << SVG_CLASS     << className     << SVG_QUOTE
-                          << SVG_INAME     << fullName      << SVG_QUOTE
-                          << cues          << SVG_GT        << endl;
+                             << SVG_TRANSFORM
+                                << SVG_TRANSLATE   << SVG_ZERO    << SVG_SPACE // x
+                                                   << top  << SVG_RPAREN_QUOTE // y
+                             << SVG_HEIGHT         << height      << SVG_QUOTE
+                             << SVG_ID             << iName       << SVG_QUOTE
+                             << SVG_CLASS          << className   << SVG_QUOTE
+                             << SVG_INAME          << fullName    << SVG_QUOTE
+                             << cues
+                          << SVG_GT << endl;
         if (fullName == STAFF_GRID)
             _idxGrid = _iNames->size() - 1;
     }
@@ -268,6 +270,13 @@ protected:
         _multiUse.append(QString("%1%2")
                           .arg(SVG_USE)
                           .arg(fixedFormat(SVG_Y, y, d_func()->yDigits, true)));
+    }
+
+    void beginMouseGroup()
+    {
+        *d_func()->stream << SVG_GROUP_BEGIN
+                          << SVG_POINTER_EVENTS << SVG_VISIBLE << SVG_QUOTE
+                          << SVG_ONCLICK << SVG_GT << endl;
     }
 //
 ////////////////////
@@ -402,8 +411,8 @@ bool SvgPaintEngine::end()
     // scroll axis and check _isMulti [this used to happen in begin()].
     const QString scrollAxis = _isScrollVertical ? "y" : "x";
 
-    if (_isSMAWS) // SMAWS uses an external CSS file
-        stream() << XML_STYLE_MUSE;
+//!!obsolete    if (_isSMAWS) // SMAWS uses an external CSS file
+//!!obsolete        stream() << XML_STYLE_MUSE;
 
     // The <svg> element:
     stream() << SVG_BEGIN
@@ -416,8 +425,8 @@ bool SvgPaintEngine::end()
                 << SVG_HEIGHT    << d->size.height()             << SVG_QUOTE
                 << endl;
     if (_isSMAWS) {
-        stream()<< SVG_4SPACES   << SVG_PRESERVE_XYMIN_SLICE << SVG_CURSOR << endl
-                << SVG_4SPACES   << SVG_POINTER_EVENTS       << endl
+        stream()<< SVG_4SPACES   << SVG_PRESERVE_XYMIN_SLICE << SVG_CURSOR            << endl
+                << SVG_4SPACES   << SVG_POINTER_EVENTS       << SVG_NONE << SVG_QUOTE << endl
                 << SVG_4SPACES   << SVG_CLASS  << SMAWS      << SVG_QUOTE
                                  << SVG_SCROLL << scrollAxis << SVG_QUOTE
                                  << SVG_ATTR
@@ -441,6 +450,7 @@ bool SvgPaintEngine::end()
                     << SVG_Y << SVG_QUOTE << _cursorTop    << SVG_QUOTE
                     << SVG_WIDTH          << SVG_ZERO      << SVG_QUOTE
                     << SVG_HEIGHT         << _cursorHeight << SVG_QUOTE
+                    << SVG_STROKE         << SVG_NONE      << SVG_QUOTE
                  << SVG_ELEMENT_END << endl;
 
         // Two gray-out <rect>s (left/right) for graying out inactive bars
@@ -452,6 +462,7 @@ bool SvgPaintEngine::end()
                         << SVG_WIDTH          << SVG_ZERO    << SVG_QUOTE
                         << SVG_HEIGHT << d->viewBox.height() << SVG_QUOTE
                         << SVG_FILL_OPACITY   << SVG_ZERO    << SVG_QUOTE
+                        << SVG_STROKE         << SVG_NONE    << SVG_QUOTE
                      << SVG_ELEMENT_END << endl;
 
         if (_isMulti) // Terminate the Staves group
@@ -463,6 +474,7 @@ bool SvgPaintEngine::end()
                     << SVG_WIDTH    << FROZEN_WIDTH        << SVG_QUOTE
                     << SVG_HEIGHT   << d->viewBox.height() << SVG_QUOTE
                     << SVG_FILL_URL << "gradFader"         << SVG_RPAREN_QUOTE
+                    << SVG_STROKE   << SVG_NONE            << SVG_QUOTE
                  << SVG_ELEMENT_END << endl;
     }
 
@@ -476,15 +488,18 @@ bool SvgPaintEngine::end()
 
         if (_isMulti) {
             // Frozen <use> elements by staff. SVG_GROUP_ consolidates events.
-            //!!! FOR NOW THIS IS ALWAYS "top.funcName(evt)". The "top." should be an option somewhere, somehow.
-            const QString frozenEvents = " onclick=\"top.frozenClick(evt)\" onmouseover=\"top.frozenOver(evt)\" onmouseout=\"top.frozenOut(evt)\" onmouseup=\"top.frozenUp(evt)\"";
+            //!!! FOR NOW THIS IS ALWAYS "funcName(evt)". "top." should be an option somewhere, somehow.
+            const QString frozenEvents = " onclick=\"frozenClick(evt)\" onmouseover=\"frozenOver(evt)\" onmouseout=\"frozenOut(evt)\" onmouseup=\"frozenUp(evt)\"";
 
-            stream() << SVG_GROUP_BEGIN << frozenEvents << SVG_GT << endl;
+            stream() << SVG_GROUP_BEGIN
+                        << SVG_POINTER_EVENTS << SVG_VISIBLE << SVG_QUOTE
+                        << frozenEvents
+                     << SVG_GT << endl;
 
             for (i = 0; i < _iNames->size(); i++)
                 stream() << SVG_4SPACES << _multiUse[i]
                          << SVG_ID     << (*_iNames)[i] << SVG_QUOTE
-                         << XLINK_HREF << (*_iNames)[i] << SVG_DOT << CUE_ID_ZERO << SVG_QUOTE
+                         << XLINK_HREF << (*_iNames)[i] << SVG_DASH << CUE_ID_ZERO << SVG_QUOTE
                          << SVG_ELEMENT_END << endl;
 
             stream() << SVG_GROUP_END << endl;
@@ -592,7 +607,8 @@ bool SvgPaintEngine::end()
     // Multi wraps all the staves in an outer group for simpler x-axis scrolling
     // The group is terminated in the frozen pane code a few lines up from here
     if (_isMulti)
-        stream() << SVG_GROUP_BEGIN  << SVG_ID << "Staves" << SVG_QUOTE << SVG_GT << endl;
+        stream() << SVG_GROUP_BEGIN << SVG_ID << "Staves" << SVG_QUOTE
+                 << SVG_GT << endl;
 
     stream() << d->body;
 
@@ -1134,21 +1150,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     // Stream the fancily formatted x and y coordinates
     streamXY(x, y);
 
-    // These elements get onClick events, which requires pointer-events="visible"
-    switch (_et) {
-    case EType::NOTE           :
-    case EType::NOTEDOT        :
-    case EType::REST           :
-    case EType::ACCIDENTAL     :
-    case EType::LYRICS         :
-    case EType::HARMONY        :
-        stream() << SVG_ONCLICK << SVG_POINTER_EVENTS;
-        break;
-    default:
-        break;
-    }
-
-    stream() << SVG_GT; // end attributes
+    stream() << SVG_GT; // end of attributes
 
     // The Content, as in: <text>Content</text>
     QString     textContent;
@@ -1406,7 +1408,7 @@ void SvgPaintEngine::beginDef(const int      idx,
     const QString id  = !_isMulti ? cue_id
                                   : QString("%1%2%3")
                                        .arg((*_iNames)[idx])
-                                       .arg(SVG_DOT)
+                                       .arg(SVG_DASH)
                                        .arg(cue_id);
 
     stream() << SVG_4SPACES << SVG_GROUP_BEGIN
@@ -2027,6 +2029,15 @@ void SvgGenerator::beginMultiGroup(QStringList* pINames, const QString& fullName
 */
 void SvgGenerator::endMultiGroup() {
     static_cast<SvgPaintEngine*>(paintEngine())->endMultiGroup();
+}
+
+/*!
+    beginMouseGroup() function (SMAWS)
+    Calls SvgPaintEngine::beginMouseGroup() to stream the necessary text.
+    Called by saveSMAWS() in mscore/file.cpp.
+*/
+void SvgGenerator::beginMouseGroup() {
+    static_cast<SvgPaintEngine*>(paintEngine())->beginMouseGroup();
 }
 
 /*!

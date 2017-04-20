@@ -83,7 +83,7 @@ using IntSet          = std::set<int>;
 // Chars
 #define SVG_QUOTE     '"'
 #define SVG_COMMA     ','
-#define SVG_DOT       '.'
+#define SVG_DASH      '-'
 #define SVG_SEMICOLON ';'
 #define SVG_DASH      '-'
 #define SVG_HASH      '#'
@@ -129,14 +129,11 @@ using IntSet          = std::set<int>;
 #define SVG_VIEW_BOX             " viewBox=\""
 #define SVG_PRESERVE_XYMIN_SLICE " preserveAspectRatio=\"xMinYMin slice\""
 #define SVG_PRESERVE_XYMIN_MEET  " preserveAspectRatio=\"xMinYMin meet\""
-#define SVG_POINTER_EVENTS       " pointer-events=\"visible\""
+#define SVG_POINTER_EVENTS       " pointer-events=\""
 #define SVG_CURSOR               " cursor=\"default\""  // to avoid pesky I-Beam cursor
 
 #define SVG_WIDTH  " width=\""
 #define SVG_HEIGHT " height=\""
-
-#define SVG_VISIBLE "visibility=\"visible\""
-#define SVG_HIDDEN  "visibility=\"hidden\""
 
 #define SVG_X     " x="  // No quote char due to floating point formatting
 #define SVG_Y     " y="  // ditto
@@ -187,6 +184,7 @@ using IntSet          = std::set<int>;
 // SVG element attribute values
 #define SVG_PX      "px"
 #define SVG_NONE    "none"
+#define SVG_VISIBLE "visible"
 #define SVG_EVENODD "evenodd"
 #define SVG_BUTT    "butt"
 #define SVG_SQUARE  "square"
@@ -201,7 +199,7 @@ using IntSet          = std::set<int>;
 
 // Boilerplate header text
 #define XML_STYLE_MUSE "<?xml-stylesheet type=\"text/css\" href=\"/SMAWS/MuseScore.svg.css\"?>\n"
-#define XML_STYLE_GRID "<?xml-stylesheet type=\"text/css\" href=\"/SMAWS/SMAWS_Grid.svg.css\"?>\n<?xml-stylesheet type=\"text/css\" href=\"/SMAWS/SMAWS_GridPsu.svg.css\"?>\n"
+#define XML_STYLE_GRID "<?xml-stylesheet type=\"text/css\" href=\"/SMAWS/SMAWS_Grid.svg.css\"?>\n<?xml-stylesheet type=\"text/css\" href=\"/SMAWS/SMAWS_Grid.psu.css\"?>\n"
 #define XML_NAMESPACE  " xmlns=\"http://www.w3.org/2000/svg\"\n"
 #define XML_XLINK      "     xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n"
 #define VTT_HEADER     "WEBVTT\n\nNOTE\n    SMAWS  - Sheet Music Animation w/Sound -\n    This file links to one or more SVG files via the\n    cue ids, which are in this format: 0000000_1234567\nNOTE\n\n"
@@ -209,7 +207,7 @@ using IntSet          = std::set<int>;
 #define HTML_HEADER    "<!DOCTYPE html>\n<!-- SMAWS HTML Tables -->\n<html>\n<head>\n    <meta charset=\"utf-8\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">\n    <link rel=\"stylesheet\" href=\"../SMAWS_22.css\">\n</head>\n\n<body onload=\"onLoadHTMLTables()\">\n\n"
 
 // Boilerplate events
-#define SVG_ONCLICK    " onclick=\"top.musicClick(evt)\""
+#define SVG_ONCLICK    " onclick=\"musicClick(evt)\""
 #define SVG_ONLOAD     " onload=\"onLoadSVGGrid(evt)\""
 #define SVG_TOP_ONLOAD " onload=\"top.onLoadSVGGrid(evt)\""
 
@@ -246,8 +244,8 @@ using IntSet          = std::set<int>;
 #define CUE_ID_ZERO  "0000000_0000000"
 #define NATURAL_SIGN 57953   // 0xE261, natural signs excluded from frozen panes
 #define FROZEN_WIDTH 100.00
-#define RULER_HEIGHT 43
-#define STAFF_GRID    "grid" // Yes, it's the same as CLASS_GRID, but they serve different roles, STAFF_GRID is used outside of saveSMAWS_Tables() too.
+#define RULER_HEIGHT 47
+#define STAFF_GRID   "grid" // Yes, it's the same as CLASS_GRID, but they serve different roles, STAFF_GRID is used outside of saveSMAWS_Tables() too.
 
 // Imaginary MIDI note values for rests and invisible "cells" in SVG "tables"
 #define MIDI_REST  -1
@@ -369,6 +367,7 @@ public:
     void streamBody();
     void beginMultiGroup(QStringList* pINames, const QString& fullName, const QString &className, qreal height, qreal top, const QString& cues);
     void endMultiGroup();
+    void beginMouseGroup();
     void setYOffset(qreal y);
     void setMaxNote(int max);
     void createMultiUse(qreal y);
