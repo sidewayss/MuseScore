@@ -5029,7 +5029,6 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
 
                 // Stream the SVG header elements CSS, <svg>, <title>, <desc>:
                 tableStream
-                    << XML_STYLE_GRID // CSS Stylesheets
                     << SVG_BEGIN
                        << XML_NAMESPACE << XML_XLINK << SVG_4SPACES
                        << SVG_VIEW_BOX  << SVG_ZERO  << SVG_SPACE
@@ -5037,7 +5036,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                         << width     << SVG_SPACE
                                         << height    << SVG_QUOTE
                        << SVG_WIDTH     << width     << SVG_QUOTE
-                       << SVG_HEIGHT    << height    << SVG_QUOTE
+                       << SVG_HEIGHT    << SVG_AUTO  << SVG_QUOTE
                                                            << endl << SVG_4SPACES
                        << SVG_PRESERVE_XYMIN_MEET          << endl << SVG_4SPACES
                        << SVG_POINTER_EVENTS << SVG_VISIBLE << SVG_QUOTE
@@ -6335,10 +6334,10 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
 
             if (i->endsWith(SVG_LT)) {
                 i->resize(i->size() - 1); // remove the SVG_LT
-                className = "lyricsMt";   // Mt == Empty
+                className = "lyricsOtMt"; // Mt == Empty
             }
             else
-                className = "lyricsNo";
+                className = "lyricsOtNo"; // Ot == onmouseout
 
             qts << SVG_8SPACES << SVG_TEXT_BEGIN
                    << formatInt(SVG_X,        lyricsX, maxDigits,        true)

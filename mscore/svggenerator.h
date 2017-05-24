@@ -134,6 +134,7 @@ using IntSet          = std::set<int>;
 
 #define SVG_WIDTH  " width=\""
 #define SVG_HEIGHT " height=\""
+#define SVG_AUTO   "auto\""
 
 #define SVG_X     " x="  // No quote char due to floating point formatting
 #define SVG_Y     " y="  // ditto

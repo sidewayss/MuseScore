@@ -1361,6 +1361,7 @@ QString SvgPaintEngine::getClass()
     case EType::NOTE :
     case EType::STEM :
     case EType::BEAM :
+    case EType::HOOK :
         // Tablature staves get prefixed class names for these element types
         if (_e->staff()->isTabStaff()) {
             eName= QString("%1%2").arg(SVG_PREFIX_TAB).arg(_e->name(_et));
