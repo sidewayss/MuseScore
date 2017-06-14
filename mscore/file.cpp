@@ -2874,7 +2874,7 @@ static void paintStaffLines(Score*        score,
                             bool          isMulti        = false,
                             QStringList*  pINames        =  0,
                             QList<qreal>* pStaffTops     =  0,
-                            QStringList*  pVTT         =  0)
+                            QStringList*  pVTT           =  0)
 {
     const qreal cursorOverlap = Ms::SPATIUM20 / 2; // half staff-space overlap, top + bottom
 
@@ -2960,21 +2960,23 @@ static void paintStaffLines(Score*        score,
                     }
                     if (i == j) { // First visible staff in the first system
                         // Set the cursor's y-coord
-                        cursorTop = staffTop - cursorOverlap;
+                        cursorTop = (isMulti ? 5 : staffTop - cursorOverlap);
                         printer->setCursorTop(cursorTop);
 
-                        // Get the last visible staff index in the first system
-                        for (j = pVisibleStaves->size() - 1; j >= 0; j--) {
-                            if (pVisibleStaves->value(j) >= 0)
-                                break;
+                        if (!isMulti) { // multi has fixed margins, only one system
+                            // Get the last visible staff index in the first system
+                            for (j = pVisibleStaves->size() - 1; j >= 0; j--) {
+                                if (pVisibleStaves->value(j) >= 0)
+                                    break;
+                            }
+                            // Set the cursor's height
+                            sl        = s->firstMeasure()->staffLines(j);
+                            cursorBot = sl->bbox().top()
+                                      + sl->pagePos().y()
+                                      + score->staff(i)->height() // bbox().bottom() includes margins
+                                      + cursorOverlap;
+                            printer->setCursorHeight(cursorBot - cursorTop);
                         }
-                        // Set the cursor's height
-                        sl        = s->firstMeasure()->staffLines(j);
-                        cursorBot = sl->bbox().top()
-                                  + sl->pagePos().y()
-                                  + score->staff(i)->height() // bbox().bottom() includes margins
-                                  + cursorOverlap;
-                        printer->setCursorHeight(cursorBot - cursorTop);
                     }
                     if (isMulti && pStaffTops != 0) {
                         // Offset between this staff and the first visible staff
@@ -3653,6 +3655,8 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
                 else
                     mapSVG.insert(cue_id, e);
             }
+            else
+                mapSVG.insert(cue_id, e);
             continue;
             break;
 

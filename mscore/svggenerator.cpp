@@ -443,6 +443,8 @@ bool SvgPaintEngine::end()
 
 
     if (_isSMAWS) { // Cursor, Gray, Fade rects at the end of the current body
+        if (_isMulti)
+            _cursorHeight = d->viewBox.height() - (_cursorTop * 2); // fixed margins relative to page height - modified in javascript
         stream().setString(&d->body);
         stream() << SVG_RECT
                     << SVG_CLASS          << CLASS_CURSOR  << SVG_QUOTE
@@ -468,14 +470,15 @@ bool SvgPaintEngine::end()
         if (_isMulti) // Terminate the Staves group
             stream() << SVG_GROUP_END << endl;
 
-        // The fader <rect> for crossfading between frozen and thawed
-        stream() << SVG_RECT
-                    << SVG_ID       << "Fader"             << SVG_QUOTE
-                    << SVG_WIDTH    << FROZEN_WIDTH        << SVG_QUOTE
-                    << SVG_HEIGHT   << d->viewBox.height() << SVG_QUOTE
-                    << SVG_FILL_URL << "gradFader"         << SVG_RPAREN_QUOTE
-                    << SVG_STROKE   << SVG_NONE            << SVG_QUOTE
-                 << SVG_ELEMENT_END << endl;
+        if (_isScrollVertical)
+            // The fader <rect> for crossfading between frozen and thawed
+            stream() << SVG_RECT
+                        << SVG_ID       << "Fader"             << SVG_QUOTE
+                        << SVG_WIDTH    << FROZEN_WIDTH        << SVG_QUOTE
+                        << SVG_HEIGHT   << d->viewBox.height() << SVG_QUOTE
+                        << SVG_FILL_URL << "gradFader"         << SVG_RPAREN_QUOTE
+                        << SVG_STROKE   << SVG_NONE            << SVG_QUOTE
+                     << SVG_ELEMENT_END << endl;
     }
 
     // Deal with Frozen Pane, if it exists
@@ -488,7 +491,7 @@ bool SvgPaintEngine::end()
 
         if (_isMulti) {
             // Frozen <use> elements by staff. SVG_GROUP_ consolidates events.
-            //!!! FOR NOW THIS IS ALWAYS "funcName(evt)". "top." should be an option somewhere, somehow.
+            //!!FOR NOW THIS IS ALWAYS "funcName(evt)". "top." should be an option somewhere, somehow.
             const QString frozenEvents = " onclick=\"frozenClick(evt)\" onmouseover=\"frozenOver(evt)\" onmouseout=\"frozenOut(evt)\" onmouseup=\"frozenUp(evt)\"";
 
             stream() << SVG_GROUP_BEGIN
