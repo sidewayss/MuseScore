@@ -3004,7 +3004,9 @@ static void paintStaffLines(Score*        score,
             // are drawn by measure.
             //
             bool byMeasure = false;
-            for (MeasureBase* mb = s->firstMeasure(); mb != 0; mb = s->nextMeasure(mb)) {
+            MeasureBase* mb;
+            QString cue_id;
+            for (mb = s->firstMeasure(); mb != 0; mb = s->nextMeasure(mb)) {
                   if (mb->type() == Element::Type::HBOX
                    || mb->type() == Element::Type::VBOX
                    || !static_cast<Measure*>(mb)->visible(i)) {
@@ -3013,10 +3015,16 @@ static void paintStaffLines(Score*        score,
                   }
             }
             if (byMeasure) { // Draw visible staff lines by measure
-                  for (MeasureBase* mb = s->firstMeasure(); mb != 0; mb = s->nextMeasure(mb)) {
+                  for (mb = s->firstMeasure(); mb != 0; mb = s->nextMeasure(mb)) {
                         if (mb->type() != Element::Type::HBOX
                          && mb->type() != Element::Type::VBOX
                          && static_cast<Measure*>(mb)->visible(i)) {
+                              if (isVertical && i == 0)
+                                  cue_id = getCueID(s->firstMeasure()->tick());
+                              else
+                                  cue_id = "";
+                              printer->setCueID(cue_id);
+
                               StaffLines* sl = static_cast<Measure*>(mb)->staffLines(i);
                               printer->setElement(sl);
                               paintElement(*p, sl);
@@ -3024,12 +3032,12 @@ static void paintStaffLines(Score*        score,
                   }
             }
             else { // Draw staff lines once per system
-                QString     cue_id;
                 StaffLines* firstSL = s->firstMeasure()->staffLines(i)->clone();
                 StaffLines*  lastSL =  s->lastMeasure()->staffLines(i);
                 firstSL->bbox().setRight(lastSL->bbox().right()
                                       +  lastSL->pagePos().x()
                                       - firstSL->pagePos().x());
+
                 if (isVertical && i == 0)
                     cue_id = getCueID(s->firstMeasure()->tick());
                 else

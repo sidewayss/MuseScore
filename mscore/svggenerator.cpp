@@ -420,10 +420,14 @@ bool SvgPaintEngine::end()
                 << SVG_VIEW_BOX  << d->viewBox.left()            << SVG_SPACE
                                  << d->viewBox.top()             << SVG_SPACE
                                  << d->viewBox.width()           << SVG_SPACE
-                                 << d->viewBox.height()          << SVG_QUOTE
-                << SVG_WIDTH     << d->size.width()              << SVG_QUOTE
-                << SVG_HEIGHT    << d->size.height()             << SVG_QUOTE
-                << endl;
+                                 << d->viewBox.height()          << SVG_QUOTE;
+    if (_isScrollVertical)
+        stream() << SVG_WIDTH  << d->size.width()  << SVG_QUOTE;
+    else
+        stream() << SVG_HEIGHT << d->size.height() << SVG_QUOTE;
+
+    stream() << endl;
+
     if (_isSMAWS) {
         stream()<< SVG_4SPACES   << SVG_PRESERVE_XYMIN_SLICE << SVG_CURSOR            << endl
                 << SVG_4SPACES   << SVG_POINTER_EVENTS       << SVG_NONE << SVG_QUOTE << endl
@@ -469,16 +473,6 @@ bool SvgPaintEngine::end()
 
         if (_isMulti) // Terminate the Staves group
             stream() << SVG_GROUP_END << endl;
-
-        if (_isScrollVertical)
-            // The fader <rect> for crossfading between frozen and thawed
-            stream() << SVG_RECT
-                        << SVG_ID       << "Fader"             << SVG_QUOTE
-                        << SVG_WIDTH    << FROZEN_WIDTH        << SVG_QUOTE
-                        << SVG_HEIGHT   << d->viewBox.height() << SVG_QUOTE
-                        << SVG_FILL_URL << "gradFader"         << SVG_RPAREN_QUOTE
-                        << SVG_STROKE   << SVG_NONE            << SVG_QUOTE
-                     << SVG_ELEMENT_END << endl;
     }
 
     // Deal with Frozen Pane, if it exists
@@ -488,6 +482,15 @@ bool SvgPaintEngine::end()
         FDefs::iterator def;
         FDef::iterator  elms;
         const QString tempoKey = getDefKey(0, EType::TEMPO_TEXT);
+
+        // The fader <rect> for crossfading between frozen and thawed
+        stream() << SVG_RECT
+                    << SVG_ID       << "Fader"             << SVG_QUOTE
+                    << SVG_WIDTH    << FROZEN_WIDTH        << SVG_QUOTE
+                    << SVG_HEIGHT   << d->viewBox.height() << SVG_QUOTE
+                    << SVG_FILL_URL << "gradFader"         << SVG_RPAREN_QUOTE
+                    << SVG_STROKE   << SVG_NONE            << SVG_QUOTE
+                 << SVG_ELEMENT_END << endl;
 
         if (_isMulti) {
             // Frozen <use> elements by staff. SVG_GROUP_ consolidates events.
@@ -932,11 +935,11 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
 
         stream() << SVG_RECT    << classState << styleState;
         streamXY(_textFrame.x(),_textFrame.y());
-        stream() << SVG_WIDTH   << _textFrame.width()        << SVG_QUOTE
-                 << SVG_HEIGHT  << _textFrame.height()       << SVG_QUOTE
-                 << SVG_RX      << SVG_ONE                   << SVG_QUOTE
-                 << SVG_RY      << SVG_ONE                   << SVG_QUOTE
-                 << SVG_ONCLICK << SVG_ELEMENT_END           << endl;
+        stream() << SVG_WIDTH   << _textFrame.width()  << SVG_QUOTE
+                 << SVG_HEIGHT  << _textFrame.height() << SVG_QUOTE
+                 << SVG_RX      << SVG_ONE             << SVG_QUOTE
+                 << SVG_RY      << SVG_ONE             << SVG_QUOTE
+                                << SVG_ELEMENT_END     << endl;
         return; // That's right, we're done here, no path to draw
     }
 
@@ -1024,10 +1027,12 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
         }
         stream() << SVG_QUOTE;
 
-        // Staff lines have cue ids for vertical scrolling
+        // Vertical scrolling: top staff line in each system has cue id + height
         if (isStaffLines && !_cue_id.isEmpty()) {
-            stream() << SVG_CUE << _cue_id << SVG_QUOTE;
-            _cue_id = ""; // but only the top line's y-coord matters
+            int bottom = _e->bbox().height() + points[0].y() + 1; // int rounded up
+            stream() << SVG_CUE    << _cue_id << SVG_QUOTE
+                     << SVG_BOTTOM << bottom  << SVG_QUOTE;
+            _cue_id = ""; // only the top staff line gets the extra attributes
         }
 
         stream() << SVG_ELEMENT_END <<endl;

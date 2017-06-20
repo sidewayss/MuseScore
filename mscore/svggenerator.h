@@ -227,6 +227,7 @@ using IntSet          = std::set<int>;
 #define SVG_START_NQ " data-start="         // cue start time in milliseconds with no quote character
 #define SVG_INAME    " data-iname=\""       // full instrument name == MuseScore "short" instrument name
 #define SVG_BARNUMB  " data-barnumb="       // measure (bar) number for rulers/counters - no quotes!!
+#define SVG_BOTTOM   " data-bottom=\""      // vertical scroll: staff bottom y
 
 #define SVG_PREFIX_TAB "tab" // For tablature class names
 
