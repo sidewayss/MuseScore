@@ -5047,12 +5047,10 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                         << SVG_ZERO  << SVG_SPACE
                                         << width     << SVG_SPACE
                                         << height    << SVG_QUOTE
-                       << SVG_WIDTH     << width     << SVG_QUOTE
-                       << SVG_HEIGHT    << SVG_AUTO  << SVG_QUOTE
-                                                           << endl << SVG_4SPACES
-                       << SVG_PRESERVE_XYMIN_MEET          << endl << SVG_4SPACES
+                       << SVG_HEIGHT    << height    << SVG_QUOTE
+                                                            << endl << SVG_4SPACES
                        << SVG_POINTER_EVENTS << SVG_VISIBLE << SVG_QUOTE
-                       << SVG_CURSOR                       << endl << SVG_4SPACES
+                       << SVG_CURSOR                        << endl << SVG_4SPACES
                        << SVG_CLASS << SMAWS << SVG_QUOTE
                        << (hasRulers ? SVG_ONLOAD : "")
                        << (isPages   ? pageCues   : "")
