@@ -4116,11 +4116,6 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
 // There are three types of repeat barlines: Left, Right, and Both.
 // This code uses the Measure class's have a Repeat Flag to get that data.
 
-// Pitch is 100% irrelevant at this time, as are multiple notes/voices in
-// a staff's ChordRest. All that matters is: note duration per staff.
-// Pitch and more could definitely become useful when this gets hooked up
-// to MIDI on the client end. Not yet...
-
 // I handle pick-up measures (Repeat::NONE), but not let-downs. No need yet.
 
 // Every SMAWS HTML Table's columns are defined by the length of the repeat
@@ -4315,7 +4310,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
     const QString NO   = "No";
 
     // if (!hasRulers) event functions are in the parent document's scripts
-    const QString evtPrefix = (hasRulers ? "" : "top.");
+    const QString evtPrefix = (hasRulers ? "" : ""); //!!is this still necessary at all??
 
     // Currently two HTML table styles, one kludgy option implementation.
     // Two styles are: tableChords and tableDrumMachine
@@ -4335,6 +4330,9 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
     QString       fnTable;
     QFile         tableFile;
     QTextStream   tableStream;
+
+    const QString indy  = QString(6, SVG_SPACE); // indentation for grid row text
+    const QString click = " onclick=\"gridClick(evt)\" pointer-events=\"visible\"";
 
     // HTML: One file contains multiple tables
     if (isHTML) {
@@ -4626,7 +4624,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             if (!isPages || idxCol == gridUse.size()) {
                                 qts << SVG_USE    << SVG_SPACE
                                     << formatInt(SVG_X, cellX, maxDigits, true)
-                                    << formatInt(SVG_Y, cellY, maxDigits, true)
+                                    << formatInt(SVG_Y, cellY, 2, true)
                                     << XLINK_HREF << ref    << SVG_QUOTE
                                     << SVG_CUE    << cue_id;
 
@@ -4646,11 +4644,12 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             // Grid <text> element
                             const QString lyrics = crGrid->lyrics()[0]->plainText();
 
+                            // grid <text> LO == invisible == <text></text>
                             if (!isPages || idxCol == gridText.size()) {
                                 qts << SVG_TEXT_BEGIN
                                     << formatInt(SVG_X, cellX + (cellWidth  / 2), maxDigits, true)
-                                    << formatInt(SVG_Y, cellY + (cellHeight / 2), maxDigits, true)
-                                    << SVG_CLASS << CLASS_GRID << NO << SVG_QUOTE // grid <text> LO = invisible = >empty content<
+                                    << formatInt(SVG_Y, cellY + (cellHeight / 2), 2, true)
+                                    << indy << SVG_CLASS << CLASS_GRID << NO << SVG_QUOTE
                                     << SVG_CUE   << cue_id;
 
                                 if (!isPages)
@@ -4714,13 +4713,13 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                     pqs = new QString;
                                     qts.setString(pqs);
                                     qts << SVG_LINE
-                                           << SVG_X1    << x          << SVG_QUOTE
-                                           << SVG_Y1    << cellHeight
-                                                         + gridMargin << SVG_QUOTE
-                                           << SVG_X2    << x          << SVG_QUOTE
-                                           << SVG_Y2    << height
-                                                         - cellHeight
-                                                         - gridMargin << SVG_QUOTE
+                                           << formatInt(SVG_X1_NQ, x, maxDigits + 1, true)
+                                           << formatInt(SVG_Y1_NQ, cellHeight
+                                                                 + gridMargin, 2, true)
+                                           << formatInt(SVG_X2_NQ, x, maxDigits + 1, true)
+                                           << formatInt(SVG_Y2_NQ, height
+                                                                 - cellHeight
+                                                                 - gridMargin, maxDigits, true)
                                            << SVG_CLASS << "beatLine" << SVG_QUOTE;
                                     if (!isPages)
                                         qts << SVG_ELEMENT_END        << endl;
@@ -4831,7 +4830,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                     y = baseline - (has2 ? 15 : 1);
                                     qts << SVG_TEXT_BEGIN
                                         << formatInt(SVG_X, x, maxDigits, true)
-                                        << formatInt(SVG_Y, y, maxDigits, true)
+                                        << formatInt(SVG_Y, y, 2, true)
                                         << SVG_CLASS << (r == idxChords ? chord : lyric)
                                         << NO << SVG_QUOTE;
                                 }
@@ -4840,7 +4839,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                 y = baseline + 5;
                                 qts2 << SVG_TEXT_BEGIN
                                     << formatInt(SVG_X, x, maxDigits, true)
-                                    << formatInt(SVG_Y, y, maxDigits, true)
+                                    << formatInt(SVG_Y, y, 2, true)
                                     << SVG_CLASS << lyric << NO << SVG_QUOTE;
                             }
 
@@ -5042,15 +5041,15 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 // Stream the SVG header elements CSS, <svg>, <title>, <desc>:
                 tableStream
                     << SVG_BEGIN
-                       << XML_NAMESPACE << XML_XLINK << SVG_4SPACES
-                       << SVG_VIEW_BOX  << SVG_ZERO  << SVG_SPACE
-                                        << SVG_ZERO  << SVG_SPACE
-                                        << width     << SVG_SPACE
-                                        << height    << SVG_QUOTE
-                       << SVG_HEIGHT    << height    << SVG_QUOTE
-                                                            << endl << SVG_4SPACES
-                       << SVG_POINTER_EVENTS << SVG_VISIBLE << SVG_QUOTE
-                       << SVG_CURSOR                        << endl << SVG_4SPACES
+                       << XML_NAMESPACE << XML_XLINK     << SVG_4SPACES
+                       << SVG_VIEW_BOX  << SVG_ZERO      << SVG_SPACE
+                                        << SVG_ZERO      << SVG_SPACE
+                                        << width         << SVG_SPACE
+                                        << height        << SVG_QUOTE
+                       << SVG_HEIGHT    << height        << SVG_QUOTE
+                                        << endl          << SVG_4SPACES
+                       << SVG_POINTER_EVENTS << SVG_NONE << SVG_QUOTE
+                       << SVG_CURSOR    << endl          << SVG_4SPACES
                        << SVG_CLASS << SMAWS << SVG_QUOTE
                        << (hasRulers ? SVG_ONLOAD : "")
                        << (isPages   ? pageCues   : "")
@@ -5063,7 +5062,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_GRID_DEFS));
                 qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
                 qts.setDevice(&qf);
-                tableStream << endl << qts.readAll() << endl;
+                tableStream << endl << qts.readAll();
 
                 // The background rects (pattern + gradient in one fill == not)
                 qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_GRID_BG));
@@ -5190,6 +5189,9 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         if (pageCols[p] < minCols)
                             minCols = pageCols[p];
                     }
+                    tableStream << SVG_GROUP_BEGIN
+                                << click
+                                << SVG_GT << endl;
                     for (int g = 0; g < colCount; g++) {
                         tableStream << *gridUse[g];
                         if (g >= minCols){ // grayed-out <use>s by page
@@ -5230,7 +5232,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             tableStream << *(*pageGridText[0])[g];
                         tableStream << SVG_TEXT_END  << endl;
                     }
-                    tableStream << endl;
+                    tableStream << SVG_GROUP_END << endl;
                 }
 
                 // Handle variable pitch in the rows that have it
@@ -5296,8 +5298,8 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         }
                         else // the one and only chords row, no controls, but it has a name/label
                             tableStream << SVG_4SPACES << SVG_TEXT_BEGIN
-                                        << formatInt(SVG_X, nameLeft, maxDigits, true)
-                                        << formatInt(SVG_Y, baseline, maxDigits, true)
+                                        << formatInt(SVG_X, nameLeft, 2, true)
+                                        << formatInt(SVG_Y, baseline, 2, true)
                                         << SVG_ID << id << SVG_QUOTE
                                         << *iNames[r];
 
@@ -5360,6 +5362,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         tableStream << SVG_4SPACES  << SVG_GROUP_BEGIN
                                        << SVG_ID    << id          << SVG_QUOTE
                                        << SVG_CLASS << CLASS_NOTES << SVG_QUOTE
+                                       << click
                                     << SVG_GT << endl;
                     }
 
@@ -5633,14 +5636,14 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 pqs = new QString;
                 qts.setString(pqs);
                 qts << SVG_RECT
-                       << SVG_X << SVG_QUOTE << x                  << SVG_QUOTE
-                       << SVG_Y << SVG_QUOTE << barMargin - 2      << SVG_QUOTE
-                       << SVG_WIDTH          << barWidth           << SVG_QUOTE
-                       << SVG_HEIGHT         << height - cellHeight
-                                              - barMargin - 2      << SVG_QUOTE
-                       << SVG_RX             << barRound           << SVG_QUOTE
-                       << SVG_RY             << barRound           << SVG_QUOTE
-                       << SVG_CLASS          << "barLine"          << SVG_QUOTE;
+                       << formatInt(SVG_X, x,             maxDigits + 1, true)
+                       << formatInt(SVG_Y, barMargin - 2, 2, true)
+                       << SVG_WIDTH  << barWidth  << SVG_QUOTE
+                       << SVG_HEIGHT << height - cellHeight - barMargin - 2
+                                                  << SVG_QUOTE
+                       << SVG_RX     << barRound  << SVG_QUOTE
+                       << SVG_RY     << barRound  << SVG_QUOTE
+                       << SVG_CLASS  << "barLine" << SVG_QUOTE;
                 if (!isPages)
                     qts << SVG_ELEMENT_END   << endl;
 
@@ -5650,8 +5653,8 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 pqs = new QString;
                 qts.setString(pqs);
                 qts << SVG_TEXT_BEGIN
-                       << SVG_X << SVG_QUOTE << x + 4              << SVG_QUOTE
-                       << SVG_Y << SVG_QUOTE << barMargin          << SVG_QUOTE
+                       << formatInt(SVG_X, x + 4,     maxDigits + 1, true)
+                       << formatInt(SVG_Y, barMargin, 2, true)
                        << SVG_CLASS          << "barNumber"        << SVG_QUOTE;
                 if (!isPages)
                     qts << SVG_GT << n << SVG_TEXT_END   << endl;
