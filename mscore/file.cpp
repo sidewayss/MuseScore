@@ -5718,9 +5718,9 @@ static QString getPickPosition(ChordRest* cr)
 {
     foreach(Articulation* a, cr->articulations()) {
           if (a->articulationType() == ArticulationType::Upbow)
-              return "upPick";
+              return PICK_UP;
     }
-    return "dnPick";
+    return PICK_DOWN;
 }
 
 //
@@ -5753,7 +5753,7 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
     int         nStrings;
     int         tick;
     int         lastTick;
-    int         tmp;
+    int         x;
     int         width  = 0;
     int         height = 0;
     IntVect     stavesTab; // tablature staff indices
@@ -5770,7 +5770,7 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
     const qreal RULE_OF_18  = 17.817154;
 
     // What staves are we using? Does the tab staff pair with a notation staff?
-    tmp = 0;
+    x = 0;
     for (i = 0; i < score->nstaves(); i++) {
         staff = score->staves()[i];
         if (staff->isTabStaff()) {
@@ -5799,16 +5799,16 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
                                     tpc2unicode(
                                       pitch2tpc(
                                         staff->part()->instrument()->stringData()->stringList()[nStrings - str - 1].pitch, // the list itself is in opposite order from note.string() return value - messy, but true
-                                        score->staves()[stavesTPC[tmp]]->key(0),
+                                        score->staves()[stavesTPC[x]]->key(0),
                                         Prefer::NEAREST),
                                       NoteSpellingType::STANDARD,
                                       NoteCaseType::UPPER));
             tunings.append(spv);
 
             // x offset for this fretboard, accumulated across staves as width
-            xOffsets.append((nStrings * 21) + MARGIN + 6);   // fret numbers + 6=borders
-            width += xOffsets[tmp] + (tmp > 0 ? MARGIN : 0); // "staff" margin
-            tmp++;
+            xOffsets.append((nStrings * 21) + MARGIN + 6); // fret numbers + 6=borders
+            width += xOffsets[x];
+            x++;
         }
     }
 
@@ -5853,7 +5853,7 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
                                 << lastTick            << SVG_SPACE
                                 << *(*tunings[i])[str] << SVG_SPACE
                                 << SVG_FRET_NO         << SVG_SPACE
-                                << "noPick";
+                                << PICK_NO;
                         }
 
                         (*pil)[str] = tick + cr->actualTicks();
@@ -5885,7 +5885,7 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
                     << tick                << SVG_SPACE
                     << *(*tunings[i])[str] << SVG_SPACE
                     << SVG_FRET_NO         << SVG_SPACE
-                    << "noPick";
+                    << PICK_NO;
             }
             qts << SVG_QUOTE;
         }
@@ -5910,17 +5910,18 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
     // The headers
     height = 894; //!!! 14-fret height. With diff # of frets per staff, this must become very dynamic!!!
     file << SVG_BEGIN      // <svg>
-            << XML_NAMESPACE << XML_XLINK << SVG_4SPACES
-            << SVG_VIEW_BOX  << SVG_ZERO  << SVG_SPACE
-                             << SVG_ZERO  << SVG_SPACE
-                             << width     << SVG_SPACE
-                             << height    << SVG_QUOTE
-            << SVG_WIDTH     << width     << SVG_QUOTE
-            << SVG_HEIGHT    << height    << SVG_QUOTE
-                                                << endl   << SVG_4SPACES
-            << SVG_PRESERVE_XYMIN_MEET          << endl   << SVG_4SPACES
-            << SVG_POINTER_EVENTS << SVG_CURSOR << endl   << SVG_4SPACES
-            << SVG_CLASS << SMAWS << SVG_QUOTE  << SVG_GT << endl;
+            << XML_NAMESPACE << XML_XLINK     << SVG_4SPACES
+            << SVG_VIEW_BOX  << SVG_ZERO      << SVG_SPACE
+                             << SVG_ZERO      << SVG_SPACE
+                             << width         << SVG_SPACE
+                             << height        << SVG_QUOTE
+            << SVG_WIDTH     << width         << SVG_QUOTE
+                                              << endl << SVG_4SPACES
+            << SVG_PRESERVE_XYMIN_MEET        << endl << SVG_4SPACES
+            << SVG_POINTER_EVENTS << SVG_NONE << SVG_QUOTE
+            << SVG_CURSOR                     << endl << SVG_4SPACES
+            << SVG_CLASS << SMAWS << SVG_QUOTE
+         << SVG_GT << endl;
 
     // The <defs>
     qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_FRET_DEFS));
@@ -5928,8 +5929,11 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
     qts.setDevice(&qf);
     file << qts.readAll();
 
+    // The <g id="Staves"> wrapper for the staves
+    file << SVG_GROUP_BEGIN << SVG_ID << ID_STAVES << SVG_QUOTE << SVG_GT << endl;
+
     // The staves as fretboards
-    tmp = 0;
+    x = 0;
     for (i = 0; i < values.size(); i++) {
         // Which template file? (eventually they can be built more dynamically...)
         nStrings = values[i]->size();
@@ -5950,21 +5954,22 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
         qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
         qts.setDevice(&qf);
 
-        tmp += (i > 0 ? xOffsets[i - 1] + 20: 0); // 20 = margin between staves
+        x += (i > 0 ? xOffsets[i - 1]: 0);
         qs = qts.readAll();
         qs.replace("%id", score->staves()[stavesTab[i]]->part()->longName(0)); // staff id attribute, same as tab staff in score
-        qs.replace("%x", QString::number(tmp));  // The tranlate(x 0) coordinate for this staff - fretboards are initially vertical, stacked horizontally
+        qs.replace("%x", QString::number(x));  // The tranlate(x 0) coordinate for this staff - fretboards are initially vertical, stacked horizontally
         for (str = 0; str < nStrings; str++)
             qs.replace(QString("\%%1").arg(str), *(*values[i])[str]);
 
         file << qs;
     }
+    file << SVG_GROUP_END << endl; // Terminate the Staves group
 
     // The buttons (best last, as they must always be on top)
     qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_FRET_BUTTS));
     qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
     qts.setDevice(&qf);
-    file << qts.readAll();
+    file << qts.readAll().arg(width - MARGIN);
 
     file << SVG_END;                      // Terminate the <svg>
     file.flush();                         // Write the file

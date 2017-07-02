@@ -613,7 +613,7 @@ bool SvgPaintEngine::end()
     // Multi wraps all the staves in an outer group for simpler x-axis scrolling
     // The group is terminated in the frozen pane code a few lines up from here
     if (_isMulti)
-        stream() << SVG_GROUP_BEGIN << SVG_ID << "Staves" << SVG_QUOTE
+        stream() << SVG_GROUP_BEGIN << SVG_ID << ID_STAVES << SVG_QUOTE
                  << SVG_GT << endl;
 
     stream() << d->body;
