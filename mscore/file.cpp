@@ -5963,7 +5963,6 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
 
         file << qs;
     }
-    file << SVG_GROUP_END << endl; // Terminate the Staves group
 
     // The buttons (best last, as they must always be on top)
     qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_FRET_BUTTS));
@@ -5971,6 +5970,7 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
     qts.setDevice(&qf);
     file << qts.readAll().arg(width - MARGIN);
 
+    file << SVG_GROUP_END << endl;        // Terminate the Staves group
     file << SVG_END;                      // Terminate the <svg>
     file.flush();                         // Write the file
     qfSVG.close();                        // Close the SVG file
