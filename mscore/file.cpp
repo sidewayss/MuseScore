@@ -6040,7 +6040,7 @@ bool MuseScore::saveSMAWS_Tree(Score* score, QFileInfo* qfi)
             if (m->isMeasureRest(idx)) {
                 // If there is a highlight cue pending, finish it.
                 // --Duplicates code from below, see: "Case: EType::Rest".--
-                if (!isPulse && !isPrevRest && startTick != 0) {
+                if (!isPulse && !isPrevRest) {
                     isPrevRest = true;
                     mapMix.insert(getCueID(startTick, m->tick()), iName);
                 }
@@ -6084,7 +6084,7 @@ bool MuseScore::saveSMAWS_Tree(Score* score, QFileInfo* qfi)
                         }
                         break;
                     case EType::REST :
-                        if (!isPulse && !isPrevRest && startTick != 0) {
+                        if (!isPulse && !isPrevRest) {
                             isPrevRest = true;
                             mapMix.insert(getCueID(startTick, cr->tick()), iName);
                         }
