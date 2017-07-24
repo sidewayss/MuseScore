@@ -672,7 +672,8 @@ void SvgPaintEngine::updateState(const QPaintEngineState &state)
         qts << QString("%1%2").arg(_classValue).arg(SVG_QUOTE);
         qts.setFieldWidth(0);
         // Then stream the Cue ID
-        if (!_cue_id.isEmpty() && _et != EType::STAFF_LINES)
+        if (!_cue_id.isEmpty() && _et != EType::STAFF_LINES
+         && !(_classValue == "tabNote" && !(state.state() & QPaintEngine::DirtyFont)))
             qts << SVG_CUE << _cue_id << SVG_QUOTE;
     }
 
@@ -954,7 +955,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     case EType::SLUR_SEGMENT :
     case EType::TREMOLO      :
     case EType::NOTE         : // Tablature has rects behind numbers
-        break;                // fill-rule styled by CSS
+        break;                 // fill-rule styled by CSS
     default:
         if (p.fillRule() == Qt::OddEvenFill)
             stream() << SVG_FILL_RULE;
