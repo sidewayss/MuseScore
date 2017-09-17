@@ -2848,7 +2848,7 @@ static QString getGrayOutCues(Score* score, int idxStaff, QStringList* pVTT)
     return(cues);
 }
 
-// Does a score have chord changes specified? (EType::HARMONY = chord "symbol")
+// Get the chord symbol, EType::HARMONY, for this segment
 // Used by saveSMAWS_Tables()
 static Harmony* getHarmony(Segment* seg) {
     Harmony* pHarm = 0;
@@ -2860,6 +2860,21 @@ static Harmony* getHarmony(Segment* seg) {
     }
 
     return pHarm;
+}
+
+// Converts non-ASCII chars to hex XML entities with leading zeros trimmed
+static QString stringToUTF8(const QString& str) {
+    QString ret;
+    for (int i = 0; i < str.size(); i++) {
+        if (str.at(i).unicode() > 127) {
+            ret.append(XML_ENTITY_BEGIN);
+            ret.append(QString::number(str.at(i).unicode(), 16).toUpper());
+            ret.append(XML_ENTITY_END);
+        }
+        else
+            ret.append(str.at(i));
+    }
+    return ret;
 }
 
 // paintStaffLines() - consolidates code in saveSVG() and saveSMAWS_Music()
@@ -2885,8 +2900,9 @@ static void paintStaffLines(Score*        score,
 
     if (isMulti && idxStaff > -1 && pINames != 0  && pVisibleStaves != 0) {
         // isMulti requires a <g></g> wrapper around each staff's elements
-        QString qs = score->systems().first()->staff(idxStaff)->instrumentNames.first()->xmlText(); ///!!!this line of code crashes for piano-style dual-staff (linked staves?)!!!
-        pINames->append(qs.replace(SVG_SPACE, SVG_DASH));
+////!!!!        QString qs = score->systems().first()->staff(idxStaff)->instrumentNames.first()->xmlText(); ///!!!this line of code crashes for piano-style dual-staff (linked staves?)!!!
+        QString qs = score->staves()[idxStaff]->part()->longName();
+        pINames->append(stringToUTF8(qs.replace(SVG_SPACE, SVG_DASH)));
 
         const bool isTab     = score->staff(idxStaff)->isTabStaff();
         const int gridHeight = 30;
@@ -2926,7 +2942,7 @@ static void paintStaffLines(Score*        score,
             bot = page->height() - pStaffTops->value(0) - page->bm();
 
         // Standard notation, tablature, or grid? I need to know by staff
-        const QString shortName = score->staff(idxStaff)->part()->shortName(0);
+        const QString shortName = stringToUTF8(score->staff(idxStaff)->part()->shortName(0));
         const bool    isGrid    = (shortName == STAFF_GRID);
         const qreal   height    = (isGrid ? gridHeight : bot - top);
         const QString className = (isGrid ? CLASS_GRID
@@ -3272,8 +3288,7 @@ static void paintStaffSMAWS(Score*        score,
 
         // Lyrics are a separate <g> element pseudo staff
         if (mapLyrics->size() > 0) {
-            printer->beginMultiGroup(0,
-                                     score->staff(idxStaff)->part()->shortName(0),
+            printer->beginMultiGroup(0, 0,
                                      "lyrics",
                                      lyricsHeight,
                                      pStaffTops->last() - pStaffTops->first(),
@@ -4528,7 +4543,9 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
 
                                 if ((*pageNames[idxPage])[r] == 0) {
                                     if (idxPage == 0)
-                                        (*pageNames[idxPage])[r] = new QString(score->staff(r)->part()->longName(startOffset));
+                                        (*pageNames[idxPage])[r] = new QString(
+                                            stringToUTF8(score->staff(r)->part()->longName(startOffset))
+                                                                              );
                                     else
                                         (*pageNames[idxPage])[r] = (*pageNames[idxPage - 1])[r];
                                 }
@@ -5002,7 +5019,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                             << HTML_TD_BEGIN << SVG_CLASS;
                                 if (r != idxGrid)
                                     tableStream << CLASS_INSTRUMENT << SVG_QUOTE << SVG_GT
-                                                << score->staff(r)->part()->longName(startOffset);
+                                                << stringToUTF8(score->staff(r)->part()->longName(startOffset));
                                 else
                                     tableStream << CLASS_TITLE      << SVG_QUOTE << SVG_GT
                                                 << tableTitle;
@@ -5269,11 +5286,11 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                     // Stream the instrument names - similar loop to bar/beatlines
                     if (r != idxGrid && iNames[r] != 0) {
                         // Display name (text element's innerHTML)
-                        name = score->staff(r)->part()->longName(startOffset);
+                        name = stringToUTF8(score->staff(r)->part()->longName(startOffset));
 
-                        // This id value works best with only alphanumeric chars.
+                        // id value cannot contain spaces
                         id = name;
-                        id.remove(QRegExp("[^a-zA-Z\\d]"));
+                        id.replace(SVG_SPACE, SVG_DASH);
 
                         isLED = !score->staff(r)->small();
 
@@ -5282,7 +5299,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                        << SVG_ID        << id  << SVG_QUOTE
                                        << SVG_CLASS     << "staff"
                                        << (!isLED && r != idxChords ? " lyrics" : "") << SVG_QUOTE
-                                       << SVG_INAME     << score->staff(r)->part()->shortName(startOffset) << SVG_QUOTE
+                                       << SVG_INAME     << stringToUTF8(score->staff(r)->part()->shortName(startOffset)) << SVG_QUOTE
                                        << SVG_TRANSFORM << SVG_TRANSLATE << SVG_ZERO
                                        << SVG_SPACE     << cellY << SVG_RPAREN_QUOTE
                                     << SVG_GT << endl;
@@ -5956,7 +5973,7 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
 
         x += (i > 0 ? xOffsets[i - 1]: 0);
         qs = qts.readAll();
-        qs.replace("%id", score->staves()[stavesTab[i]]->part()->longName(0)); // staff id attribute, same as tab staff in score
+        qs.replace("%id", stringToUTF8(score->staves()[stavesTab[i]]->part()->longName(0))); // staff id attribute, same as tab staff in score
         qs.replace("%x", QString::number(x));  // The tranlate(x 0) coordinate for this staff - fretboards are initially vertical, stacked horizontally
         for (str = 0; str < nStrings; str++)
             qs.replace(QString("\%%1").arg(str), *(*values[i])[str]);
@@ -5984,12 +6001,6 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
 // Special characters prefixed to node names to differentiate cue types
 //   ,  separates nodes within a cue
 //   !  ruler gray-out cue
-///// Not implemented yet, if ever, but good ideas:
-/////^  hide node cue
-/////*  show node cue
-/////&  change node name cue
-/////=  not a prefix, separates old node name from new one
-//
 bool MuseScore::saveSMAWS_Tree(Score* score, QFileInfo* qfi)
 {
     if (score->metaTag(tagWorkNo).isEmpty()) {
@@ -6012,7 +6023,7 @@ bool MuseScore::saveSMAWS_Tree(Score* score, QFileInfo* qfi)
         const bool isPulse = score->staff(idx)->small();
 
         // 1 Intrument Name = comma-separated list of MixTree node names
-        const QString iName = score->systems().first()->staff(idx)->instrumentNames.first()->xmlText();
+        QString iName = stringToUTF8(score->systems().first()->staff(idx)->instrumentNames.first()->xmlText());
 
         // The "not" (gray-out) version of the instrument name.
         // Each node name must be prefixed with the notChar in the cue text.

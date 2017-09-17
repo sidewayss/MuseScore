@@ -1162,26 +1162,27 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     stream() << SVG_GT; // end of attributes
 
     // The Content, as in: <text>Content</text>
-    QString     textContent;
-    QTextStream streamContent(&textContent);
-
     // Some tempo/instrument changes are invisible = no content here, instead
     // it's in the frozen pane file (see code below).
+    QString textContent;
     if (_e->visible()) {
-        if (fontFamily.left(6) == "MScore") { //???TODO: should this be for all extended, non-ascii chars?
-            // MScore fonts are all Private Use Area unicode chars, nothing
-            // alphanumeric, so it's best to render them as hex XML entities.
-            // Most are one char per text element, so it lines up vertically.
-            const QChar* data = textItem.text().constData();
-            while (!data->isNull()) {
-                streamContent << XML_ENTITY_BEGIN
-                              << QString::number(data->unicode(), 16).toUpper()
-                              << XML_ENTITY_END;
-                ++data;
+////!!!!        if (fontFamily.left(6) == "MScore") { //???TODO: should this be for all extended, non-ascii chars?
+////!!!!            // MScore fonts are all Private Use Area unicode chars, nothing
+////!!!!            // alphanumeric, so it's best to render them as hex XML entities.
+////!!!!            // Most are one char per text element, so it lines up vertically.
+        const QString txt = textItem.text();
+        for (int i = 0; i < txt.size(); i++) {
+            if (txt.at(i).unicode() > 127) {
+                textContent.append(XML_ENTITY_BEGIN);
+                textContent.append(QString::number(txt.at(i).unicode(), 16).toUpper());
+                textContent.append(XML_ENTITY_END);
             }
+            else
+                textContent.append(txt.at(i));
         }
-        else
-            streamContent << textItem.text();
+////!!!!        }
+////!!!!        else
+////!!!!            streamContent << textItem.text();
     }
     stream() << textContent << SVG_TEXT_END << endl;
 
@@ -2029,7 +2030,7 @@ void SvgGenerator::beginMultiGroup(QStringList* pINames, const QString& fullName
         pe->beginMultiGroup(pINames->last(), fullName, className, height, top, cues);
     }
     else // this applies to lyrics pseudo-staves
-        pe->beginMultiGroup(pe->_iNames->last().toUpper(), fullName, className, height, top, cues);
+        pe->beginMultiGroup(pe->_iNames->last(), pe->_iNames->last(), className, height, top, cues);
 }
 
 /*!
