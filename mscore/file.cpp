@@ -5804,7 +5804,7 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
 
             stavesTab.append(i);
             if (i > 0 && score->staves()[i - 1]->part()->longName() ==
-                                          staff->part()->longName().toLower())
+                                          staff->part()->shortName())
                 stavesTPC.append(i - 1);
             else
                 stavesTPC.append(i);
