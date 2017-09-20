@@ -2894,63 +2894,90 @@ static void paintStaffLines(Score*        score,
     const qreal cursorOverlap = Ms::SPATIUM20 / 2; // half staff-space overlap, top + bottom
 
     bool  isFirstSystem = true;
+    bool  isStaff       = true;
     qreal cursorTop;
     qreal cursorBot;
     qreal vSpacerUp = 0;
 
+    // isMulti requires a <g></g> wrapper around each staff's elements
     if (isMulti && idxStaff > -1 && pINames != 0  && pVisibleStaves != 0) {
-        // isMulti requires a <g></g> wrapper around each staff's elements
-////!!!!        QString qs = score->systems().first()->staff(idxStaff)->instrumentNames.first()->xmlText(); ///!!!this line of code crashes for piano-style dual-staff (linked staves?)!!!
-        QString qs = score->staves()[idxStaff]->part()->longName();
-        pINames->append(stringToUTF8(qs.replace(SVG_SPACE, SVG_DASH)));
+        Staff*          staff = score->staves()[idxStaff];
+        QList<Staff*>* staves = staff->part()->staves();
+        int              size = staves->size();
+        bool           isLink = staff->linkedStaves();
+        bool         isSingle = (size == 1);
 
-        const bool isTab     = score->staff(idxStaff)->isTabStaff();
-        const int gridHeight = 30;
-        const int tabHeight  = 53;
-        const int stdHeight  = 45;                //!!! see below
-        const int idxVisible = (*pVisibleStaves)[idxStaff];
-        const System* s      = page->systems().value(0);
-        qreal top = s->staff(idxStaff)->y();
-        qreal bot = -1;
-        if (s->firstMeasure()->mstaff(idxStaff)->_vspacerUp != 0) {
-            // This measure claims the extra space between it and the staff above it
-            // Get the previous visible staff - top staff can't have a vertical spacer up
-            for (int i = idxStaff - 1; i >= 0; i--) {
-                if ((*pVisibleStaves)[i] > 0) {
-                    vSpacerUp = top - (s->staff(i)->y() + (score->staff(i)->isTabStaff() ? tabHeight : stdHeight));
-                    break;
+        // Multi-staff "parts" that are not linked (e.g. piano)
+        isStaff = (isLink || isSingle || (*staves)[0]->idx() == idxStaff);
+        if (isStaff) {
+            QString   qs = staff->part()->longName();
+            bool   isTab = staff->isTabStaff();
+
+            if (isTab && isLink)
+                qs.append("Tabs");
+
+            pINames->append(stringToUTF8(qs.replace(SVG_SPACE, SVG_DASH)));
+
+            const int gridHeight = 30;
+            const int tabHeight  = 53;
+            const int stdHeight  = 45;                //!!! see below
+            const int idxVisible = (*pVisibleStaves)[idxStaff];
+
+            System* s = page->systems().value(0);
+            qreal top = s->staff(idxStaff)->y();
+            qreal bot = -1;
+
+            if (s->firstMeasure()->mstaff(idxStaff)->_vspacerUp != 0) {
+                // This measure claims the extra space between it and the staff above it
+                // Get the previous visible staff - top staff can't have a vertical spacer up
+                for (int i = idxStaff - 1; i >= 0; i--) {
+                    if ((*pVisibleStaves)[i] > 0) {
+                        vSpacerUp = top - (s->staff(i)->y() + (score->staff(i)->isTabStaff() ? tabHeight : stdHeight));
+                        break;
+                    }
                 }
             }
-        }
 
-        if (idxVisible >= 0 && idxVisible < nVisible - 1) {
-            // Get the next visible staff (below)
-            for (int i = idxStaff + 1; i < pVisibleStaves->size(); i++) {
-                if ((*pVisibleStaves)[i] > 0) {
-                    if (s->firstMeasure()->mstaff(i)->_vspacerUp != 0)
-                        // Next staff (below) claims the extra space below this staff
-                        bot = top + (isTab ? tabHeight : stdHeight); //!!! I assume that this staff's height is the standard 45pt/px or 53 for tablature
-                    else
-                        bot = s->staff(i)->y(); // top of next visible staff
-                    break;
+            // > 0 when multi-staff part that is not linked staves, e.g. piano.
+            int lastStaff = (isSingle || isLink ? -1 : (*staves)[size - 1]->idx());
+
+            if (idxVisible >= 0 && idxVisible < nVisible - 1) {
+                // Get the next visible staff (below)
+                for (int i = idxStaff + 1; i < pVisibleStaves->size(); i++) {
+                    if ((*pVisibleStaves)[i] > 0) {
+                        if (s->firstMeasure()->mstaff(i)->_vspacerUp != 0)
+                            // Next staff (below) claims the extra space below this staff
+                            bot = top + (isTab ? tabHeight : stdHeight); //!!! I assume that this staff's height is the standard 45pt/px or 53 for tablature
+                        else if (i <= lastStaff)
+                            continue;
+                        else
+                            bot = s->staff(i)->y(); // top of next visible staff
+                        break;
+                    }
                 }
             }
+            top -= vSpacerUp;
+
+            if (bot < 0)
+                bot = page->height() - pStaffTops->value(0) - page->bm();
+
+            // Standard notation, tablature, or grid? I need to know by staff.
+            // For Multi, the short name is the long name and vice versa,
+            // because the short name never appears, because only one system.
+            // For linked tabs staves, the shortName is the note staff's long name.
+            // JavaScript uses this to link the staves, which are separate in SVG.
+            const QString shortName = (isTab && isLink
+                                     ? stringToUTF8(staff->part()->longName())
+                                     : stringToUTF8(staff->part()->shortName(0)));
+            const bool    isGrid    = (shortName == STAFF_GRID);
+            const qreal   height    = (isGrid ? gridHeight : bot - top);
+            const QString className = (isGrid ? CLASS_GRID
+                                              : (isTab ? CLASS_TABS
+                                                       : CLASS_NOTES));
+            printer->beginMultiGroup(pINames, shortName, className, height, top,
+                                     getGrayOutCues(score, idxStaff, pVTT)); ///!!!these gray-out cues are not currently used
+            printer->setCueID("");
         }
-        top -= vSpacerUp;
-
-        if (bot < 0)
-            bot = page->height() - pStaffTops->value(0) - page->bm();
-
-        // Standard notation, tablature, or grid? I need to know by staff
-        const QString shortName = stringToUTF8(score->staff(idxStaff)->part()->shortName(0));
-        const bool    isGrid    = (shortName == STAFF_GRID);
-        const qreal   height    = (isGrid ? gridHeight : bot - top);
-        const QString className = (isGrid ? CLASS_GRID
-                                          : (isTab ? CLASS_TABS
-                                                   : CLASS_NOTES));
-        printer->beginMultiGroup(pINames, shortName, className, height, top,
-                                 getGrayOutCues(score, idxStaff, pVTT));     //!!! these gray-out cues are not currently used
-        printer->setCueID("");
     }
 
     bool isVertical = printer->isScrollVertical();
@@ -2969,12 +2996,14 @@ static void paintStaffLines(Score*        score,
                     StaffLines* sl = s->firstMeasure()->staffLines(i);
                     qreal staffTop = sl->bbox().top() + sl->pagePos().y();
                     int j;
+
                     // Get the first visible staff index (in the first system)
                     for (j = 0; j < pVisibleStaves->size(); j++) {
                         if (pVisibleStaves->value(j) >= 0)
                             break;
                     }
-                    if (i == j) { // First visible staff in the first system
+
+                    if (i == j) { // only first visible staff in first system
                         // Set the cursor's y-coord
                         cursorTop = (isMulti ? 5 : staffTop - cursorOverlap);
                         printer->setCursorTop(cursorTop);
@@ -2994,7 +3023,8 @@ static void paintStaffLines(Score*        score,
                             printer->setCursorHeight(cursorBot - cursorTop);
                         }
                     }
-                    if (isMulti && pStaffTops != 0) {
+
+                    if (isMulti && isStaff && pStaffTops != 0) {
                         // Offset between this staff and the first visible staff
                         staffTop -= vSpacerUp;
                         pStaffTops->append(staffTop);
@@ -3071,7 +3101,6 @@ static void paintStaffLines(Score*        score,
         isFirstSystem = false;
 
     } //for each System
-
 }
 
 // svgInit() - consolidates shared code in saveSVG and saveSMAWS.
@@ -3284,7 +3313,11 @@ static void paintStaffSMAWS(Score*        score,
 
     if (isMulti) {
         // Close any pending Multi-Select Staves group element
-        printer->endMultiGroup(); // ends the staff group
+        Staff* staff = score->staff(idxStaff);
+        QList<Staff*>* staves = staff->part()->staves();
+        int size = staves->size();
+        if (size == 1 || (*staves)[size - 1]->idx() == idxStaff || staff->linkedStaves())
+            printer->endMultiGroup(); // ends the staff group
 
         // Lyrics are a separate <g> element pseudo staff
         if (mapLyrics->size() > 0) {
@@ -3550,10 +3583,20 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
     int idxLastLyrics = -1;
 
     for (int i = 0; i < score->nstaves(); i++) {
-        const Staff* staff = score->staff(i);
+        Staff* staff = score->staff(i);
+        Part*  part  = staff->part();
 
-        // Visible staves
-        visibleStaves[i] = staff->part()->show() ? nVisible++ : -1;
+        // Visible staves, which is the SVG staves, including multi-staff parts
+        if (part->show()) {
+            visibleStaves[i] = nVisible;
+
+            QList<Staff*>* staves = part->staves();
+            int size = staves->size();
+            if (size == 1 || (*staves)[size - 1]->idx() == i || staff->linkedStaves())
+                ++nVisible;
+        }
+        else
+            visibleStaves[i] = -1;
 
         // Non-standard staves
         if (staff->isDrumStaff() || staff->isTabStaff()) {
@@ -3562,7 +3605,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
                 hasTabs = true; // for auto-export of fretboards later
         }
 
-        // Last lyrics staff !!!bool Staff::hasLyrics() would be a good thing
+        // Last lyrics staff //!!bool Staff::hasLyrics() would be a good thing
         Segment::Type st = Segment::Type::ChordRest;
         for (Segment* seg = score->firstMeasureMM()->first(st); seg; seg = seg->next1MM(st)) {
             ChordRest* cr = seg->cr(i * VOICES);
@@ -5803,8 +5846,17 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
             lastTicks.append(pil);
 
             stavesTab.append(i);
-            if (i > 0 && score->staves()[i - 1]->part()->longName() ==
-                                          staff->part()->shortName())
+
+            if (staff->linkedStaves()) {
+                foreach(Staff* s, staff->linkedStaves()->staves()) {
+                    if (!s->isTabStaff()) {
+                        stavesTPC.append(s->idx());
+                        break;
+                    }
+                }
+            }
+            else if (i > 0 // legacy old skool, tabs + notes w/o linked staves
+                  && score->staves()[i - 1]->part()->longName() == staff->part()->shortName())
                 stavesTPC.append(i - 1);
             else
                 stavesTPC.append(i);

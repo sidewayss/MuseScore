@@ -175,7 +175,7 @@ private:
     void initStream(QTextStream* stream);
 
 // For fancy text formatting inside the SVG file
-    void    streamXY(qreal x, qreal y);
+    QString formatXY(qreal x, qreal y, bool isFrozen);
     QString fixedFormat(const QString& attr,
                         const qreal    n,
                         const int      maxDigits,
@@ -205,15 +205,17 @@ protected:
     int  _nStaves;  // Number of staves in the current score
     int  _idxStaff; // The current staff index
     int  _idxGrid;  // The grid staff index
+    qreal _fWidth;  // The full width of max-size def, including staff lines
 
     QVector<int>* _nonStdStaves; // Vector of staff indices for the tablature and percussion staves in this score
 
-    // These vary by Staff:
+    // These vary by Staff: (not sure if KeyY or TimeY need to be by staff, could clear between staves)
     StrPtrVect   frozenLines; // vector by staff, frozen pane staff/system lines
-    RealListVect frozenKeyY;  // vector by staff, list = y-coords left-to-right
-    RealListVect frozenTimeY; // vector by staff, list = y-coords top-to-bot
+    RealListVect frozenKeyY;  // vector by staff, list = y-coords accidentals in left-to-right order
+    RealListVect frozenTimeY; // vector by staff, list = y-coords numbers in bot-to-top order (reverse order for unlinked multi-staff time sigs)
     RealVect   yLineKeySig;   // vector by staff, clef's start "staff line" for first accidental (range = 0-9 top-to-bottom for 5-line staff)
     RealVect yOffsetKeySig;   // vector by staff, non-zero if clef changes
+    Int2RealMap frozenINameY; // map by by staff index, vertical center of staff lines for linked staves extra iNames
 
     FDef*        _prevDef;  // The previous def,    used by freezeDef()
     QString      _prevCue;  // The previous cue_id, used by freezeDef()
@@ -296,7 +298,7 @@ public:
         _nonStdStaves  = 0;   // QVector<int>*
         _nStaves       = 0;   // int
         _idxGrid       = -1;  // int
-        _maxNote       = 0.0; // int
+        _fWidth        = 0.0; // qreal
         _xLeft         = 0.0; // qreal
         _cursorTop     = 0.0; // qreal
         _cursorHeight  = 0.0; // qreal
@@ -452,7 +454,7 @@ bool SvgPaintEngine::end()
         stream().setString(&d->body);
         stream() << SVG_RECT
                     << SVG_CLASS          << CLASS_CURSOR  << SVG_QUOTE
-                    << SVG_X << SVG_QUOTE << "-5"          << SVG_QUOTE
+                    << SVG_X << SVG_QUOTE << SVG_ZERO      << SVG_QUOTE
                     << SVG_Y << SVG_QUOTE << _cursorTop    << SVG_QUOTE
                     << SVG_WIDTH          << SVG_ZERO      << SVG_QUOTE
                     << SVG_HEIGHT         << _cursorHeight << SVG_QUOTE
@@ -462,13 +464,13 @@ bool SvgPaintEngine::end()
         // Two gray-out <rect>s (left/right) for graying out inactive bars
         for (int i = 0; i < 2; i++)
             stream() << SVG_RECT
-                        << SVG_CLASS          << CLASS_GRAY  << SVG_QUOTE
+                        << SVG_CLASS          << CLASS_GRAY  << SVG_QUOTE << SVG_SPACE << SVG_SPACE
                         << SVG_X << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
                         << SVG_Y << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
                         << SVG_WIDTH          << SVG_ZERO    << SVG_QUOTE
                         << SVG_HEIGHT << d->viewBox.height() << SVG_QUOTE
-                        << SVG_FILL_OPACITY   << SVG_ZERO    << SVG_QUOTE
                         << SVG_STROKE         << SVG_NONE    << SVG_QUOTE
+                        << SVG_FILL_OPACITY   << SVG_ZERO    << SVG_QUOTE
                      << SVG_ELEMENT_END << endl;
 
         if (_isMulti) // Terminate the Staves group
@@ -486,7 +488,7 @@ bool SvgPaintEngine::end()
         // The fader <rect> for crossfading between frozen and thawed
         stream() << SVG_RECT
                     << SVG_ID       << "Fader"             << SVG_QUOTE
-                    << SVG_WIDTH    << FROZEN_WIDTH        << SVG_QUOTE
+                    << SVG_WIDTH    << _fWidth             << SVG_QUOTE
                     << SVG_HEIGHT   << d->viewBox.height() << SVG_QUOTE
                     << SVG_FILL_URL << "gradFader"         << SVG_RPAREN_QUOTE
                     << SVG_STROKE   << SVG_NONE            << SVG_QUOTE
@@ -522,9 +524,16 @@ bool SvgPaintEngine::end()
 
         // Frozen defs
         stream().setString(&d->defs);
-        // The Fader and FrozenLines gradients (!!!note literal 100 in x2 value for gradFrozenLines)
-        stream() << "    <linearGradient id=\"gradFader\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"0\">\n        <stop stop-color=\"white\" stop-opacity=\"1\" offset=\"0.50\"/>\n        <stop stop-color=\"white\" stop-opacity=\"0\" offset=\"0.55\"/>\n    </linearGradient>\n";
-        stream() << "    <linearGradient id=\"gradFrozenLines\" x1=\"0\" y1=\"0\" x2=\"100\" y2=\"0\" gradientUnits=\"userSpaceOnUse\">\n        <stop stop-color=\"black\" stop-opacity=\"1\" offset=\"0.50\"/>\n        <stop stop-color=\"black\" stop-opacity=\"0\" offset=\"0.55\"/>\n    </linearGradient>\n";
+        // The Fader and FrozenLines gradients
+        stream() << "    <linearGradient id=\"gradFader\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"0\">\n"
+                 << "        <stop stop-color=\"white\" stop-opacity=\"1\" offset=\"0.50\"/>\n"
+                 << "        <stop stop-color=\"white\" stop-opacity=\"0\" offset=\"0.55\"/>\n"
+                 << "    </linearGradient>\n"
+                 << "    <linearGradient id=\"gradFrozenLines\" x1=\"0\" y1=\"0\" x2=\""
+                 << _fWidth << "\" y2=\"0\" gradientUnits=\"userSpaceOnUse\">\n"
+                 << "        <stop stop-color=\"black\" stop-opacity=\"1\" offset=\"0.50\"/>\n"
+                 << "        <stop stop-color=\"black\" stop-opacity=\"0\" offset=\"0.55\"/>\n"
+                 << "    </linearGradient>\n";
 
         // Iterate by cue_id
         for (def = frozenDefs.begin(); def != frozenDefs.end(); ++def) {
@@ -633,11 +642,13 @@ bool SvgPaintEngine::end()
 void SvgPaintEngine::updateState(const QPaintEngineState &state)
 {
     QTextStream qts;
+    bool isBracket = (_et == EType::BRACKET);
 
     // Is this element part of a frozen pane?
     _isFrozen =  _isSMAWS
              && !_isScrollVertical
-             && (_et == EType::TEMPO_TEXT
+             &&  (isBracket
+              || _et == EType::TEMPO_TEXT
               || _et == EType::INSTRUMENT_NAME
               || _et == EType::INSTRUMENT_CHANGE
               || _et == EType::CLEF
@@ -657,15 +668,21 @@ void SvgPaintEngine::updateState(const QPaintEngineState &state)
 
     qts << SVG_CLASS;
     _classValue = getClass();
-    if ((_cue_id.isEmpty() || _et == EType::BAR_LINE) && !(_isMulti && _idxStaff == _nStaves))
+    if ((_cue_id.isEmpty() || _et == EType::BAR_LINE)
+     && !(_isMulti && _idxStaff == _nStaves)
+     && !(_isFrozen && isBracket))
         qts << _classValue << SVG_QUOTE; // no cue id or BarLine = no fancy formatting
     else {
         // First stream the class attribute, with fancy fixed formatting
         int w;
         if (_isMulti && _idxStaff == _nStaves)
             w = 14;            // "System" staff: RehearsalMark" = 14
-        else if (_isFrozen)
-            w = 17;            // Frozen:      InstrumentChange" = 17
+        else if (_isFrozen) {
+            if (isBracket)
+                w = 15;        // Frozen def:    InstrumentName" = 15
+            else
+                w = 17;        // Frozen elm:  InstrumentChange" = 17
+        }
         else
             w = 11;            // Highlight:         Accidental" = 11
         qts.setFieldWidth(w);
@@ -935,7 +952,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
         _textFrame.setHeight(13);
 
         stream() << SVG_RECT    << classState << styleState;
-        streamXY(_textFrame.x(),_textFrame.y());
+        stream() << formatXY(_textFrame.x(), _textFrame.y(), false);
         stream() << SVG_WIDTH   << _textFrame.width()  << SVG_QUOTE
                  << SVG_HEIGHT  << _textFrame.height() << SVG_QUOTE
                  << SVG_RX      << SVG_ONE             << SVG_QUOTE
@@ -944,45 +961,49 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
         return; // That's right, we're done here, no path to draw
     }
 
+    // It's a variable because of frozen pane Brackets
+    QString qs;
+    QTextStream qts(&qs);
+    initStream(&qts);
+
     // Not a text frame: draw an actual path. Stream class/style states.
-    stream() << SVG_PATH << classState << styleState;
+    qts << SVG_PATH << classState << styleState;
 
     // fill-rule is here because UpdateState() doesn't have a QPainterPath arg
     // Majority of <path>s use the default value: fill-rule="nonzero"
     switch (_et) {
     case EType::BEAM         :
     case EType::BRACKET      :
+    case EType::NOTE         : // Tablature has rects behind numbers
     case EType::SLUR_SEGMENT :
     case EType::TREMOLO      :
-    case EType::NOTE         : // Tablature has rects behind numbers
         break;                 // fill-rule styled by CSS
     default:
         if (p.fillRule() == Qt::OddEvenFill)
-            stream() << SVG_FILL_RULE;
+            qts << SVG_FILL_RULE;
         break;
     }
 
-    // Path data
-    stream() << SVG_D;
+    qts << SVG_D;
     for (int i = 0; i < p.elementCount(); ++i) {
         const QPainterPath::Element &ppe = p.elementAt(i);
         qreal x = ppe.x + _dx;
         qreal y = ppe.y + _dy + yOff;
         switch (ppe.type) {
         case QPainterPath::MoveToElement:
-            stream() << SVG_M << x << SVG_COMMA << y;
+            qts << SVG_M << x << SVG_COMMA << y;
             break;
         case QPainterPath::LineToElement:
-            stream() << SVG_L << x << SVG_COMMA << y;
+            qts << SVG_L << x << SVG_COMMA << y;
             break;
         case QPainterPath::CurveToElement:
-            stream() << SVG_C << x << SVG_COMMA << y;
+            qts << SVG_C << x << SVG_COMMA << y;
             ++i;
             while (i < p.elementCount()) {
                 const QPainterPath::Element &ppeCurve = p.elementAt(i);
                 if (ppeCurve.type == QPainterPath::CurveToDataElement) {
-                    stream() << SVG_SPACE << ppeCurve.x + _dx
-                             << SVG_COMMA << ppeCurve.y + _dy + yOff;
+                    qts << SVG_SPACE << ppeCurve.x + _dx
+                        << SVG_COMMA << ppeCurve.y + _dy + yOff;
                     ++i;
                 }
                 else {
@@ -995,9 +1016,16 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
             break;
         }
         if (i <= p.elementCount() - 1)
-            stream() << SVG_SPACE;
+            qts << SVG_SPACE;
     }
-    stream() << SVG_QUOTE << SVG_ELEMENT_END << endl;
+    qts << SVG_QUOTE << SVG_ELEMENT_END << endl;
+
+    if (_et == EType::BRACKET) {
+        qts.setString(frozenLines[_idxStaff]);
+        qts << SVG_8SPACES << qs;
+    }
+    else
+        stream() << qs;
 }
 
 void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonDrawMode mode)
@@ -1005,83 +1033,82 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
     Q_ASSERT(pointCount >= 2);
 
     if (mode == PolylineMode) {
-        const qreal yOff = _isFullMatrix ? 0 : _yOffset;
-        const bool isStaffLines = (_et == EType::STAFF_LINES);
+        bool  isStaffLines = (_et == EType::STAFF_LINES);
+        int   height       = _e->bbox().height();
+        qreal yOff         = _isFullMatrix ? 0 : _yOffset;
 
-        if (_isMulti) stream() << SVG_4SPACES; // isMulti staff is inside a <g>
+        QString qs;
+        QTextStream qts(&qs);
+        initStream(&qts);
 
-        stream() << SVG_POLYLINE << classState << styleState;
+        if (_isMulti) qts << SVG_4SPACES; // isMulti staff is inside a <g>
+
+        qts << SVG_POLYLINE << classState << styleState;
 
          // Barline cues only for the first staff in a system for SCORE
         if (_et == EType::BAR_LINE && _isMulti && _iNames->size() == 1)
-            stream() << SVG_CUE << _cue_id << SVG_QUOTE;
+            qts << SVG_CUE << _cue_id << SVG_QUOTE;
 
-        stream() << SVG_POINTS;
+        qts << SVG_POINTS;
         for (int i = 0; i < pointCount; ++i) {
             const QPointF &pt = points[i];
 
-            stream() << pt.x() + _dx << SVG_COMMA << pt.y() + _dy + yOff;
+            qts << pt.x() + _dx << SVG_COMMA << pt.y() + _dy + yOff;
 
             if (i != pointCount - 1)
-                stream() << SVG_SPACE;
+                qts << SVG_SPACE;
 
         }
-        stream() << SVG_QUOTE;
+        qts << SVG_QUOTE;
 
         // Vertical scrolling: top staff line in each system has cue id + height
         if (isStaffLines && !_cue_id.isEmpty()) {
-            int bottom = _e->bbox().height() + points[0].y() + 1; // int rounded up
-            stream() << SVG_CUE    << _cue_id << SVG_QUOTE
+            int bottom = height + points[0].y() + 1; // int rounded up
+            qts << SVG_CUE    << _cue_id << SVG_QUOTE
                      << SVG_BOTTOM << bottom  << SVG_QUOTE;
             _cue_id = ""; // only the top staff line gets the extra attributes
         }
+        qts << SVG_ELEMENT_END <<endl;
 
-        stream() << SVG_ELEMENT_END <<endl;
+        // Staff lines run the full score, other frozen elements don't.
+        if (isStaffLines || !_isFrozen)
+            stream() << qs;
+        else {
+            qts.setString(frozenLines[_idxStaff]);
+            qts << SVG_4SPACES << qs; // already indented 4 spaces above
+            return;
+        }
 
-        // For Frozen Pane (horizontal scrolling only):
-        // StaffLines and System BarLine(s)
-        if (_isFrozen && _idxStaff != _idxGrid) {
-            if (frozenLines[_idxStaff] == 0)
-                frozenLines[_idxStaff] = new QString;
-
+        // For Frozen Pane (horizontal scrolling only), staff lines only
+        if (_isFrozen) {
             const qreal x1 = points[0].x() + _dx;
-            const qreal x2 = points[1].x() + _dx;
             const qreal y1 = points[0].y() + _dy + yOff;
             const qreal y2 = points[1].y() + _dy + yOff;
 
-            QTextStream qts(frozenLines[_idxStaff]);
+            if (frozenLines[_idxStaff] == 0) {
+                frozenLines[_idxStaff] = new QString;
+                if (isStaffLines && _e->staff()->linkedStaves())
+                    frozenINameY.insert(_idxStaff, y1 + (height / 2) + INAME_OFFSET);
+            }
+
+            qts.setString(frozenLines[_idxStaff]);
             initStream(&qts);
 
-            if (_isMulti) qts << SVG_8SPACES;
+            // Frozen pane staff lines must be <line>, not <polyline>,
+            // due to CSS color management and user color control.
+            if (_fWidth == 0.0) // assumes staff lines x1 is constant across staves
+                _fWidth = x1 + FROZEN_WIDTH;
+            qts << SVG_8SPACES << SVG_LINE
+                   << SVG_CLASS      << "FrozenLines"     << SVG_QUOTE // a variation on StaffLines
+                   << SVG_STROKE_URL << "gradFrozenLines" << SVG_RPAREN_QUOTE
+                   << SVG_X1         << x1                << SVG_QUOTE
+                   << SVG_Y1         << y1                << SVG_QUOTE
+                   << SVG_X2         << _fWidth           << SVG_QUOTE
+                   << SVG_Y2         << y2                << SVG_QUOTE
+                << SVG_ELEMENT_END << endl;
 
-            if (isStaffLines) {
-                // Frozen pane staff lines must be <line>, not <polyline>,
-                // due to CSS color management and user color control.
-                qts << SVG_LINE
-                       << SVG_CLASS      << "FrozenLines"     << SVG_QUOTE // a variation on StaffLines
-                       << SVG_STROKE_URL << "gradFrozenLines" << SVG_RPAREN_QUOTE
-                       << SVG_X1         << x1                << SVG_QUOTE
-                       << SVG_Y1         << y1                << SVG_QUOTE
-                       << SVG_X2         << FROZEN_WIDTH      << SVG_QUOTE
-                       << SVG_Y2         << y2                << SVG_QUOTE
-                    << SVG_ELEMENT_END        << endl;
-
-                if (_xLeft == 0)
-                    _xLeft = points[0].x() + _dx;
-            }
-            else {
-                qts << SVG_POLYLINE  << SVG_CLASS;
-                qts.setFieldWidth(11); // literal value: StaffLines" = 11
-                qts << QString("%1%2").arg(_classValue).arg(SVG_QUOTE);
-                qts.setFieldWidth(0);
-                qts << SVG_POINTS
-                    << fixedFormat("", x1, 3, false) << SVG_COMMA // literal value: frozen pane max width is 100
-                    << fixedFormat("", y1, d_func()->yDigits, false)
-                    << SVG_SPACE
-                    << fixedFormat("", x2, 3, false) << SVG_COMMA // literal value: frozen pane max width is 100
-                    << fixedFormat("", y2, d_func()->yDigits, false)
-                    << SVG_QUOTE << SVG_ELEMENT_END << endl;
-            }
+            if (_xLeft == 0)
+                _xLeft = points[0].x() + _dx;
         }
     }
     else { // not PolylineMode
@@ -1108,15 +1135,19 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     const QString fontSize   = QString::number(font.pixelSize() != -1
                              ? font.pixelSize()
                              : font.pointSizeF());
+    QString qs;
+    QTextStream qts(&qs);
+
     if (_isMulti)
-        stream() << SVG_4SPACES;
+        qts << SVG_4SPACES;
 
     // Begin the <text>
-    stream() << SVG_TEXT_BEGIN << classState;
+    qts << SVG_TEXT_BEGIN << classState;
 
     switch (_et) {
     case EType::ACCIDENTAL        :
     case EType::ARTICULATION      :
+    case EType::BRACKET           :
     case EType::CLEF              :
     case EType::GLISSANDO_SEGMENT :
     case EType::HARMONY           : // Chord text/symbols for song book, fake book, etc,
@@ -1146,30 +1177,25 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         // Attributes normally contained in styleState. updateState() swaps
         // the stroke/fill values in <text> elements; this is the remedy:
         if (_color != SVG_BLACK)
-            stream() << SVG_FILL         << _color        << SVG_QUOTE;
+            qts << SVG_FILL         << _color        << SVG_QUOTE;
         if (_colorOpacity != SVG_ONE)
-            stream() << SVG_FILL_OPACITY << _colorOpacity << SVG_QUOTE;
+            qts << SVG_FILL_OPACITY << _colorOpacity << SVG_QUOTE;
 
         // The font attributes, not handled in updateState()
-        stream() << SVG_FONT_FAMILY << fontFamily << SVG_QUOTE
+        qts << SVG_FONT_FAMILY << fontFamily << SVG_QUOTE
                  << SVG_FONT_SIZE   << fontSize   << SVG_QUOTE;
         break;
     }
 
     // Stream the fancily formatted x and y coordinates
-    streamXY(x, y);
-
-    stream() << SVG_GT; // end of attributes
+    bool isFrBr = (_isFrozen && _et == EType::BRACKET);
+    qts << formatXY(x, y, isFrBr) << SVG_GT;
 
     // The Content, as in: <text>Content</text>
     // Some tempo/instrument changes are invisible = no content here, instead
     // it's in the frozen pane file (see code below).
     QString textContent;
     if (_e->visible()) {
-////!!!!        if (fontFamily.left(6) == "MScore") { //???TODO: should this be for all extended, non-ascii chars?
-////!!!!            // MScore fonts are all Private Use Area unicode chars, nothing
-////!!!!            // alphanumeric, so it's best to render them as hex XML entities.
-////!!!!            // Most are one char per text element, so it lines up vertically.
         const QString txt = textItem.text();
         for (int i = 0; i < txt.size(); i++) {
             if (txt.at(i).unicode() > 127) {
@@ -1180,13 +1206,19 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
             else
                 textContent.append(txt.at(i));
         }
-////!!!!        }
-////!!!!        else
-////!!!!            streamContent << textItem.text();
     }
-    stream() << textContent << SVG_TEXT_END << endl;
+    qts << textContent << SVG_TEXT_END << endl;
 
-    // Handle Frozen Pane elements
+    // Frozen brackets don't need to be in the body
+    if (isFrBr) {
+        qts.setString(frozenLines[_idxStaff]);
+        qts << SVG_4SPACES << qs; // already indented 4 spaces above
+        return;
+    }
+
+    stream() << qs; // stream the text element to the body
+
+    // Frozen Pane elements (except brackets)
     if (_isFrozen) {
         const int     i   = _isMulti && _et == EType::TEMPO_TEXT ? _nStaves : _idxStaff;
         const QString key = getDefKey(i, _et);
@@ -1205,10 +1237,14 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         switch (_et) {
         case EType::INSTRUMENT_NAME   :
         case EType::INSTRUMENT_CHANGE :
-            // No frozen class="InstrumentChange", only "InstrumentName"
-            _et = EType::INSTRUMENT_NAME;
-            defClass = _e->name(_et);
-            x = 1;          // That's as far left as it goes
+            _et = EType::INSTRUMENT_NAME; // No frozen class="InstrumentChange"
+            x   = 1;                      // That's as far left as it goes
+
+            // Linked staves only have iName in first staff
+            if (frozenINameY.contains(_idxStaff))
+                defClass = "iNameLinkAll";
+            else
+                defClass = _e->name(_et);
             break;
 
         case EType::TEMPO_TEXT :
@@ -1275,9 +1311,15 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
             if (_et == EType::KEYSIG || _et == EType::TIMESIG)
                 // KeySigs/TimeSigs simply cache the text content until freezeDef()
                 qts << textContent;
-            else if (_idxStaff != _idxGrid)
+            else if (_idxStaff != _idxGrid) {
                 // The other element types cache a fully-defined <text> element
                 qts << getFrozenElement(textContent, defClass, x, y);
+
+                // Linked staves' first staff instrument name gets two elements
+                if (_et == EType::INSTRUMENT_NAME && frozenINameY.contains(_idxStaff)) {
+                    qts << getFrozenElement(textContent, "iNameLink", x, frozenINameY[_idxStaff]);
+                }
+            }
 
             // Ensure that tempo defs have the correct width
             if (_isMulti && _et == EType::TEMPO_TEXT) {
@@ -1308,11 +1350,12 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
 
             if (_et == EType::KEYSIG) {
                 // Set KeySig order: left-to-right (and exclude natural signs)
+                // The reverse order is needed for unlinked multi-staff parts too
                 if (*(textItem.text().unicode()) != NATURAL_SIGN)
                     (*def)[key]->insert(0, elm);
             }
             else
-                (*def)[key]->append(elm);
+                (*def)[key]->insert(0, elm); // reverse order because of unlinked multi-staff parts
         }
     }
 }
@@ -1331,40 +1374,38 @@ QString SvgPaintEngine::getClass()
         return eName; // _e should never be null, but this prevents a crash if it is
 
     switch(_et) {
-    case EType::BAR_LINE :
-        // BarLine sub-types
+    case EType::BRACKET :
+        eName = (_e->staff()->linkedStaves()
+                 ? CLASS_BRACKET_LINK
+                 : _e->name(_et));
+        break;
+    case EType::CLEF :
+        // For horizontal scrolling, all but the first clef are courtesy clefs.
+        // Unfortunately, everything is in reverse order, so the first clef is
+        // the last one to pass through here. cue_id is draw-order-independent.
+        eName = (!_isScrollVertical && _cue_id != CUE_ID_ZERO)
+                 ? CLASS_CLEF_COURTESY
+                 : _e->name(_et);
+        break;
+    case EType::BAR_LINE : // BarLine sub-types
         if (static_cast<Ms::Segment*>(_e->parent())->segmentType() == Ms::Segment::Type::BeginBarLine) {
             // System BarLines - the system start-of-bar line
             eName = _e->name(EType::SYSTEM);
         }
-        else {
-            // Measure BarLines by BarLineType
+        else { // Measure BarLines by BarLineType
             BLType blt = static_cast<const Ms::BarLine*>(_e)->barLineType();
-            if  (blt == BLType::NORMAL)
-                eName = _e->name(_et); // just like the default case
-            else
-                // Non-NORMAL BarLineTypes use the BLType name
-                eName = static_cast<const Ms::BarLine*>(_e)->barLineTypeName();
+            eName = (blt == BLType::NORMAL
+                     ? _e->name(_et)
+                     : static_cast<const Ms::BarLine*>(_e)->barLineTypeName());
         }
         break;
-    case EType::CLEF :
-        // For horizontal scrolling, all but the firt clef are courtesy clefs.
-        // Unfortunately, everything is in reverse order, so the first clef is
-        // the last one to pass through here. cue_id is draw-order-independent.
-        if(!_isScrollVertical && _cue_id != CUE_ID_ZERO)
-            eName = CLASS_CLEF_COURTESY;
-        else
-            eName = _e->name(_et); // just like the default case
-        break;
-    // Text sub-types = TextStyleData.name():
-    case EType::TEXT :
+    case EType::TEXT : // text sub-types = TextStyleData.name()
         // EType::Text covers a bunch of different MuseScore styles, some have
         // spaces in the name, e.g. "Measure Number". CSS is easier w/o spaces.
         eName = static_cast<const Ms::Text*>(_e)->textStyle().name().remove(SVG_SPACE);
         break;
     case EType::STAFF_TEXT :
-        // To distinguish between Staff and System text
-        eName = QString("%1%2")
+        eName = QString("%1%2") // To distinguish between Staff and System text
                 .arg(static_cast<const Ms::Text*>(_e)->textStyle().name())
                 .arg("Text");
         break;
@@ -1385,10 +1426,11 @@ QString SvgPaintEngine::getClass()
     return eName;
 }
 
-void SvgPaintEngine::streamXY(const qreal x, const qreal y)
+QString SvgPaintEngine::formatXY(const qreal x, const qreal y, bool isFrozen)
 {
-    stream() << fixedFormat(SVG_X, x, d_func()->xDigits, true);
-    stream() << fixedFormat(SVG_Y, y, d_func()->yDigits, true);
+    int xDigits = (isFrozen ? 3 : d_func()->xDigits);
+    return fixedFormat(SVG_X, x, xDigits, true).append(
+           fixedFormat(SVG_Y, y, d_func()->yDigits, true));
 }
 
 // Duplicated in file.cpp, formatReal()...
@@ -1464,14 +1506,32 @@ void SvgPaintEngine::freezeDef(int idxStaff)
         if (idxStaff > -1)
             idx = idxStaff; // Freeze one staff only
 
-        if (idx != _idxGrid) {   // grid staff frozen pane only has timesigs
-            if (_prevDef != 0) {
-                // InstrumentNames
-                key = getDefKey(idx, EType::INSTRUMENT_NAME);
-                if (!def->contains(key) && _prevDef->contains(key))
-                    def->insert(key, (*_prevDef)[key]);
+        if (idx != _idxGrid) { // grid staff frozen pane only has timesigs
+            // InstrumentNames are special because of linked staves
+            key = getDefKey(idx, EType::INSTRUMENT_NAME);
+            if (!def->contains(key)) {
+                int id1 = idx - 1;
+                if (frozenINameY.contains(idx) && frozenINameY.contains(id1)) {
+                    StrPtrList* spl = new StrPtrList;
+                    def->insert(key, spl);
 
-                // Clefs
+                    // Get the def from the previous staff and parse in y="N"
+                    QString* qs  = new QString(*(*(*def)[getDefKey(id1, EType::INSTRUMENT_NAME)])[0]);
+                    int      el  = qs->indexOf('\n');
+                    if (el != -1)
+                        qs->remove(0, el + 1);
+                    QString ab = fixedFormat(SVG_Y, frozenINameY[id1], d_func()->yDigits, true);
+                    QString cd = fixedFormat(SVG_Y, frozenINameY[idx], d_func()->yDigits, true);
+                    qs->replace(fixedFormat(SVG_Y, frozenINameY[id1], d_func()->yDigits, true),
+                                fixedFormat(SVG_Y, frozenINameY[idx], d_func()->yDigits, true));
+
+                    (*def)[key]->insert(0, qs);
+                }
+                else if (_prevDef != 0 && _prevDef->contains(key))
+                    def->insert(key, (*_prevDef)[key]);
+            }
+            // Clefs
+            if (_prevDef != 0) {
                 key = getDefKey(idx, EType::CLEF);
                 if (!def->contains(key) && _prevDef->contains(key))
                     def->insert(key, (*_prevDef)[key]);
@@ -1947,11 +2007,17 @@ void SvgGenerator::setNStaves(int n) {
 /*!
     setStaffIndex() function
     Sets the _idxStaff variable in SvgPaintEngine: current visible-staff index
+    Clears some variables for unlinked multi-staff parts
     Called by saveSMAWS() in mscore/file.cpp.
 */
 void SvgGenerator::setStaffIndex(int idx) {
     SvgPaintEngine* pe = static_cast<SvgPaintEngine*>(paintEngine());
     pe->_idxStaff      = idx;
+    if (idx < pe->_nStaves) {
+        // "system" staff does not have key or time signatures
+        pe->frozenKeyY[idx].clear();
+        pe->frozenTimeY[idx].clear();
+    }
 }
 
 /*!

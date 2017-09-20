@@ -71,6 +71,7 @@ using IntList         = QList<int>;
 using IntListList     = QList<IntList*>;
 using IntListVect     = QVector<IntList*>;
 using IntListVectList = QList<IntListVect*>;
+using Int2RealMap     = QMap<int, qreal>;
 using IntSet          = std::set<int>;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -242,13 +243,15 @@ using IntSet          = std::set<int>;
 #define CLASS_GRID          "grid"
 #define CLASS_TITLE         "title"
 #define CLASS_INSTRUMENT    "instrument"
+#define CLASS_BRACKET_LINK  "bracketLink"
 
 // Miscellaneous SMAWS constants
 #define TEXT_BPM     "bpm"
 #define CUE_ID_ZERO  "0000000_0000000"
-#define NATURAL_SIGN 57953   // 0xE261, natural signs excluded from frozen panes
-#define FROZEN_WIDTH 100.00
+#define NATURAL_SIGN 57953  // 0xE261, natural signs excluded from frozen panes
+#define FROZEN_WIDTH 90
 #define RULER_HEIGHT 47
+#define INAME_OFFSET  4     //!!third of 12px, which is default font size - alignment-baseline!!
 #define STAFF_GRID   "grid" // Yes, it's the same as CLASS_GRID, but they serve different roles, STAFF_GRID is used outside of saveSMAWS_Tables() too.
 #define PICK_DOWN    "d"
 #define PICK_UP      "u"
