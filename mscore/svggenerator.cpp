@@ -1242,7 +1242,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
 
             // Linked staves only have iName in first staff
             if (frozenINameY.contains(_idxStaff))
-                defClass = "iNameLinkAll";
+                defClass = "iNameLink";
             else
                 defClass = _e->name(_et);
             break;
@@ -1315,10 +1315,13 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
                 // The other element types cache a fully-defined <text> element
                 qts << getFrozenElement(textContent, defClass, x, y);
 
-                // Linked staves' first staff instrument name gets two elements
-                if (_et == EType::INSTRUMENT_NAME && frozenINameY.contains(_idxStaff)) {
-                    qts << getFrozenElement(textContent, "iNameLink", x, frozenINameY[_idxStaff]);
-                }
+                // The solo (link off) version of instrument names, one for each
+                // staff. Linked staves' first staff's iname gets two elements.
+                if (_et == EType::INSTRUMENT_NAME && frozenINameY.contains(_idxStaff))
+                    qts << getFrozenElement(textContent,
+                                            _e->staff()->isTabStaff() ? "iNameTabs"
+                                                                      : "iNameNote",
+                                            x, frozenINameY[_idxStaff]);
             }
 
             // Ensure that tempo defs have the correct width

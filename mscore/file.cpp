@@ -2862,6 +2862,15 @@ static Harmony* getHarmony(Segment* seg) {
     return pHarm;
 }
 
+// Replaces non-CSSselector-compliant chars with a hyphen (aka dash)
+// The QRegExp documentation does not include the use of \u, but it is the only
+// way I could get this to work. \x is flawed inside [square brackets].
+static QString stripNonCSS(const QString& str) {
+    QString ret = str;
+    QRegExp rx("[^A-Za-z0-9_\u00A0-\uFFFF]");
+    return ret.replace(rx, "-");
+}
+
 // Converts non-ASCII chars to hex XML entities with leading zeros trimmed
 static QString stringToUTF8(const QString& str) {
     QString ret;
@@ -2916,7 +2925,7 @@ static void paintStaffLines(Score*        score,
             if (isTab && isLink)
                 qs.append("Tabs");
 
-            pINames->append(stringToUTF8(qs.replace(SVG_SPACE, SVG_DASH)));
+            pINames->append(stringToUTF8(stripNonCSS(qs)));
 
             const int gridHeight = 30;
             const int tabHeight  = 53;
@@ -2962,12 +2971,13 @@ static void paintStaffLines(Score*        score,
                 bot = page->height() - pStaffTops->value(0) - page->bm();
 
             // Standard notation, tablature, or grid? I need to know by staff.
-            // For Multi, the short name is the long name and vice versa,
-            // because the short name never appears, because only one system.
-            // For linked tabs staves, the shortName is the note staff's long name.
+            // For Multi, the short name is the long name and vice versa, the
+            // short name never appears in the sheet music: only one system.
+            // The short name is the longer name in the staves list. For linked
+            // tabs staves, the shortName is the note staff's long name.
             // JavaScript uses this to link the staves, which are separate in SVG.
             const QString shortName = (isTab && isLink
-                                     ? stringToUTF8(staff->part()->longName())
+                                     ? stringToUTF8(stripNonCSS(staff->part()->longName()))
                                      : stringToUTF8(staff->part()->shortName(0)));
             const bool    isGrid    = (shortName == STAFF_GRID);
             const qreal   height    = (isGrid ? gridHeight : bot - top);
@@ -5329,11 +5339,10 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                     // Stream the instrument names - similar loop to bar/beatlines
                     if (r != idxGrid && iNames[r] != 0) {
                         // Display name (text element's innerHTML)
-                        name = stringToUTF8(score->staff(r)->part()->longName(startOffset));
+                        name = score->staff(r)->part()->longName(startOffset);
 
                         // id value cannot contain spaces
-                        id = name;
-                        id.replace(SVG_SPACE, SVG_DASH);
+                        id = stringToUTF8(stripNonCSS(name));
 
                         isLED = !score->staff(r)->small();
 
@@ -5396,7 +5405,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             }
                         }
                         // Stream the >content</text>
-                        tableStream << SVG_GT << name << SVG_TEXT_END << endl;
+                        tableStream << SVG_GT << stringToUTF8(name) << SVG_TEXT_END << endl;
 
                         // Spacer below staff = instLine below staff in SVG
                         // Spacer must be a down spacer in the first measure
@@ -6025,7 +6034,8 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
 
         x += (i > 0 ? xOffsets[i - 1]: 0);
         qs = qts.readAll();
-        qs.replace("%id", stringToUTF8(score->staves()[stavesTab[i]]->part()->longName(0))); // staff id attribute, same as tab staff in score
+        qs.replace("%id", stringToUTF8(stripNonCSS(
+                   score->staves()[stavesTab[i]]->part()->longName())));  // staff id attribute, same as tab staff in score
         qs.replace("%x", QString::number(x));  // The tranlate(x 0) coordinate for this staff - fretboards are initially vertical, stacked horizontally
         for (str = 0; str < nStrings; str++)
             qs.replace(QString("\%%1").arg(str), *(*values[i])[str]);
@@ -6075,7 +6085,7 @@ bool MuseScore::saveSMAWS_Tree(Score* score, QFileInfo* qfi)
         const bool isPulse = score->staff(idx)->small();
 
         // 1 Intrument Name = comma-separated list of MixTree node names
-        QString iName = stringToUTF8(score->systems().first()->staff(idx)->instrumentNames.first()->xmlText());
+        QString iName = stringToUTF8(score->staves()[idx]->part()->longName());
 
         // The "not" (gray-out) version of the instrument name.
         // Each node name must be prefixed with the notChar in the cue text.
