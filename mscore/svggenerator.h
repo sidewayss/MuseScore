@@ -244,6 +244,9 @@ using IntSet          = std::set<int>;
 #define CLASS_TITLE         "title"
 #define CLASS_INSTRUMENT    "instrument"
 #define CLASS_BRACKET_LINK  "bracketLink"
+#define CLASS_INAME_LINK    "iNameLink"
+#define CLASS_INAME_NOTE    "iNameNote"
+#define CLASS_INAME_TABS    "iNameTabs"
 
 // Miscellaneous SMAWS constants
 #define TEXT_BPM     "bpm"

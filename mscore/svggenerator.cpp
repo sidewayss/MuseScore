@@ -1319,8 +1319,8 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
                 // staff. Linked staves' first staff's iname gets two elements.
                 if (_et == EType::INSTRUMENT_NAME && frozenINameY.contains(_idxStaff))
                     qts << getFrozenElement(textContent,
-                                            _e->staff()->isTabStaff() ? "iNameTabs"
-                                                                      : "iNameNote",
+                                            _e->staff()->isTabStaff() ? CLASS_INAME_TABS
+                                                                      : CLASS_INAME_NOTE,
                                             x, frozenINameY[_idxStaff]);
             }
 
@@ -1518,15 +1518,20 @@ void SvgPaintEngine::freezeDef(int idxStaff)
                     StrPtrList* spl = new StrPtrList;
                     def->insert(key, spl);
 
-                    // Get the def from the previous staff and parse in y="N"
+                    // Get the def from the previous staff, then parse in y="N"
+                    // and class="iNameNote|iNameTabs"
                     QString* qs  = new QString(*(*(*def)[getDefKey(id1, EType::INSTRUMENT_NAME)])[0]);
                     int      el  = qs->indexOf('\n');
+
                     if (el != -1)
                         qs->remove(0, el + 1);
-                    QString ab = fixedFormat(SVG_Y, frozenINameY[id1], d_func()->yDigits, true);
-                    QString cd = fixedFormat(SVG_Y, frozenINameY[idx], d_func()->yDigits, true);
                     qs->replace(fixedFormat(SVG_Y, frozenINameY[id1], d_func()->yDigits, true),
                                 fixedFormat(SVG_Y, frozenINameY[idx], d_func()->yDigits, true));
+
+                    if (_e->staff()->isTabStaff())
+                        qs->replace(CLASS_INAME_NOTE, CLASS_INAME_TABS);
+                    else
+                        qs->replace(CLASS_INAME_TABS, CLASS_INAME_NOTE);
 
                     (*def)[key]->insert(0, qs);
                 }
