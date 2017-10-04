@@ -67,11 +67,13 @@ using RealVect        = QVector<qreal>;
 using RealList        = QList<qreal>;
 using RealListVect    = QVector<RealList>;
 using IntVect         = QVector<int>;
+using IntVectList     = QList<IntVect*>;
 using IntList         = QList<int>;
 using IntListList     = QList<IntList*>;
 using IntListVect     = QVector<IntList*>;
 using IntListVectList = QList<IntListVect*>;
 using Int2RealMap     = QMap<int, qreal>;
+using Int2StrMap      = QMap<int, QString>;
 using IntSet          = std::set<int>;
 
 ///////////////////////////////////////////////////////////////////////////////

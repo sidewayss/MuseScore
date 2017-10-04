@@ -467,6 +467,7 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       bool saveSMAWS_Frets  (Score* score, QFileInfo* qfi);
       bool saveSMAWS_Tree   (Score* score, QFileInfo* qfi);
       bool saveSMAWS_Lyrics (Score* score, QFileInfo* qfi);
+      bool saveSMAWS_Tour   (Score* score, QFileInfo* qfi);
 ///////////////////////////////////////////////////////////////////////////////
 
    private slots:

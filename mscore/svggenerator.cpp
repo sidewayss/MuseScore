@@ -52,6 +52,7 @@
 #include "libmscore/mscore.h"    // for BarLineType enum
 #include "libmscore/staff.h"     // for Tablature staves
 #include "libmscore/text.h"      // for Measure numbers
+#include "libmscore/note.h"      // for MIDI note numbers (pitches)
 using BLType = Ms::BarLineType;  // for convenience, and consistency w/EType
 
 static void translate_color(const QColor &color, QString *color_string,
@@ -1130,6 +1131,8 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     qreal x = p.x() + _dx; // The de-translated coordinates
     qreal y = p.y() + _dy + (_isFullMatrix ? 0 : _yOffset);
 
+    int pitch = -1;
+
     const QFont   font       = textItem.font();
     const QString fontFamily = font.family();
     const QString fontSize   = QString::number(font.pixelSize() != -1
@@ -1145,6 +1148,8 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     qts << SVG_TEXT_BEGIN << classState;
 
     switch (_et) {
+    case EType::NOTE              :
+        pitch = static_cast<const Ms::Note*>(_e)->pitch();
     case EType::ACCIDENTAL        :
     case EType::ARTICULATION      :
     case EType::BRACKET           :
@@ -1156,7 +1161,6 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     case EType::INSTRUMENT_NAME   :
     case EType::KEYSIG            :
     case EType::LYRICS            :
-    case EType::NOTE              :
     case EType::NOTEDOT           :
     case EType::REST              :
     case EType::STAFF_TEXT        :
@@ -1183,13 +1187,18 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
 
         // The font attributes, not handled in updateState()
         qts << SVG_FONT_FAMILY << fontFamily << SVG_QUOTE
-                 << SVG_FONT_SIZE   << fontSize   << SVG_QUOTE;
+            << SVG_FONT_SIZE   << fontSize   << SVG_QUOTE;
         break;
     }
 
     // Stream the fancily formatted x and y coordinates
     bool isFrBr = (_isFrozen && _et == EType::BRACKET);
-    qts << formatXY(x, y, isFrBr) << SVG_GT;
+    qts << formatXY(x, y, isFrBr);
+
+    // If it's a note, stream the pitch value (MIDI note number 0-127)
+    if (pitch != -1)
+        qts << "data-pitch=\"" << pitch << SVG_QUOTE;
+    qts << SVG_GT;
 
     // The Content, as in: <text>Content</text>
     // Some tempo/instrument changes are invisible = no content here, instead
