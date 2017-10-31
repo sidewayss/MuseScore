@@ -1197,7 +1197,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
 
     // If it's a note, stream the pitch value (MIDI note number 0-127)
     if (pitch != -1)
-        qts << "data-pitch=\"" << pitch << SVG_QUOTE;
+        qts << " data-pitch=\"" << pitch << SVG_QUOTE;
     qts << SVG_GT;
 
     // The Content, as in: <text>Content</text>

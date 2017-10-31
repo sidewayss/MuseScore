@@ -3959,10 +3959,14 @@ static void streamRulers(Score*         score,
     QString elm;
     QString label;   // <text> element contents
     QString markers; // markers must stream after bars for proper mouse/touch
+    QString tempos;  // tempos streamed separately for readability, consistency
     QTextStream qtsMrks(&markers);
+    QTextStream qtsTmps(&tempos);
     QTextStream qtsFile;
     QTextStream* pqts;
     QFile       qf;
+    bool isMarker;
+    bool isTempo;
 
     qreal     x;
     Element*  e;
@@ -3991,17 +3995,25 @@ static void streamRulers(Score*         score,
     // Collect the ruler elements
     Measure* m;
     Segment* s;
+    int      c;
     for (m = score->firstMeasure(); m; m = m->nextMeasureMM()) {
         // Markers ruler by Rehearsal Mark, which is effectively by Segment
-        for (s = m->first(Segment::Type::ChordRest); s;
-             s = s->next( Segment::Type::ChordRest)) {
-             for (Element* eAnn : s->annotations()) {
-                if (eAnn->type() == EType::REHEARSAL_MARK) {
+        for (s = m->first(Segment::Type::ChordRest); s; s = s->next( Segment::Type::ChordRest)) {
+            c = 0;
+            for (Element* eAnn : s->annotations()) {
+                switch(eAnn->type()) {
+                case EType::REHEARSAL_MARK :
+                case EType::TEMPO_TEXT     :
                     tick = s->tick();
                     mapSVG.insert(tick, eAnn);
                     setVTT->insert(tick);
-                    break; // only one marker per segment
+                    c++;   // only one marker and/or one tempo per segment
+                    break;
+                default:
+                    break;
                 }
+                if (c == 2)
+                    break; // breaks the for loop
             }
         }
 
@@ -4057,12 +4069,13 @@ static void streamRulers(Score*         score,
                     label = QString("%1").arg(iBarNo);
                 }
             }
-
             if (tick > 0) {
                 x = rectX;
                 rectWidth = pxX - ((pxX - lineX) / 2) - rectX;
                 rectCue= prevCue;
             }
+            isMarker  = false;
+            isTempo   = false;
             break;
         case EType::REHEARSAL_MARK :
             offX  =  6;
@@ -4072,53 +4085,63 @@ static void streamRulers(Score*         score,
             textClass = idMarkers;
             rectWidth = offX * 2;
             rectCue   = tick;
+            isMarker  = true;
+            isTempo   = false;
             break;
-
+        case EType::TEMPO_TEXT :
+            isMarker  = false;
+            isTempo   = true;
+            break;
         default:
             break;
         }
 
-        const bool isMarker = (eType == EType::REHEARSAL_MARK);
+        pqts = (isMarker ? &qtsMrks : (isTempo ? &qtsTmps : qts));
+        if (isTempo)
+            *pqts << SVG_4SPACES << SVG_GROUP_BEGIN << SVG_SPACE << SVG_SPACE << SVG_SPACE
+                  << formatInt(SVG_CUE_NQ, tick, cueIdDigits, true)
+                  << " data-tempo=\"" << static_cast<TempoText*>(e)->tempo()  << SVG_QUOTE
+                  << SVG_GT << SVG_GROUP_END << endl;
 
-        // Marker simultaneous with barline must wait until that barline's rect
-        // is streamed before streaming marker elements. Thus qtsTemp/qsTemp.
-        pqts = (isMarker ? &qtsMrks : qts);
+        else {
+            // Marker simultaneous with barline must wait until that barline's rect
+            // is streamed before streaming marker elements. Thus qtsTemp/qsTemp.
+            // Ruler lines have invisible rects around them, allowing users to be
+            // less precise with their mouse clicks.
+            // The code operates on the current Marker and the previous BarLine.
+            // Marker  rect = fill horizontal space between line/text.
+            // BarLine rect splits the space around each line, no empty spaces.
+            if (isMarker || tick > 0) {
+                elm = (isMarker ? rectM : rectB);
+                *pqts << elm.arg(formatInt(SVG_CUE_NQ, rectCue, cueIdDigits, true))
+                            .arg(formatReal(SVG_X, x, xDigits, true))
+                            .arg(isMarker ? "" : QString::number(rectWidth));
 
-        // Ruler lines have invisible rects around them, allowing users to be
-        // less precise with their mouse clicks.
-        // The code operates on the current Marker and the previous BarLine.
-        // Marker  rect = fill horizontal space between line/text.
-        // BarLine rect splits the space around each line, no empty spaces.
-        if (isMarker || tick > 0) {
-            elm = (isMarker ? rectM : rectB);
-            *pqts << elm.arg(formatInt(SVG_CUE_NQ, rectCue, cueIdDigits, true))
-                        .arg(formatReal(SVG_X, x, xDigits, true))
-                        .arg(isMarker ? "" : QString::number(rectWidth));
+                if (!isMarker)
+                    rectX += rectWidth;
+            }
 
-            if (!isMarker)
-                rectX += rectWidth;
-        }
+            // Both Markers and Bars get the line and, conditionally, text.
+            *pqts << SVG_4SPACES << SVG_USE << SVG_SPACE
+                  << formatInt(SVG_CUE_NQ, tick, cueIdDigits, true)
+                  << formatReal(SVG_X, pxX, xDigits, true)
+                  << XLINK_HREF << lineID
+                  << SVG_CLASS  << "OtNo" << SVG_QUOTE
+                  << (isMarker ? "" : formatInt(SVG_BARNUMB, iBarNo, barNoDigits, true))
+                  << SVG_ELEMENT_END << endl;
 
-        // Both Markers and Bars get the line and, conditionally, text.
-        *pqts << SVG_4SPACES << SVG_USE << SVG_SPACE
-              << formatInt(SVG_CUE_NQ, tick, cueIdDigits, true)
-              << formatReal(SVG_X, pxX, xDigits, true)
-              << XLINK_HREF << lineID
-              << SVG_CLASS  << "OtNo" << SVG_QUOTE
-              << (isMarker ? "" : formatInt(SVG_BARNUMB, iBarNo, barNoDigits, true))
-              << SVG_ELEMENT_END << endl;
+            // Only stream the text element if there's text inside it
+            if (!label.isEmpty()) {
+                elm = (isMarker ? textM : textB);
+                *pqts << elm.arg(formatInt(SVG_CUE_NQ, tick, cueIdDigits, true))
+                            .arg(formatReal(SVG_X, pxX + offX, xDigits, true))
+                            .arg(label);
+            }
 
-        // Only stream the text element if there's text inside it
-        if (!label.isEmpty()) {
-            elm = (isMarker ? textM : textB);
-            *pqts << elm.arg(formatInt(SVG_CUE_NQ, tick, cueIdDigits, true))
-                        .arg(formatReal(SVG_X, pxX + offX, xDigits, true))
-                        .arg(label);
-        }
-
-        if (!isMarker) { // Bars only
-            lineX   = pxX;
-            prevCue = tick;
+            if (!isMarker) { // Bars only
+                lineX   = pxX;
+                prevCue = tick;
+            }
         }
     } //for (i)
 
@@ -4132,6 +4155,7 @@ static void streamRulers(Score*         score,
     // bars rects are full ruler height, and the markers text is variable width.
     // This avoids improper overlap in the markers half of the rulers.
     *qts << markers;
+    *qts << tempos;  // tempos too! there should always be at least one.
 
     // The loop cursors are in the footer template file
     qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_RULER_FTR));
