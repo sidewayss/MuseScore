@@ -53,7 +53,6 @@
 #include "libmscore/staff.h"     // for Tablature staves
 #include "libmscore/text.h"      // for Measure numbers
 #include "libmscore/note.h"      // for MIDI note numbers (pitches)
-using BLType = Ms::BarLineType;  // for convenience, and consistency w/EType
 
 static void translate_color(const QColor &color, QString *color_string,
                             QString *opacity_string)
@@ -196,8 +195,6 @@ protected:
     qreal   _cursorTop;        // For calculating the height of (vertical bar)
     qreal   _cursorHeight;     // Sheet music playback position cursor.
     qreal   _yOffset;          // Y axis offset used by Multi-Select Staves
-///!!!OBSOLETE!!!    int     _startMSecs;       // The elements start time in milliseconds -Yes, it kind of duplicates _cue_id, but it serves a different purpose for now. an oddly important yet minor kludge.
-    int     _maxNote;          // The max duration for notes in this score (in ticks)
 
 ////////////////////
 // for Frozen Pane:
@@ -252,7 +249,7 @@ protected:
     // Called by SvgGenerator functions of the same name.
     void beginMultiGroup(const QString& iName, const QString& fullName, const QString& className, qreal height, qreal top, const QString& cues)
     {
-        *d_func()->stream << SVG_GROUP_BEGIN
+        *d_func()->stream << SVG_SPACE << SVG_GROUP_BEGIN
                              << SVG_TRANSFORM
                                 << SVG_TRANSLATE   << SVG_ZERO    << SVG_SPACE // x
                                                    << top  << SVG_RPAREN_QUOTE // y
@@ -265,21 +262,28 @@ protected:
         if (fullName == STAFF_GRID)
             _idxGrid = _iNames->size() - 1;
     }
-
-    void endMultiGroup() {*d_func()->stream << SVG_GROUP_END << endl;}
+    void beginGroup()
+    {
+        *d_func()->stream << SVG_SPACE << SVG_SPACE << SVG_GROUP_BEGIN << SVG_GT << endl;
+    }
+    void beginMouseGroup(const QString& id)
+    {
+        *d_func()->stream << SVG_SPACE   << SVG_SPACE   << SVG_GROUP_BEGIN
+                          << SVG_ID      << id          << SVG_QUOTE
+                          << SVG_POINTER << SVG_VISIBLE << SVG_QUOTE
+                          << SVG_ONCLICK << SVG_GT      << endl;
+    }
+    void endGroup(int indent) {
+        for (int i = 1; i <= indent; i++)
+            *d_func()->stream << SVG_SPACE;
+        *d_func()->stream << SVG_GROUP_END << endl;
+    }
 
     // Streams the <use> elements for Multi-Select Staves frozen pane file only
     void createMultiUse(qreal y) {
         _multiUse.append(QString("%1%2")
                           .arg(SVG_USE)
                           .arg(fixedFormat(SVG_Y, y, d_func()->yDigits, true)));
-    }
-
-    void beginMouseGroup()
-    {
-        *d_func()->stream << SVG_GROUP_BEGIN
-                          << SVG_POINTER_EVENTS << SVG_VISIBLE << SVG_QUOTE
-                          << SVG_ONCLICK << SVG_GT << endl;
     }
 //
 ////////////////////
@@ -418,30 +422,23 @@ bool SvgPaintEngine::end()
 //!!obsolete        stream() << XML_STYLE_MUSE;
 
     // The <svg> element:
-    stream() << SVG_BEGIN
-                << XML_NAMESPACE << (_isFrozen ? XML_XLINK : "") << SVG_4SPACES
-                << SVG_VIEW_BOX  << d->viewBox.left()            << SVG_SPACE
-                                 << d->viewBox.top()             << SVG_SPACE
-                                 << d->viewBox.width()           << SVG_SPACE
-                                 << d->viewBox.height()          << SVG_QUOTE;
+    stream() << SVG_BEGIN   << XML_NAMESPACE << (_isFrozen ? XML_XLINK : "")
+             << SVG_4SPACES << SVG_VIEW_BOX  << d->viewBox.left()   << SVG_SPACE
+                                             << d->viewBox.top()    << SVG_SPACE
+                                             << d->viewBox.width()  << SVG_SPACE
+                                             << d->viewBox.height() << SVG_QUOTE;
     if (_isScrollVertical)
         stream() << SVG_WIDTH  << d->size.width()  << SVG_QUOTE;
     else
         stream() << SVG_HEIGHT << d->size.height() << SVG_QUOTE;
-
-    stream() << endl;
+    stream()     << SVG_CLASS  << "fgFillStroke"   << SVG_QUOTE << endl;
 
     if (_isSMAWS) {
-        stream()<< SVG_4SPACES   << SVG_PRESERVE_XYMIN_SLICE << SVG_CURSOR            << endl
-                << SVG_4SPACES   << SVG_POINTER_EVENTS       << SVG_NONE << SVG_QUOTE << endl
-                << SVG_4SPACES   << SVG_CLASS  << SMAWS      << SVG_QUOTE
-                                 << SVG_SCROLL << scrollAxis << SVG_QUOTE
-                                 << SVG_ATTR
-                                 << SVG_MAX    << _maxNote   << SVG_QUOTE;
+        stream()<< SVG_4SPACES << SVG_XYMIN_SLICE << SVG_CURSOR
+                << SVG_4SPACES << SVG_POINTER     << SVG_NONE   << SVG_QUOTE
+        << endl << SVG_4SPACES << SVG_SCROLL      << scrollAxis << SVG_QUOTE;
         if (_isMulti)
-            stream()             << SVG_STAVES << _nStaves   << SVG_QUOTE;
-        else
-            stream()             << _cue_id; // ??? is this still needed? it's for gray-out cues, right? Here it is, a full data-cue="" string of comma-separated cue ids
+            stream()           << SVG_STAVES      <<_nStaves    << SVG_QUOTE;
     }
 
     stream() << SVG_GT << endl  // Document attributes:
@@ -450,21 +447,11 @@ bool SvgPaintEngine::end()
 
 
     if (_isSMAWS) { // Cursor, Gray, Fade rects at the end of the current body
-        if (_isMulti)
-            _cursorHeight = d->viewBox.height() - (_cursorTop * 2); // fixed margins relative to page height - modified in javascript
         stream().setString(&d->body);
-        stream() << SVG_RECT
-                    << SVG_CLASS          << CLASS_CURSOR  << SVG_QUOTE
-                    << SVG_X << SVG_QUOTE << SVG_ZERO      << SVG_QUOTE
-                    << SVG_Y << SVG_QUOTE << _cursorTop    << SVG_QUOTE
-                    << SVG_WIDTH          << SVG_ZERO      << SVG_QUOTE
-                    << SVG_HEIGHT         << _cursorHeight << SVG_QUOTE
-                    << SVG_STROKE         << SVG_NONE      << SVG_QUOTE
-                 << SVG_ELEMENT_END << endl;
 
         // Two gray-out <rect>s (left/right) for graying out inactive bars
         for (int i = 0; i < 2; i++)
-            stream() << SVG_RECT
+            stream() << SVG_SPACE << SVG_RECT
                         << SVG_CLASS          << CLASS_GRAY  << SVG_QUOTE << SVG_SPACE << SVG_SPACE
                         << SVG_X << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
                         << SVG_Y << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
@@ -473,6 +460,17 @@ bool SvgPaintEngine::end()
                         << SVG_STROKE         << SVG_NONE    << SVG_QUOTE
                         << SVG_FILL_OPACITY   << SVG_ZERO    << SVG_QUOTE
                      << SVG_ELEMENT_END << endl;
+
+        if (_isMulti) // fixed margins relative to page height, modified in javascript
+            _cursorHeight = d->viewBox.height() - (_cursorTop * 2);
+        stream() << SVG_SPACE << SVG_RECT
+                    << SVG_CLASS          << CLASS_CURSOR  << SVG_QUOTE
+                    << SVG_X << SVG_QUOTE << SVG_ZERO      << SVG_QUOTE
+                    << SVG_Y << SVG_QUOTE << _cursorTop    << SVG_QUOTE
+                    << SVG_WIDTH          << SVG_ZERO      << SVG_QUOTE
+                    << SVG_HEIGHT         << _cursorHeight << SVG_QUOTE
+                    << SVG_STROKE         << SVG_NONE      << SVG_QUOTE
+                 << SVG_ELEMENT_END << endl;
 
         if (_isMulti) // Terminate the Staves group
             stream() << SVG_GROUP_END << endl;
@@ -501,7 +499,7 @@ bool SvgPaintEngine::end()
             const QString frozenEvents = " onclick=\"frozenClick(evt)\" onmouseover=\"frozenOver(evt)\" onmouseout=\"frozenOut(evt)\" onmouseup=\"frozenUp(evt)\"";
 
             stream() << SVG_GROUP_BEGIN
-                        << SVG_POINTER_EVENTS << SVG_VISIBLE << SVG_QUOTE
+                        << SVG_POINTER << SVG_VISIBLE << SVG_QUOTE
                         << frozenEvents
                      << SVG_GT << endl;
 
@@ -649,14 +647,14 @@ void SvgPaintEngine::updateState(const QPaintEngineState &state)
     _isFrozen =  _isSMAWS
              && !_isScrollVertical
              &&  (isBracket
-              || _et == EType::TEMPO_TEXT
-              || _et == EType::INSTRUMENT_NAME
-              || _et == EType::INSTRUMENT_CHANGE
-              || _et == EType::CLEF
-              || _et == EType::KEYSIG
-              || _et == EType::TIMESIG
-              || _et == EType::STAFF_LINES
-              ||(_et == EType::BAR_LINE && _e->parent()->type() == EType::SYSTEM));
+               || _et == EType::TEMPO_TEXT
+               || _et == EType::INSTRUMENT_NAME
+               || _et == EType::INSTRUMENT_CHANGE
+               || _et == EType::CLEF
+               || _et == EType::KEYSIG
+               || _et == EType::TIMESIG
+               || _et == EType::STAFF_LINES
+               ||(_et == EType::BAR_LINE && _e->parent()->type() == EType::SYSTEM));
 
     // classState = class + optional data-cue + transform attributes
     classState.clear();
@@ -1047,7 +1045,7 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
         qts << SVG_POLYLINE << classState << styleState;
 
          // Barline cues only for the first staff in a system for SCORE
-        if (_et == EType::BAR_LINE && _isMulti && _iNames->size() == 1)
+        if (_et == EType::BAR_LINE && !_cue_id.isEmpty())
             qts << SVG_CUE << _cue_id << SVG_QUOTE;
 
         qts << SVG_POINTS;
@@ -2113,16 +2111,16 @@ void SvgGenerator::beginMultiGroup(QStringList* pINames, const QString& fullName
         pe->beginMultiGroup(pINames->last(), fullName, className, height, top, cues);
     }
     else // this applies to lyrics pseudo-staves
-        pe->beginMultiGroup(pe->_iNames->last(), pe->_iNames->last(), className, height, top, cues);
+        pe->beginMultiGroup(pe->_iNames->last() + className, pe->_iNames->last(), className, height, top, cues);
 }
 
 /*!
-    endMultiGroup() function (SMAWS)
-    Calls SvgPaintEngine::endMultiGroup() to stream the necessary text
+    endGroup() function (SMAWS)
+    Calls SvgPaintEngine::endGroup() to stream the necessary text
     Called by saveSMAWS() in mscore/file.cpp.
 */
-void SvgGenerator::endMultiGroup() {
-    static_cast<SvgPaintEngine*>(paintEngine())->endMultiGroup();
+void SvgGenerator::endGroup(int indent = 0) {
+    static_cast<SvgPaintEngine*>(paintEngine())->endGroup(indent);
 }
 
 /*!
@@ -2130,8 +2128,17 @@ void SvgGenerator::endMultiGroup() {
     Calls SvgPaintEngine::beginMouseGroup() to stream the necessary text.
     Called by saveSMAWS() in mscore/file.cpp.
 */
-void SvgGenerator::beginMouseGroup() {
-    static_cast<SvgPaintEngine*>(paintEngine())->beginMouseGroup();
+void SvgGenerator::beginMouseGroup(const QString& id) {
+    static_cast<SvgPaintEngine*>(paintEngine())->beginMouseGroup(id);
+}
+
+/*!
+    beginGroup() function (SMAWS)
+    Calls SvgPaintEngine::beginMouseGroup() to stream the necessary text.
+    Called by saveSMAWS() in mscore/file.cpp.
+*/
+void SvgGenerator::beginGroup() {
+    static_cast<SvgPaintEngine*>(paintEngine())->beginGroup();
 }
 
 /*!
@@ -2141,15 +2148,6 @@ void SvgGenerator::beginMouseGroup() {
 */
 void SvgGenerator::setYOffset(qreal y) {
     static_cast<SvgPaintEngine*>(paintEngine())->_yOffset = y;
-}
-
-/*!
-    setMaxNote() function
-    Sets the _maxNote variable in SvgPaintEngine.
-    Called by saveSMAWS() in mscore/file.cpp.
-*/
-void SvgGenerator::setMaxNote(int max) {
-    static_cast<SvgPaintEngine*>(paintEngine())->_maxNote = max;
 }
 
 /*!

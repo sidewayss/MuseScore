@@ -50,10 +50,11 @@
 #include <QtCore/qscopedpointer.h>
 
 #include "libmscore/element.h"   // for Element class
-using EType = Ms::Element::Type; // It get used a lot, Type consts are long too
-using SVGMap = QMultiMap<QString, const Ms::Element*>; // (SMAWS) A convenience
+using EType  = Ms::Element::Type; // It get used a lot, Type consts are long too
+using BLType = Ms::BarLineType;   // for convenience, and consistency w/EType
+using SVGMap = QMultiMap<QString, const Ms::Element*>;
+using BarMap = QMap<QString, const Ms::Element*>;
 
-// More SMAWS conveniences
 using StrPtrList      = QList<QString*>;
 using StrPtrVect      = QVector<QString*>;
 using StrPtrListList  = QList<StrPtrList*>;
@@ -129,11 +130,11 @@ using IntSet          = std::set<int>;
 #define SVG_IMAGE       "<image"
 
 // SVG element attributes
-#define SVG_VIEW_BOX             " viewBox=\""
-#define SVG_PRESERVE_XYMIN_SLICE " preserveAspectRatio=\"xMinYMin slice\""
-#define SVG_PRESERVE_XYMIN_MEET  " preserveAspectRatio=\"xMinYMin meet\""
-#define SVG_POINTER_EVENTS       " pointer-events=\""
-#define SVG_CURSOR               " cursor=\"default\""  // to avoid pesky I-Beam cursor
+#define SVG_VIEW_BOX    " viewBox=\""
+#define SVG_XYMIN_SLICE " preserveAspectRatio=\"xMinYMin slice\""
+#define SVG_XYMIN_MEET  " preserveAspectRatio=\"xMinYMin meet\""
+#define SVG_POINTER     " pointer-events=\""
+#define SVG_CURSOR      " cursor=\"default\""  // avoids <text> I-Beam cursor
 
 #define SVG_WIDTH  " width=\""
 #define SVG_HEIGHT " height=\""
@@ -222,10 +223,8 @@ using IntSet          = std::set<int>;
 #define SMAWS_VERSION "2.2"
 
 // Custom SVG attributes (and some default settings)
-#define SVG_ATTR     " data-attr=\"fill\""  // the only animated attribute so far
 #define SVG_SCROLL   " data-scroll=\""      // "x" or "y", horizontal or vertical
 #define SVG_STAVES   " data-staves=\""      // number of staves for the score
-#define SVG_MAX      " data-maxnote=\""     // max note duration for the score
 #define SVG_CUE      " data-cue=\""         // the cue id
 #define SVG_CUE_NQ   " data-cue="           // the cue id with no quote char
 #define SVG_START    " data-start=\""       // cue start time in milliseconds
@@ -238,8 +237,8 @@ using IntSet          = std::set<int>;
 
 // SMAWS class attribute values
 #define CLASS_CLEF_COURTESY "ClefCourtesy"
-#define CLASS_CURSOR        "cursor"
-#define CLASS_GRAY          "gray"
+#define CLASS_CURSOR        "cursor HiScore" // always hiLited
+#define CLASS_GRAY          "gray bgFill"
 #define CLASS_NOTES         "notes"
 #define CLASS_TABS          "tablature"
 #define CLASS_GRID          "grid"
@@ -249,8 +248,10 @@ using IntSet          = std::set<int>;
 #define CLASS_INAME_LINK    "iNameLink"
 #define CLASS_INAME_NOTE    "iNameNote"
 #define CLASS_INAME_TABS    "iNameTabs"
+#define CLASS_LYRICS        "lyrics"
 
 // Miscellaneous SMAWS constants
+#define TEXT_CUE     "cue"
 #define TEXT_BPM     "bpm"
 #define CUE_ID_ZERO  "0000000_0000000"
 #define NATURAL_SIGN 57953  // 0xE261, natural signs excluded from frozen panes
@@ -381,11 +382,11 @@ public:
     void freezeIt(int idxStaff);
     void streamDefs();
     void streamBody();
-    void beginMultiGroup(QStringList* pINames, const QString& fullName, const QString &className, qreal height, qreal top, const QString& cues);
-    void endMultiGroup();
-    void beginMouseGroup();
+    void beginMultiGroup(QStringList* pINames, const QString& fullName, const QString& className, qreal height, qreal top, const QString& cues);
+    void beginMouseGroup(const QString& id);
+    void beginGroup();
+    void endGroup(int indent);
     void setYOffset(qreal y);
-    void setMaxNote(int max);
     void createMultiUse(qreal y);
 };
 

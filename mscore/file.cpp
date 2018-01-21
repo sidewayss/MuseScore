@@ -3282,25 +3282,41 @@ static QString smawsDesc(Score* score) {
 static void paintStaffSMAWS(Score*        score,
                             QPainter*     p,
                             SvgGenerator* printer,
+                            BarMap*       barLines,
                             SVGMap*       mapFrozen,
                             SVGMap*       mapSVG,
                             SVGMap*       mapLyrics,
                             QVector<int>* pVisibleStaves =  0,
                             QList<qreal>* pStaffTops     =  0,
                             int           idxStaff = -1,
-                            bool          isMulti  = false,
                             int           lyricsHeight = -1)
 {
     QString cue_id;
-    bool    isMouse = false;
+    bool isMouse = false;
+    bool isMulti = (idxStaff != -1);
+    int  idx = (isMulti ? pVisibleStaves->value(idxStaff) : idxStaff);
 
-    // 2nd pass: Animated elements
-    // Animated elements are sorted in playback order by their QMaps.
-    // mapFrozen goes first, if it has any contents
+    // 2nd pass: Elements with cue_ids, sorted in their QMaps
+    // BarLines first, but only for the first staff
+    if (idx < 1) {
+        printer->beginGroup();
+        for (BarMap::iterator c = barLines->begin(); c != barLines->end(); ++c) {
+            printer->setCueID(c.key());
+            const Element* e = c.value();
+            if (!isMulti)
+                printer->setStaffIndex(pVisibleStaves->value(e->staffIdx()));
+            printer->setElement(e);
+            paintElement(*p, e);
+        }
+        printer->endGroup(2); // barLines group inside staff group
+    }
+
+    // Frozen pane elements, if there are any
     if (mapFrozen->size() > 0) {
         // Iterate by key, then by value in reverse order. This recreates the
         // MuseScore draw order within the key/cue_id. This is required for
         // the frozen pane to generate properly.
+        printer->beginGroup();
         QStringList keys = mapFrozen->uniqueKeys();
         for (QStringList::iterator c = keys.begin(); c != keys.end(); ++c) {
             printer->setCueID(*c);
@@ -3314,34 +3330,35 @@ static void paintStaffSMAWS(Score*        score,
             }
             // Complete one frozen pane def: if (idxStaff == -1) by cue_id
             //                               else      by staff, by cue_id
-            printer->freezeIt(pVisibleStaves->value(idxStaff));
+            printer->freezeIt(idx);
         }
+        printer->endGroup(2); // mapFrozen group inside staff group
     }
 
     // mapSVG (in reverse draw order, not a problem for these element types)
-    printer->beginMouseGroup(); // animated elements are clickable
+    const QString id = (isMulti ? score->staff(idxStaff)->part()->longName() : "");
+    printer->beginMouseGroup(id + TEXT_CUE); // animated elements are clickable
     SVGMap::iterator i;
     for (i = mapSVG->begin(); i != mapSVG->end(); ++i) {
         cue_id = i.key();
         printer->setCueID(cue_id);
-///!!!OBSOLETE!!!        printer->setStartMSecs(startMSecsFromCueID(score, cue_id));
         printer->setElement(i.value());
         paintElement(*p, i.value());
     }
-    printer->endMultiGroup(); // ends the mouse group
+    printer->endGroup(2);     // mouse group inside staff group
 
     if (isMulti) {
         // Close any pending Multi-Select Staves group element
         Staff* staff = score->staff(idxStaff);
         QList<Staff*>* staves = staff->part()->staves();
         int size = staves->size();
-        if (size == 1 || (*staves)[size - 1]->idx() == idxStaff || staff->linkedStaves())
-            printer->endMultiGroup(); // ends the staff group
+        if (size == 1 || staff->linkedStaves()
+         || (*staves)[size - 1]->idx() == idxStaff)
+            printer->endGroup(1); // ends the staff group
 
         // Lyrics are a separate <g> element pseudo staff
         if (mapLyrics->size() > 0) {
-            printer->beginMultiGroup(0, 0,
-                                     "lyrics",
+            printer->beginMultiGroup(0, 0, CLASS_LYRICS,
                                      lyricsHeight,
                                      pStaffTops->last() - pStaffTops->first(),
                                      QString());
@@ -3349,15 +3366,15 @@ static void paintStaffSMAWS(Score*        score,
                 cue_id = i.key();
                 if (!isMouse && !cue_id.isEmpty()) {
                     isMouse = true;
-                    printer->beginMouseGroup();
+                    printer->beginMouseGroup(id + CLASS_LYRICS + TEXT_CUE);
                 }
                 printer->setCueID(cue_id);
 ///!!!OBSOLETE!!!                printer->setStartMSecs(startMSecsFromCueID(score, cue_id));
                 printer->setElement(i.value());
                 paintElement(*p, i.value());
             }
-            printer->endMultiGroup(); // mouse group
-            printer->endMultiGroup(); // staff group
+            printer->endGroup(2); // mouse group
+            printer->endGroup(1); // staff group
         }
     }
 }
@@ -3559,7 +3576,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
     // setVTT     - a chronologically sorted set of unique cue_ids
     QStringList setVTT;
 
-    // mapSVG      - a real map: key = cue_id; value = list of elements.
+    // mapSVG      - a QMultiMap: key = cue_id; value = list of elements.
     // mapFrozen   - ditto, value = SCORE frozen pane elements
     // mapSysStaff - ditto, value = SCORE "system" staff: tempos, chords, markers (should be measure numbers!!!)
     // mapLyrics   - ditto, value = SCORE lyrics as a separate group
@@ -3567,6 +3584,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
     SVGMap mapFrozen;
     SVGMap mapSysStaff;
     SVGMap mapLyrics;
+    BarMap barLines; // not a multi-map
 
     // Animated elements in a multi-page file? It's unnecessary IMO.
     // + saveSvg() handles pages in SVG with a simple horizontal offset.
@@ -3662,6 +3680,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
 
     int maxNote = 0; // data-maxnote = Max note duration for this score. Helps optimize
                      // highlighting previous notes when user changes start time.
+                     ///!!!OBSOLETE!!!
     idxStaff = -1;
 //    Beam* b;
     foreach (const Element* e, elmPtrs) {
@@ -3675,8 +3694,8 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
             if (idxStaff > -1) {
                 const int lyricsHeight = (idxStaff != idxLastLyrics ? 20 : 25);
                 // Paint the previous staff's animated elements
-                paintStaffSMAWS(score, &p, &printer, &mapFrozen, &mapSVG, &mapLyrics,
-                                &visibleStaves, &staffTops, idxStaff, isMulti, lyricsHeight);
+                paintStaffSMAWS(score, &p, &printer, &barLines, &mapFrozen, &mapSVG,
+                     &mapLyrics, &visibleStaves, &staffTops, idxStaff, lyricsHeight);
                 mapFrozen.clear();
                 mapLyrics.clear();
                 mapSVG.clear();
@@ -3751,12 +3770,17 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
             else
                 mapSVG.insert(cue_id, e);
             continue;
-            break;
 
         case EType::BAR_LINE       :    /// Ruler/Scrolling elements
             // Add the cue ID to the VTT set, but don't add to mapSVG
-            cue_id = getScrollCueID(score, e);
-            setVTT.append(cue_id);
+            if (isMulti && visibleStaves[idxStaff] == 0
+             && static_cast<const BarLine*>(e)->barLineType() == BLType::NORMAL) {
+                cue_id = getScrollCueID(score, e);
+                setVTT.append(cue_id);
+                barLines.insert(cue_id, e);
+                continue;
+            }
+            cue_id = "";
             break;
 
         case EType::REHEARSAL_MARK :
@@ -3828,29 +3852,30 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
     // Multi-Select Staves
     if (isMulti) {
         // Paint the last staff's animated elements
-        paintStaffSMAWS(score, &p, &printer, &mapFrozen, &mapSVG, &mapLyrics,
-                        &visibleStaves, &staffTops, idxStaff, isMulti);
+        paintStaffSMAWS(score, &p, &printer, 0, &mapFrozen, &mapSVG, &mapLyrics,
+                        &visibleStaves, &staffTops, idxStaff);
 
         // Paint the staff-independent elements
         // No staff lines, no bar lines, so no call to paintStaffLines()
-        iNames.append("system");
+        const QString system = "system";
+        iNames.append(system);
         printer.setStaffIndex(nVisible); // only affects fancy formatting
         printer.setYOffset(0);
-        printer.beginMultiGroup(&iNames, "system", "system", 35, 0, QString()); ///!!! 35 is standard top staff line y-coord, I'm being lazy here by hardcoding it
+        printer.beginMultiGroup(&iNames, system, system, 35, 0, QString()); ///!!! 35 is standard top staff line y-coord, I'm being lazy here by hardcoding it
         bool isMouse = false;
         for (SVGMap::iterator i = mapSysStaff.begin(); i != mapSysStaff.end(); ++i) {
             cue_id = i.key();
             if (!isMouse && !cue_id.isEmpty()) {
                 isMouse = true;
-                printer.beginMouseGroup();
+                printer.beginMouseGroup(system + TEXT_CUE);
             }
 ///!!!OBSOLETE!!!            printer.setStartMSecs(startMSecsFromCueID(score, cue_id));
             printer.setCueID(cue_id);
             printer.setElement(i.value());
             paintElement(p, i.value());
         }
-        printer.endMultiGroup(); // mouse group
-        printer.endMultiGroup(); // staff group
+        printer.endGroup(2); // mouse group
+        printer.endGroup(1); // staff group
 
         // Multi-Select Staves frozen pane has <use> elements, one per staff
         staffTops.append(staffTops[0]); // For the staff-independent elements
@@ -3859,15 +3884,11 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
     }
     else {
         // Paint everything all at once, not by staff
-        paintStaffSMAWS(score, &p, &printer, &mapFrozen, &mapSVG, &mapLyrics, &visibleStaves);
+        paintStaffSMAWS(score, &p, &printer, 0, &mapFrozen, &mapSVG, &mapLyrics, &visibleStaves);
 
         // These go in the <svg> element for the full score/part
         printer.setCueID(getGrayOutCues(score, -1, &setVTT));
     }
-
-    // Max note duration, in ticks, for the inefficient task of highlighting
-    // previous notes when the user change the start time.
-    printer.setMaxNote(maxNote);
 
     // The end of audio is a cue that equals the end of the last bar.
     setVTT.append(getCueID(score->lastSegment()->tick()));
@@ -4104,10 +4125,13 @@ static void streamRulers(Score*         score,
                   << SVG_GT << SVG_GROUP_END << endl;
 
         else {
-            // Marker simultaneous with barline must wait until that barline's rect
-            // is streamed before streaming marker elements. Thus qtsTemp/qsTemp.
-            // Ruler lines have invisible rects around them, allowing users to be
-            // less precise with their mouse clicks.
+            // Measuring the width of the text is dicey, thus Markers invisible
+            // <rect>s cannot handle all the events, the way Bars can. Bars
+            // invisible <rect>s cover both rulers, so Markers elements must
+            // stream after Bars in order to capture any events.
+            // Invisible <rect>s don't need to be collected for hiLiting.
+            // Bars <use> and <text> elements don't need events.
+            // Too bad it has to be inconsistent across the rulers...
             // The code operates on the current Marker and the previous BarLine.
             // Marker  rect = fill horizontal space between line/text.
             // BarLine rect splits the space around each line, no empty spaces.
@@ -5160,16 +5184,13 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                         << SVG_ZERO      << SVG_SPACE
                                         << width         << SVG_SPACE
                                         << height        << SVG_QUOTE
-                       << SVG_HEIGHT    << height        << SVG_QUOTE
-                                        << endl          << SVG_4SPACES
-                       << SVG_POINTER_EVENTS << SVG_NONE << SVG_QUOTE
-                       << SVG_CURSOR    << endl          << SVG_4SPACES
-                       << SVG_CLASS << SMAWS << SVG_QUOTE
-                       << (hasRulers ? SVG_ONLOAD : "")
-                       << (isPages   ? pageCues   : "")
-                    << SVG_GT << endl
-                    << SVG_TITLE_BEGIN << score->title()   << SVG_TITLE_END << endl
-                    << SVG_DESC_BEGIN  << smawsDesc(score) << SVG_DESC_END  << endl;
+                       << SVG_HEIGHT    << height        << SVG_QUOTE << endl
+        << SVG_4SPACES << SVG_POINTER   << SVG_NONE      << SVG_QUOTE
+                       << SVG_CURSOR    << endl
+                       << (hasRulers    ?  SVG_ONLOAD : "")
+                       << (isPages      ?  pageCues   : "") << SVG_GT << endl
+                    << SVG_TITLE_BEGIN << score->title()    << SVG_TITLE_END << endl
+                    << SVG_DESC_BEGIN  << smawsDesc(score)  << SVG_DESC_END  << endl;
 
                 // Import the <defs>
                 QFile qf;
@@ -6036,19 +6057,15 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
 
     // The headers
     height = 894; //!!! 14-fret height. With diff # of frets per staff, this must become very dynamic!!!
-    file << SVG_BEGIN      // <svg>
-            << XML_NAMESPACE << XML_XLINK     << SVG_4SPACES
-            << SVG_VIEW_BOX  << SVG_ZERO      << SVG_SPACE
-                             << SVG_ZERO      << SVG_SPACE
-                             << width         << SVG_SPACE
-                             << height        << SVG_QUOTE
-            << SVG_WIDTH     << width         << SVG_QUOTE
-                                              << endl << SVG_4SPACES
-            << SVG_PRESERVE_XYMIN_MEET        << endl << SVG_4SPACES
-            << SVG_POINTER_EVENTS << SVG_NONE << SVG_QUOTE
-            << SVG_CURSOR                     << endl << SVG_4SPACES
-            << SVG_CLASS << SMAWS << SVG_QUOTE
-         << SVG_GT << endl;
+    file << SVG_BEGIN   << XML_NAMESPACE << XML_XLINK
+         << SVG_4SPACES << SVG_VIEW_BOX  << SVG_ZERO << SVG_SPACE
+                                         << SVG_ZERO << SVG_SPACE
+                                         << width    << SVG_SPACE
+                                         << height   << SVG_QUOTE
+                        << SVG_WIDTH     << width    << SVG_QUOTE << endl
+         << SVG_4SPACES << SVG_XYMIN_MEET                         << endl
+         << SVG_4SPACES << SVG_POINTER   << SVG_NONE << SVG_QUOTE
+                        << SVG_CURSOR    << SVG_GT                << endl;
 
     // The <defs>
     qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_FRET_DEFS));
