@@ -2997,6 +2997,11 @@ static void paintStaffLines(Score*        score,
     }
 
     bool isVertical = printer->isScrollVertical();
+    if (isVertical) {
+        printer->setStaffLines(score->staves()[0]->lines());
+        printer->beginGroup();
+    }
+
     for (System* s : page->systems()) {
         for (int i = 0, n = s->staves()->size(); i < n; i++) {
             if (idxStaff > -1)
@@ -3080,7 +3085,8 @@ static void paintStaffLines(Score*        score,
                   for (mb = s->firstMeasure(); mb != 0; mb = s->nextMeasure(mb)) {
                         if (mb->type() != Element::Type::HBOX
                          && mb->type() != Element::Type::VBOX
-                         && static_cast<Measure*>(mb)->visible(i)) {
+                         && static_cast<Measure*>(mb)->visible(i))
+                        {
                               if (isVertical && i == 0)
                                   cue_id = getCueID(s->firstMeasure()->tick());
                               else
@@ -3117,6 +3123,8 @@ static void paintStaffLines(Score*        score,
         isFirstSystem = false;
 
     } //for each System
+    if (isVertical)
+        printer->endGroup();
 }
 
 // svgInit() - consolidates shared code in saveSVG and saveSMAWS.
@@ -3278,14 +3286,14 @@ static QString smawsDesc(Score* score) {
                                    .arg(SMAWS_VERSION);
 }
 
-// Paints the animated elements specified in the SVGMaps
+// Paints the animated elements specified in the CueMultis
 static void paintStaffSMAWS(Score*        score,
                             QPainter*     p,
                             SvgGenerator* printer,
-                            BarMap*       barLines,
-                            SVGMap*       mapFrozen,
-                            SVGMap*       mapSVG,
-                            SVGMap*       mapLyrics,
+                            CueMap*       barLines,
+                            CueMulti*     mapFrozen,
+                            CueMulti*     mapSVG,
+                            CueMulti*     mapLyrics,
                             QVector<int>* pVisibleStaves =  0,
                             QList<qreal>* pStaffTops     =  0,
                             int           idxStaff = -1,
@@ -3298,9 +3306,9 @@ static void paintStaffSMAWS(Score*        score,
 
     // 2nd pass: Elements with cue_ids, sorted in their QMaps
     // BarLines first, but only for the first staff
-    if (idx < 1) {
+    if (barLines != 0 && idx < 1) {
         printer->beginGroup();
-        for (BarMap::iterator c = barLines->begin(); c != barLines->end(); ++c) {
+        for (CueMap::iterator c = barLines->begin(); c != barLines->end(); ++c) {
             printer->setCueID(c.key());
             const Element* e = c.value();
             if (!isMulti)
@@ -3336,9 +3344,8 @@ static void paintStaffSMAWS(Score*        score,
     }
 
     // mapSVG (in reverse draw order, not a problem for these element types)
-    const QString id = (isMulti ? score->staff(idxStaff)->part()->longName() : "");
-    printer->beginMouseGroup(id + TEXT_CUE); // animated elements are clickable
-    SVGMap::iterator i;
+    printer->beginMouseGroup(); // animated elements are clickable
+    CueMulti::iterator i;
     for (i = mapSVG->begin(); i != mapSVG->end(); ++i) {
         cue_id = i.key();
         printer->setCueID(cue_id);
@@ -3366,7 +3373,7 @@ static void paintStaffSMAWS(Score*        score,
                 cue_id = i.key();
                 if (!isMouse && !cue_id.isEmpty()) {
                     isMouse = true;
-                    printer->beginMouseGroup(id + CLASS_LYRICS + TEXT_CUE);
+                    printer->beginMouseGroup();
                 }
                 printer->setCueID(cue_id);
 ///!!!OBSOLETE!!!                printer->setStartMSecs(startMSecsFromCueID(score, cue_id));
@@ -3580,11 +3587,11 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
     // mapFrozen   - ditto, value = SCORE frozen pane elements
     // mapSysStaff - ditto, value = SCORE "system" staff: tempos, chords, markers (should be measure numbers!!!)
     // mapLyrics   - ditto, value = SCORE lyrics as a separate group
-    SVGMap mapSVG;
-    SVGMap mapFrozen;
-    SVGMap mapSysStaff;
-    SVGMap mapLyrics;
-    BarMap barLines; // not a multi-map
+    CueMulti mapSVG;
+    CueMulti mapFrozen;
+    CueMulti mapSysStaff;
+    CueMulti mapLyrics;
+    CueMap   barLines; // not a multi-map
 
     // Animated elements in a multi-page file? It's unnecessary IMO.
     // + saveSvg() handles pages in SVG with a simple horizontal offset.
@@ -3863,11 +3870,11 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
         printer.setYOffset(0);
         printer.beginMultiGroup(&iNames, system, system, 35, 0, QString()); ///!!! 35 is standard top staff line y-coord, I'm being lazy here by hardcoding it
         bool isMouse = false;
-        for (SVGMap::iterator i = mapSysStaff.begin(); i != mapSysStaff.end(); ++i) {
+        for (CueMulti::iterator i = mapSysStaff.begin(); i != mapSysStaff.end(); ++i) {
             cue_id = i.key();
             if (!isMouse && !cue_id.isEmpty()) {
                 isMouse = true;
-                printer.beginMouseGroup(system + TEXT_CUE);
+                printer.beginMouseGroup();
             }
 ///!!!OBSOLETE!!!            printer.setStartMSecs(startMSecsFromCueID(score, cue_id));
             printer.setCueID(cue_id);

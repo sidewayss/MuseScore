@@ -52,8 +52,9 @@
 #include "libmscore/element.h"   // for Element class
 using EType  = Ms::Element::Type; // It get used a lot, Type consts are long too
 using BLType = Ms::BarLineType;   // for convenience, and consistency w/EType
-using SVGMap = QMultiMap<QString, const Ms::Element*>;
-using BarMap = QMap<QString, const Ms::Element*>;
+
+using CueMap   = QMap<QString, const Ms::Element*>;
+using CueMulti = QMultiMap<QString, const Ms::Element*>;
 
 using StrPtrList      = QList<QString*>;
 using StrPtrVect      = QVector<QString*>;
@@ -223,15 +224,16 @@ using IntSet          = std::set<int>;
 #define SMAWS_VERSION "2.2"
 
 // Custom SVG attributes (and some default settings)
-#define SVG_SCROLL   " data-scroll=\""      // "x" or "y", horizontal or vertical
-#define SVG_STAVES   " data-staves=\""      // number of staves for the score
-#define SVG_CUE      " data-cue=\""         // the cue id
-#define SVG_CUE_NQ   " data-cue="           // the cue id with no quote char
-#define SVG_START    " data-start=\""       // cue start time in milliseconds
-#define SVG_START_NQ " data-start="         // cue start time in milliseconds with no quote character
-#define SVG_INAME    " data-iname=\""       // full instrument name == MuseScore "short" instrument name
-#define SVG_BARNUMB  " data-barnumb="       // measure (bar) number for rulers/counters - no quotes!!
-#define SVG_BOTTOM   " data-bottom=\""      // vertical scroll: staff bottom y
+#define SVG_SCROLL     " data-scroll=\"" // "x" or "y", horizontal or vertical
+#define SVG_STAVES     " data-staves=\"" // number of staves for the score (OBSOLETE?)
+#define SVG_STAFFLINES " data-lines=\""  // number of staff lines for the part
+#define SVG_CUE        " data-cue=\""    // the cue id
+#define SVG_CUE_NQ     " data-cue="      // the cue id with no quote char
+#define SVG_START      " data-start=\""  // cue start time in milliseconds
+#define SVG_START_NQ   " data-start="    // cue start time in milliseconds with no quote character
+#define SVG_INAME      " data-iname=\""  // full instrument name == MuseScore "short" instrument name
+#define SVG_BARNUMB    " data-barnumb="  // measure (bar) number for rulers/counters - no quotes!!
+#define SVG_BOTTOM     " data-bottom=\"" // vertical scroll: staff bottom y
 
 #define SVG_PREFIX_TAB "tab" // For tablature class names
 
@@ -251,7 +253,6 @@ using IntSet          = std::set<int>;
 #define CLASS_LYRICS        "lyrics"
 
 // Miscellaneous SMAWS constants
-#define TEXT_CUE     "cue"
 #define TEXT_BPM     "bpm"
 #define CUE_ID_ZERO  "0000000_0000000"
 #define NATURAL_SIGN 57953  // 0xE261, natural signs excluded from frozen panes
@@ -375,6 +376,7 @@ public:
     bool isScrollVertical();
     void setNonStandardStaves(QVector<int>* nonStdStaves);
     void setNStaves(int n);
+    void setStaffLines(int n);
     void setStaffIndex(int idx);
     void setCursorTop(qreal top);
     void setCursorHeight(qreal height);
@@ -383,9 +385,9 @@ public:
     void streamDefs();
     void streamBody();
     void beginMultiGroup(QStringList* pINames, const QString& fullName, const QString& className, qreal height, qreal top, const QString& cues);
-    void beginMouseGroup(const QString& id);
-    void beginGroup();
-    void endGroup(int indent);
+    void beginMouseGroup();
+    void beginGroup(int indent = 0);
+    void endGroup(int indent = 0);
     void setYOffset(qreal y);
     void createMultiUse(qreal y);
 };

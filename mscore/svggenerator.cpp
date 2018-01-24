@@ -195,7 +195,7 @@ protected:
     qreal   _cursorTop;        // For calculating the height of (vertical bar)
     qreal   _cursorHeight;     // Sheet music playback position cursor.
     qreal   _yOffset;          // Y axis offset used by Multi-Select Staves
-
+    int     _nLines;           // Number of staff lines for a part
 ////////////////////
 // for Frozen Pane:
 //
@@ -262,16 +262,15 @@ protected:
         if (fullName == STAFF_GRID)
             _idxGrid = _iNames->size() - 1;
     }
-    void beginGroup()
-    {
-        *d_func()->stream << SVG_SPACE << SVG_SPACE << SVG_GROUP_BEGIN << SVG_GT << endl;
-    }
-    void beginMouseGroup(const QString& id)
-    {
+    void beginMouseGroup() {
         *d_func()->stream << SVG_SPACE   << SVG_SPACE   << SVG_GROUP_BEGIN
-                          << SVG_ID      << id          << SVG_QUOTE
                           << SVG_POINTER << SVG_VISIBLE << SVG_QUOTE
                           << SVG_ONCLICK << SVG_GT      << endl;
+    }
+    void beginGroup(int indent) {
+        for (int i = 1; i <= indent; i++)
+            *d_func()->stream << SVG_SPACE;
+        *d_func()->stream << SVG_GROUP_BEGIN << SVG_GT << endl;
     }
     void endGroup(int indent) {
         for (int i = 1; i <= indent; i++)
@@ -439,6 +438,8 @@ bool SvgPaintEngine::end()
         << endl << SVG_4SPACES << SVG_SCROLL      << scrollAxis << SVG_QUOTE;
         if (_isMulti)
             stream()           << SVG_STAVES      <<_nStaves    << SVG_QUOTE;
+        else
+            stream()           << SVG_STAFFLINES  <<_nLines     << SVG_QUOTE;
     }
 
     stream() << SVG_GT << endl  // Document attributes:
@@ -1064,7 +1065,7 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
         if (isStaffLines && !_cue_id.isEmpty()) {
             int bottom = height + points[0].y() + 1; // int rounded up
             qts << SVG_CUE    << _cue_id << SVG_QUOTE
-                     << SVG_BOTTOM << bottom  << SVG_QUOTE;
+                << SVG_BOTTOM << bottom  << SVG_QUOTE;
             _cue_id = ""; // only the top staff line gets the extra attributes
         }
         qts << SVG_ELEMENT_END <<endl;
@@ -2020,6 +2021,15 @@ void SvgGenerator::setNStaves(int n) {
 }
 
 /*!
+    setStaffLines() function
+    Sets the _nLines variable in SvgPaintEngine.
+    Called by paintStaffLines() in mscore/file.cpp.
+*/
+void SvgGenerator::setStaffLines(int n) {
+    static_cast<SvgPaintEngine*>(paintEngine())->_nLines = n;
+}
+
+/*!
     setStaffIndex() function
     Sets the _idxStaff variable in SvgPaintEngine: current visible-staff index
     Clears some variables for unlinked multi-staff parts
@@ -2119,7 +2129,7 @@ void SvgGenerator::beginMultiGroup(QStringList* pINames, const QString& fullName
     Calls SvgPaintEngine::endGroup() to stream the necessary text
     Called by saveSMAWS() in mscore/file.cpp.
 */
-void SvgGenerator::endGroup(int indent = 0) {
+void SvgGenerator::endGroup(int indent) {
     static_cast<SvgPaintEngine*>(paintEngine())->endGroup(indent);
 }
 
@@ -2128,8 +2138,8 @@ void SvgGenerator::endGroup(int indent = 0) {
     Calls SvgPaintEngine::beginMouseGroup() to stream the necessary text.
     Called by saveSMAWS() in mscore/file.cpp.
 */
-void SvgGenerator::beginMouseGroup(const QString& id) {
-    static_cast<SvgPaintEngine*>(paintEngine())->beginMouseGroup(id);
+void SvgGenerator::beginMouseGroup() {
+    static_cast<SvgPaintEngine*>(paintEngine())->beginMouseGroup();
 }
 
 /*!
@@ -2137,8 +2147,8 @@ void SvgGenerator::beginMouseGroup(const QString& id) {
     Calls SvgPaintEngine::beginMouseGroup() to stream the necessary text.
     Called by saveSMAWS() in mscore/file.cpp.
 */
-void SvgGenerator::beginGroup() {
-    static_cast<SvgPaintEngine*>(paintEngine())->beginGroup();
+void SvgGenerator::beginGroup(int indent) {
+    static_cast<SvgPaintEngine*>(paintEngine())->beginGroup(indent);
 }
 
 /*!
