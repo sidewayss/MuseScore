@@ -2997,7 +2997,7 @@ static void paintStaffLines(Score*        score,
     }
 
     bool isVertical = printer->isScrollVertical();
-    if (isVertical) {
+    if (isVertical) { // at this point it's the same as !_isMulti...
         printer->setStaffLines(score->staves()[0]->lines());
         printer->beginGroup();
     }
@@ -3030,6 +3030,14 @@ static void paintStaffLines(Score*        score,
                         printer->setCursorTop(cursorTop);
 
                         if (!isMulti) { // multi has fixed margins, only one system
+                            // Get the left and right edges of the staff lines for
+                            // title, subtitle, composer, and poet layout
+                            StaffLines* ls =  s->lastMeasure()->staffLines(i);
+                            qreal right = ls->bbox().right()
+                                        + ls->pagePos().x()
+                                        - sl->pagePos().x();
+                            printer->setLeftRight(sl->bbox().left(), right);
+
                             // Get the last visible staff index in the first system
                             for (j = pVisibleStaves->size() - 1; j >= 0; j--) {
                                 if (pVisibleStaves->value(j) >= 0)
@@ -3120,7 +3128,8 @@ static void paintStaffLines(Score*        score,
                 break;          // because score has only one system.
 
         } // for each Staff
-        isFirstSystem = false;
+        if (s->staves()->size() > 0) //!!invisible first systems in parts...
+            isFirstSystem = false;
 
     } //for each System
     if (isVertical)
@@ -3307,7 +3316,7 @@ static void paintStaffSMAWS(Score*        score,
     // 2nd pass: Elements with cue_ids, sorted in their QMaps
     // BarLines first, but only for the first staff
     if (barLines != 0 && idx < 1) {
-        printer->beginGroup();
+        printer->beginGroup(2);
         for (CueMap::iterator c = barLines->begin(); c != barLines->end(); ++c) {
             printer->setCueID(c.key());
             const Element* e = c.value();
@@ -3324,7 +3333,7 @@ static void paintStaffSMAWS(Score*        score,
         // Iterate by key, then by value in reverse order. This recreates the
         // MuseScore draw order within the key/cue_id. This is required for
         // the frozen pane to generate properly.
-        printer->beginGroup();
+        printer->beginGroup(2);
         QStringList keys = mapFrozen->uniqueKeys();
         for (QStringList::iterator c = keys.begin(); c != keys.end(); ++c) {
             printer->setCueID(*c);
@@ -3352,7 +3361,7 @@ static void paintStaffSMAWS(Score*        score,
         printer->setElement(i.value());
         paintElement(*p, i.value());
     }
-    printer->endGroup(2);     // mouse group inside staff group
+    printer->endGroup(isMulti ? 2 : 0);     // mouse group inside staff group
 
     if (isMulti) {
         // Close any pending Multi-Select Staves group element

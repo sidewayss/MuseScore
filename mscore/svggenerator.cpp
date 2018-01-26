@@ -195,6 +195,8 @@ protected:
     qreal   _cursorTop;        // For calculating the height of (vertical bar)
     qreal   _cursorHeight;     // Sheet music playback position cursor.
     qreal   _yOffset;          // Y axis offset used by Multi-Select Staves
+    qreal   _sysLeft;          // Left and right edges of staff lines on the
+    qreal   _sysRight;         // page for part title and credits formatting
     int     _nLines;           // Number of staff lines for a part
 ////////////////////
 // for Frozen Pane:
@@ -301,12 +303,15 @@ public:
         _iNames        = 0;   // QStringList*
         _nonStdStaves  = 0;   // QVector<int>*
         _nStaves       = 0;   // int
+        _nLines        = 0;   // int
         _idxGrid       = -1;  // int
         _fWidth        = 0.0; // qreal
         _xLeft         = 0.0; // qreal
         _cursorTop     = 0.0; // qreal
         _cursorHeight  = 0.0; // qreal
         _yOffset       = 0.0; // qreal
+        _sysLeft       = 0.0; // qreal
+        _sysRight      = 0.0; // qreal
 
         _isScrollVertical = false;
         _isMulti          = false;
@@ -451,8 +456,11 @@ bool SvgPaintEngine::end()
         stream().setString(&d->body);
 
         // Two gray-out <rect>s (left/right) for graying out inactive bars
+        QString indent;
+        if (_isMulti)
+            indent = SVG_SPACE;
         for (int i = 0; i < 2; i++)
-            stream() << SVG_SPACE << SVG_RECT
+            stream() << indent << SVG_RECT
                         << SVG_CLASS          << CLASS_GRAY  << SVG_QUOTE << SVG_SPACE << SVG_SPACE
                         << SVG_X << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
                         << SVG_Y << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
@@ -464,7 +472,7 @@ bool SvgPaintEngine::end()
 
         if (_isMulti) // fixed margins relative to page height, modified in javascript
             _cursorHeight = d->viewBox.height() - (_cursorTop * 2);
-        stream() << SVG_SPACE << SVG_RECT
+        stream() << indent << SVG_RECT
                     << SVG_CLASS          << CLASS_CURSOR  << SVG_QUOTE
                     << SVG_X << SVG_QUOTE << SVG_ZERO      << SVG_QUOTE
                     << SVG_Y << SVG_QUOTE << _cursorTop    << SVG_QUOTE
@@ -1126,9 +1134,30 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     if (_e == NULL)
         return;
 
+    qreal x, y;
+
     // Variables, constants, initial setup
-    qreal x = p.x() + _dx; // The de-translated coordinates
-    qreal y = p.y() + _dy + (_isFullMatrix ? 0 : _yOffset);
+    if (_isSMAWS && !_isMulti && _et == EType::TEXT) {
+        switch(static_cast<const Ms::Text*>(_e)->textStyleType()) {
+        case Ms::TextStyleType::TITLE:
+        case Ms::TextStyleType::SUBTITLE :
+            x = ((_sysRight - _sysLeft) / 2) + _sysLeft; // centered
+            break;
+        case Ms::TextStyleType::COMPOSER:
+            x = _sysLeft;
+            break;
+        case Ms::TextStyleType::POET:
+            x = _sysRight;
+            break;
+        default:
+            x = p.x();
+            break;
+        }
+        x += _dx;
+    }
+    else
+        x = p.x() + _dx; // The de-translated coordinates
+    y = p.y() + _dy + (_isFullMatrix ? 0 : _yOffset);
 
     int pitch = -1;
 
@@ -1164,7 +1193,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     case EType::REST              :
     case EType::STAFF_TEXT        :
     case EType::TEMPO_TEXT        :
-    case EType::TEXT              : // Measure numbers only, AFAIK
+    case EType::TEXT              : // Measure Numbers, Title, Subtitle, Composer, Poet
     case EType::TIMESIG           :
     case EType::TUPLET            :
         // These elements are all styled by CSS, no need to specify attributes,
@@ -2167,4 +2196,14 @@ void SvgGenerator::setYOffset(qreal y) {
 */
 void SvgGenerator::createMultiUse(qreal y) {
     static_cast<SvgPaintEngine*>(paintEngine())->createMultiUse(y);
+}
+
+/*!
+    setLeftRight() function
+    Sets the x-coordinates for the left and right edges of a part's system
+    Called by paintStaffLines() in mscore/file.cpp.
+*/
+void SvgGenerator::setLeftRight(qreal left, qreal right) {
+    static_cast<SvgPaintEngine*>(paintEngine())->_sysLeft  = left;
+    static_cast<SvgPaintEngine*>(paintEngine())->_sysRight = right;
 }

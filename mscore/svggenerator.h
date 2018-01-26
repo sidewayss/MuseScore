@@ -221,7 +221,7 @@ using IntSet          = std::set<int>;
 
 // SMAWS
 #define SMAWS         "SMAWS"
-#define SMAWS_VERSION "2.2"
+#define SMAWS_VERSION "2.3"
 
 // Custom SVG attributes (and some default settings)
 #define SVG_SCROLL     " data-scroll=\"" // "x" or "y", horizontal or vertical
@@ -390,6 +390,7 @@ public:
     void endGroup(int indent = 0);
     void setYOffset(qreal y);
     void createMultiUse(qreal y);
+    void setLeftRight(qreal left, qreal right);
 };
 
 #endif // QSVGGENERATOR_H
