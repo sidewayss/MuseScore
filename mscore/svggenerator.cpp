@@ -217,10 +217,11 @@ protected:
     RealVect yOffsetKeySig;   // vector by staff, non-zero if clef changes
     Int2RealMap frozenINameY; // map by by staff index, vertical center of staff lines for linked staves extra iNames
 
-    FDef*        _prevDef;  // The previous def,    used by freezeDef()
-    QString      _prevCue;  // The previous cue_id, used by freezeDef()
-    QStringList* _iNames;   // Multi-Select Staves: list of instrument names
-    QStringList  _multiUse; // ditto: list of <use> element text starters
+    FDef*        _prevDef;   // The previous def,    used by freezeDef()
+    QString      _prevCue;   // The previous cue_id, used by freezeDef()
+    QStringList* _iNames;    // Multi-Select Staves: list of instrument names
+    QStringList* _fullNames; // Multi-Select Staves: list of full/long names
+    QStringList  _multiUse;  // ditto: list of <use> element text starters
 
     // These only vary by cue_id, not by Staff
     Str2RealMap xOffsetTimeSig; // TimeSig x-coord varies by KeySig, and thus by cue_id.
@@ -249,8 +250,14 @@ protected:
 //
     // Begin and End Multi-Select Staves group element.
     // Called by SvgGenerator functions of the same name.
-    void beginMultiGroup(const QString& iName, const QString& fullName, const QString& className, qreal height, qreal top, const QString& cues)
+    void beginMultiGroup(const QString& iName,
+                         const QString& fullName,
+                         const QString& className,
+                         qreal height,
+                         qreal top,
+                         const QString& cues)
     {
+        QString name = (fullName == 0 ? iName : fullName);
         *d_func()->stream << SVG_SPACE << SVG_GROUP_BEGIN
                              << SVG_TRANSFORM
                                 << SVG_TRANSLATE   << SVG_ZERO    << SVG_SPACE // x
@@ -258,7 +265,7 @@ protected:
                              << SVG_HEIGHT         << height      << SVG_QUOTE
                              << SVG_ID             << iName       << SVG_QUOTE
                              << SVG_CLASS          << className   << SVG_QUOTE
-                             << SVG_INAME          << fullName    << SVG_QUOTE
+                             << SVG_INAME          << name        << SVG_QUOTE
                              << cues
                           << SVG_GT << endl;
         if (fullName == STAFF_GRID)
@@ -301,6 +308,7 @@ public:
 
         _prevDef       = 0;   // FDef*
         _iNames        = 0;   // QStringList*
+        _fullNames     = 0;   // QStringList*
         _nonStdStaves  = 0;   // QVector<int>*
         _nStaves       = 0;   // int
         _nLines        = 0;   // int
@@ -446,10 +454,13 @@ bool SvgPaintEngine::end()
         else
             stream()           << SVG_STAFFLINES  <<_nLines     << SVG_QUOTE;
     }
-
-    stream() << SVG_GT << endl  // Document attributes:
-             << SVG_TITLE_BEGIN << d->attributes.title << SVG_TITLE_END << endl
-             << SVG_DESC_BEGIN  << d->attributes.desc  << SVG_DESC_END  << endl;
+    stream() << SVG_GT << endl;
+    if (_isSMAWS) // inline <svg> titles pop up as tooltips for entire document
+        stream() << SVG_DESC_BEGIN  << d->attributes.title << SVG_SPACE
+                                    << d->attributes.desc  << SVG_DESC_END  << endl;
+    else
+        stream() << SVG_TITLE_BEGIN << d->attributes.title << SVG_TITLE_END << endl
+                 << SVG_DESC_BEGIN  << d->attributes.desc  << SVG_DESC_END  << endl;
 
 
     if (_isSMAWS) { // Cursor, Gray, Fade rects at the end of the current body
@@ -461,7 +472,8 @@ bool SvgPaintEngine::end()
             indent = SVG_SPACE;
         for (int i = 0; i < 2; i++)
             stream() << indent << SVG_RECT
-                        << SVG_CLASS          << CLASS_GRAY  << SVG_QUOTE << SVG_SPACE << SVG_SPACE
+                        << SVG_CLASS          << CLASS_GRAY  << SVG_QUOTE
+                                              << SVG_SPACE   << SVG_SPACE
                         << SVG_X << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
                         << SVG_Y << SVG_QUOTE << SVG_ZERO    << SVG_QUOTE
                         << SVG_WIDTH          << SVG_ZERO    << SVG_QUOTE
@@ -504,19 +516,18 @@ bool SvgPaintEngine::end()
 
         if (_isMulti) {
             // Frozen <use> elements by staff. SVG_GROUP_ consolidates events.
-            //!!FOR NOW THIS IS ALWAYS "funcName(evt)". "top." should be an option somewhere, somehow.
-            const QString frozenEvents = " onclick=\"frozenClick(evt)\" onmouseover=\"frozenOver(evt)\" onmouseout=\"frozenOut(evt)\" onmouseup=\"frozenUp(evt)\"";
-
             stream() << SVG_GROUP_BEGIN
                         << SVG_POINTER << SVG_VISIBLE << SVG_QUOTE
-                        << frozenEvents
                      << SVG_GT << endl;
 
             for (i = 0; i < _iNames->size(); i++)
-                stream() << SVG_4SPACES << _multiUse[i]
-                         << SVG_ID     << (*_iNames)[i] << SVG_QUOTE
-                         << XLINK_HREF << (*_iNames)[i] << SVG_DASH << CUE_ID_ZERO << SVG_QUOTE
-                         << SVG_ELEMENT_END << endl;
+                stream() << SVG_4SPACES     << _multiUse[i]
+                         << SVG_ID          << (*_iNames)[i]    << SVG_QUOTE
+                         << XLINK_HREF      << (*_iNames)[i]    << SVG_DASH
+                                            << CUE_ID_ZERO      << SVG_QUOTE
+                         << SVG_GT
+                         << SVG_TITLE_BEGIN << (*_fullNames)[i] << SVG_TITLE_END
+                         << SVG_USE_END     << endl;
 
             stream() << SVG_GROUP_END << endl;
         }
@@ -2141,16 +2152,26 @@ void SvgGenerator::streamBody() {
     beginning of a new staff, so it reinitializes the _prevDef pointer.
     Called by saveSMAWS() in mscore/file.cpp.
 */
-void SvgGenerator::beginMultiGroup(QStringList* pINames, const QString& fullName, const QString& className, qreal height, qreal top, const QString& cues) {
+void SvgGenerator::beginMultiGroup(QStringList* pINames,
+                                   QStringList* pFullNames,
+                                   const QString& className,
+                                   qreal height,
+                                   qreal top,
+                                   const QString& cues)
+{
     SvgPaintEngine* pe = static_cast<SvgPaintEngine*>(paintEngine());
+    QString fullName = (pFullNames  == 0 ? 0 : pFullNames->last());
     pe->_isMulti = true;
     pe->_prevDef = 0;
     if (pINames != 0) {
-        pe->_iNames = pINames;
-        pe->beginMultiGroup(pINames->last(), fullName, className, height, top, cues);
+        pe->_iNames    = pINames;
+        pe->_fullNames = pFullNames;
+        pe->beginMultiGroup(pINames->last(), fullName,
+                            className, height, top, cues);
     }
     else // this applies to lyrics pseudo-staves
-        pe->beginMultiGroup(pe->_iNames->last() + className, pe->_iNames->last(), className, height, top, cues);
+        pe->beginMultiGroup(pe->_iNames->last() + className, pe->_iNames->last(),
+                            className, height, top, cues);
 }
 
 /*!

@@ -2903,6 +2903,7 @@ static void paintStaffLines(Score*        score,
                             int           idxStaff       = -1, // element.staffIdx()
                             bool          isMulti        = false,
                             QStringList*  pINames        =  0,
+                            QStringList*  pFullNames     =  0,
                             QList<qreal>* pStaffTops     =  0,
                             QStringList*  pVTT           =  0)
 {
@@ -2925,13 +2926,7 @@ static void paintStaffLines(Score*        score,
         // Multi-staff "parts" that are not linked (e.g. piano)
         isStaff = (isLink || isSingle || (*staves)[0]->idx() == idxStaff);
         if (isStaff) {
-            QString   qs = staff->part()->longName();
-            bool   isTab = staff->isTabStaff();
-
-            if (isTab && isLink)
-                qs.append("Tabs");
-
-            pINames->append(stringToUTF8(stripNonCSS(qs)));
+            bool isTab = staff->isTabStaff();
 
             const int gridHeight = 30;
             const int tabHeight  = 53;
@@ -2982,6 +2977,7 @@ static void paintStaffLines(Score*        score,
             // The short name is the longer name in the staves list. For linked
             // tabs staves, the shortName is the note staff's long name.
             // JavaScript uses this to link the staves, which are separate in SVG.
+            QString qs = staff->part()->longName();
             const QString shortName = (isTab && isLink
                                      ? stringToUTF8(stripNonCSS(staff->part()->longName()))
                                      : stringToUTF8(staff->part()->shortName(0), true));
@@ -2990,7 +2986,11 @@ static void paintStaffLines(Score*        score,
             const QString className = (isGrid ? CLASS_GRID
                                               : (isTab ? CLASS_TABS
                                                        : CLASS_NOTES));
-            printer->beginMultiGroup(pINames, shortName, className, height, top,
+            if (isTab && isLink)
+                qs.append("Tabs");
+            pINames->append(stringToUTF8(stripNonCSS(qs)));
+            pFullNames->append(shortName);
+            printer->beginMultiGroup(pINames, pFullNames, className, height, top,
                                      getGrayOutCues(score, idxStaff, pVTT)); ///!!!these gray-out cues are not currently used
             printer->setCueID("");
         }
@@ -3689,6 +3689,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
         paintStaffLines(score, &p, &printer, page, &visibleStaves);
 
     QStringList      iNames;    // Only used by Multi-Select Staves.
+    QStringList      fullNames; // Only used by Multi-Select Staves.
     QList<qreal>     staffTops; // ditto
     int              idxStaff;  // Everything is grouped by staff.
     EType            eType;     // Everything is determined by element type.
@@ -3718,7 +3719,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
             }
             // We're starting s new staff, paint its staff lines
             paintStaffLines(score, &p, &printer, page, &visibleStaves, nVisible,
-                            idx, isMulti, &iNames, &staffTops, &setVTT);
+                            idx, isMulti, &iNames, &fullNames, &staffTops, &setVTT);
             idxStaff = idx;
         }
 
@@ -3877,7 +3878,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
         iNames.append(system);
         printer.setStaffIndex(nVisible); // only affects fancy formatting
         printer.setYOffset(0);
-        printer.beginMultiGroup(&iNames, system, system, 35, 0, QString()); ///!!! 35 is standard top staff line y-coord, I'm being lazy here by hardcoding it
+        printer.beginMultiGroup(&iNames, 0, system, 35, 0, QString()); ///!!! 35 is standard top staff line y-coord, I'm being lazy here by hardcoding it
         bool isMouse = false;
         for (CueMulti::iterator i = mapSysStaff.begin(); i != mapSysStaff.end(); ++i) {
             cue_id = i.key();
@@ -3966,6 +3967,7 @@ static void streamRulers(Score*         score,
                          int            width)
 {
     const int margin = 8; // margin on both sides of the ruler
+    const int endX   = width - margin;
 
     // SVG values and partial values for various attributes
     QString lineID;
@@ -3981,7 +3983,7 @@ static void streamRulers(Score*         score,
 
     int   tick;
     int   iBarNo;   // Integer version of measure number
-    qreal pxX;      // Floating point version of x coordinates
+    int   pxX;      // x coordinates for lines are int
     qreal offX;     // x offset for rehearsal mark text
 
     // For the invisible, but clickable, rects around lines
@@ -3994,11 +3996,15 @@ static void streamRulers(Score*         score,
     QString textB;
     QString textM;
     QString elm;
-    QString label;   // <text> element contents
-    QString markers; // markers must stream after bars for proper mouse/touch
-    QString tempos;  // tempos streamed separately for readability, consistency
-    QTextStream qtsMrks(&markers);
-    QTextStream qtsTmps(&tempos);
+    QString label;    // <text> element contents
+    QString noEvents; // elements with pointer-events="none"
+    QString bars;     // markers elements must follow bars elements so that...
+    QString marks;    // ...they can be on top of the full-height bar <rect>s
+    QString tempos;   // tempos separate for readability and consistency
+    QTextStream qtsBars( &bars);
+    QTextStream qtsMarks(&marks);
+    QTextStream qtsNoEvt(&noEvents);
+    QTextStream qtsTempo(&tempos);
     QTextStream qtsFile;
     QTextStream* pqts;
     QFile       qf;
@@ -4053,8 +4059,8 @@ static void streamRulers(Score*         score,
                     break; // breaks the for loop
             }
         }
-
-        // Bars ruler by Measure - QMultiMap is last in first out, bars last here, first in file (better cue_id sorting).
+        // Bars ruler by Measure - QMultiMap is last in first out, bars last
+        // here, first in file, for better cue_id sorting.
         tick = m->tick();
         mapSVG.insert(tick, static_cast<Element*>(m));
         setVTT->insert(tick);
@@ -4074,8 +4080,9 @@ static void streamRulers(Score*         score,
     qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_RULER_DEFS));
     qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
     qtsFile.setDevice(&qf);
-    *qts << qtsFile.readAll().arg(width).arg(width)
-                             .arg(score->lastSegment()->tick());
+    *qts << qtsFile.readAll().arg(width)
+                             .arg(margin)
+                             .arg(endX);
 
     // Stream the line and text elements, with all their attributes:
     for (i = mapSVG.begin(); i != mapSVG.end(); ++i) {
@@ -4090,8 +4097,8 @@ static void streamRulers(Score*         score,
         lineID = line;
 
         // Values for this cue
-        tick = i.key();
-        pxX = margin + (pxPerMSec * startMSecsFromTick(score, tick));
+        tick = i.key(); // lines fall on whole number x-coordinates
+        pxX = qRound(margin + (pxPerMSec * startMSecsFromTick(score, tick)));
 
         switch (eType) {
         case EType::MEASURE :
@@ -4133,16 +4140,15 @@ static void streamRulers(Score*         score,
             break;
         }
 
-        pqts = (isMarker ? &qtsMrks : (isTempo ? &qtsTmps : qts));
         if (isTempo)
-            *pqts << SVG_4SPACES << SVG_GROUP_BEGIN << SVG_SPACE << SVG_SPACE << SVG_SPACE
-                  << formatInt(SVG_CUE_NQ, tick, cueIdDigits, true)
-                  << " data-tempo=\"" << static_cast<TempoText*>(e)->tempo()  << SVG_QUOTE
-                  << SVG_GT << SVG_GROUP_END << endl;
-
+            qtsTempo << SVG_4SPACES << SVG_GROUP_BEGIN << SVG_SPACE << SVG_SPACE << SVG_SPACE
+                     << formatInt(SVG_CUE_NQ, tick, cueIdDigits, true)
+                     << " data-tempo=\"" << static_cast<TempoText*>(e)->tempo()  << SVG_QUOTE
+                     << SVG_GT << SVG_GROUP_END << endl;
         else {
+            // Invisible <rect>s and <use>s:
             // Measuring the width of the text is dicey, thus Markers invisible
-            // <rect>s cannot handle all the events, the way Bars can. Bars
+            // <rect>s cannot handle all the events, the same way Bars can. Bars
             // invisible <rect>s cover both rulers, so Markers elements must
             // stream after Bars in order to capture any events.
             // Invisible <rect>s don't need to be collected for hiLiting.
@@ -4152,25 +4158,26 @@ static void streamRulers(Score*         score,
             // Marker  rect = fill horizontal space between line/text.
             // BarLine rect splits the space around each line, no empty spaces.
             if (isMarker || tick > 0) {
-                elm = (isMarker ? rectM : rectB);
+                pqts = (isMarker ? &qtsMarks : &qtsBars);
+                elm  = (isMarker ? rectM     : rectB);
                 *pqts << elm.arg(formatInt(SVG_CUE_NQ, rectCue, cueIdDigits, true))
                             .arg(formatReal(SVG_X, x, xDigits, true))
-                            .arg(isMarker ? "" : QString::number(rectWidth));
-
+                            .arg(isMarker ? "" : QString::number(rectWidth, 'f', 1));
                 if (!isMarker)
                     rectX += rectWidth;
             }
 
-            // Both Markers and Bars get the line and, conditionally, text.
+            // Lines: both Markers and Bars get a line and, conditionally, text.
+            pqts = (isMarker ? &qtsMarks : &qtsNoEvt);
             *pqts << SVG_4SPACES << SVG_USE << SVG_SPACE
                   << formatInt(SVG_CUE_NQ, tick, cueIdDigits, true)
-                  << formatReal(SVG_X, pxX, xDigits, true)
+                  << formatInt(SVG_X, pxX, xDigits, true)
                   << XLINK_HREF << lineID
                   << SVG_CLASS  << "OtNo" << SVG_QUOTE
                   << (isMarker ? "" : formatInt(SVG_BARNUMB, iBarNo, barNoDigits, true))
                   << SVG_ELEMENT_END << endl;
 
-            // Only stream the text element if there's text inside it
+            // Text: only stream the text element if there's text inside it
             if (!label.isEmpty()) {
                 elm = (isMarker ? textM : textB);
                 *pqts << elm.arg(formatInt(SVG_CUE_NQ, tick, cueIdDigits, true))
@@ -4185,23 +4192,47 @@ static void streamRulers(Score*         score,
         }
     } //for (i)
 
-    // Invisible <rect> for final bar line
-    rectWidth = width - rectX - margin - 1;
-    *qts << rectB.arg(formatInt(SVG_CUE_NQ, tick, cueIdDigits, true))
-                 .arg(formatReal(SVG_X, rectX, xDigits, true))
-                 .arg(rectWidth);
+    // Invisible <rect> for final start-of-bar line
+    rectWidth = endX - ((endX - lineX) / 2) - rectX;
+    qtsBars << rectB.arg(formatInt(SVG_CUE_NQ, tick, cueIdDigits, true))
+                    .arg(formatReal(SVG_X, rectX, xDigits, true))
+                    .arg(rectWidth);
 
-    // Don't forget the markers! They must be after the bars ruler because the
-    // bars rects are full ruler height, and the markers text is variable width.
-    // This avoids improper overlap in the markers half of the rulers.
-    *qts << markers;
-    *qts << tempos;  // tempos too! there should always be at least one.
+    // Invisible <rect> for final end-of-bar line
+    rectX    += rectWidth;
+    rectWidth = endX - rectX - 1;
+    tick      = score->lastSegment()->tick();
+    qtsBars << rectB.arg(formatInt(SVG_CUE_NQ, tick, cueIdDigits, true))
+                    .arg(formatReal(SVG_X, rectX, xDigits, true))
+                    .arg(rectWidth);
+
+    // The final end-of-bar lines
+    lineID = (++iBarNo % 5 == 0 ? line5 : line);
+    qtsNoEvt << SVG_4SPACES << SVG_USE << SVG_SPACE
+             << formatInt(SVG_CUE_NQ, tick, cueIdDigits, true)
+             << formatInt(SVG_X, endX, xDigits, true)
+             << XLINK_HREF << lineID
+             << SVG_CLASS  << "OtNo" << SVG_QUOTE
+             << SVG_ELEMENT_END << endl;
+    qtsNoEvt << SVG_4SPACES << SVG_USE << SVG_SPACE
+             << formatInt(SVG_CUE_NQ, tick, cueIdDigits, true)
+             << formatInt(SVG_X, endX, xDigits, true)
+             << XLINK_HREF << lineMrks
+             << SVG_CLASS  << "OtNo" << SVG_QUOTE
+             << SVG_ELEMENT_END << endl;
+
+    // Stream things in order and in groups as required
+    *qts << bars  << marks  << SVG_GROUP_END << endl
+         << SVG_GROUP_BEGIN << SVG_GT        << endl
+         << noEvents        << SVG_GROUP_END << endl
+         << SVG_GROUP_BEGIN << SVG_GT        << endl
+         << tempos          << SVG_GROUP_END << endl;
 
     // The loop cursors are in the footer template file
     qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_RULER_FTR));
     qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
     qtsFile.setDevice(&qf);
-    *qts << qtsFile.readAll().arg(width - margin);
+    *qts << qtsFile.readAll().arg(endX);
 }
 
 // MuseScore::saveSMAWS_Rulers()
@@ -4238,7 +4269,7 @@ bool MuseScore::saveSMAWS_Rulers(Score* score, QFileInfo* qfi)
     qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_RULER_HDR));
     qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
     qts.setDevice(&qf);
-    fileStream << qts.readAll().arg(wRuler).arg(score->title());
+    fileStream << qts.readAll().arg(wRuler);
 
     streamRulers(score, qfi, &fileStream, &setVTT, wRuler);
 
@@ -4481,7 +4512,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
     QTextStream   tableStream;
 
     const QString indy  = QString(6, SVG_SPACE); // indentation for grid row text
-    const QString click = " onclick=\"gridClick(evt)\" pointer-events=\"visible\"";
+    const QString click = " onclick=\"gridClick(evt)\"";
 
     // HTML: One file contains multiple tables
     if (isHTML) {
@@ -5412,9 +5443,11 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
 
                 // Stream the cells by row by column (by page).
                 // Rows are streamed left-to-right.
-                QString name;
-                QString id;
-
+                QString id, name, title, ctrls;
+                qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_GRID_INST));
+                qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
+                qts.setDevice(&qf);
+                ctrls = qts.readAll();
                 cellY = 0;
                 for (int r = 0; r < nStaves; r++) {
                     // Stream the instrument names - similar loop to bar/beatlines
@@ -5425,6 +5458,9 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         // id value cannot contain spaces
                         id = stringToUTF8(stripNonCSS(name));
 
+                        // long name for tooltip via <title>
+                        title = stringToUTF8(score->staff(r)->part()->shortName(startOffset), true);
+
                         isLED = !score->staff(r)->small();
 
                         // Each staff (row) is wrapped in a group
@@ -5432,21 +5468,15 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                        << SVG_ID        << id  << SVG_QUOTE
                                        << SVG_CLASS     << "staff"
                                        << (!isLED && r != idxChords ? " lyrics" : "") << SVG_QUOTE
-                                       << SVG_INAME     << stringToUTF8(score->staff(r)->part()->shortName(startOffset), true) << SVG_QUOTE
+                                       << SVG_INAME     << title          << SVG_QUOTE
+                                       << SVG_POINTER   << SVG_VISIBLE   << SVG_QUOTE
                                        << SVG_TRANSFORM << SVG_TRANSLATE << SVG_ZERO
                                        << SVG_SPACE     << cellY << SVG_RPAREN_QUOTE
                                     << SVG_GT << endl;
 
-                        if (r != idxChords) {
-                            // Import the row header controls (solo, gain, pan), but not for idxChord
-                            qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_GRID_INST));
-                            qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
-                            qts.setDevice(&qf);
-                            tableStream << qts.readAll().replace("%0", evtPrefix)
-                                                        .replace("%1", id)
-                                                        .replace("%2", *iNames[r]);
-                        }
-                        else // the one and only chords row, no controls, but it has a name/label
+                        if (r != idxChords) // solo/mix controls and bg shape
+                            tableStream << ctrls.arg(title).arg(*iNames[r]);
+                        else                // the one and only chords row
                             tableStream << SVG_4SPACES << SVG_TEXT_BEGIN
                                         << formatInt(SVG_X, nameLeft, 2, true)
                                         << formatInt(SVG_Y, baseline, 2, true)

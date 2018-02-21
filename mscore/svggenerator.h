@@ -122,6 +122,8 @@ using IntSet          = std::set<int>;
 #define SVG_GROUP_END   "</g>"
 #define SVG_TEXT_BEGIN  "<text"
 #define SVG_TEXT_END    "</text>"
+#define SVG_USE_BEGIN   "<use"
+#define SVG_USE_END     "</use>"
 
 #define SVG_USE         "<use"
 #define SVG_LINE        "<line"
@@ -384,7 +386,7 @@ public:
     void freezeIt(int idxStaff);
     void streamDefs();
     void streamBody();
-    void beginMultiGroup(QStringList* pINames, const QString& fullName, const QString& className, qreal height, qreal top, const QString& cues);
+    void beginMultiGroup(QStringList* pINames, QStringList *pFullNames, const QString& className, qreal height, qreal top, const QString& cues);
     void beginMouseGroup();
     void beginGroup(int indent = 0);
     void endGroup(int indent = 0);
