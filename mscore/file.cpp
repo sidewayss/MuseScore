@@ -3967,7 +3967,8 @@ static void streamRulers(Score*         score,
                          int            width)
 {
     const int margin = 8; // margin on both sides of the ruler
-    const int endX   = width - margin;
+    const int border = 2; // stroke-width of borders
+    const int endX   = width - margin - border;
 
     // SVG values and partial values for various attributes
     QString lineID;
@@ -4024,8 +4025,8 @@ static void streamRulers(Score*         score,
     // Score::duration() returns # of seconds as an int, I need more accuracy
     const qreal duration = score->tempomap()->tick2time(score->lastMeasure()->tick()
                                                       + score->lastMeasure()->ticks());
-    // Pixels of width per millisecond, left + right margins
-    const qreal pxPerMSec = (width -  (margin * 2)) / (duration * 1000);
+    // Pixels of width per millisecond, left + right margins, right border
+    const qreal pxPerMSec = (width - (margin * 2) - border) / (duration * 1000);
 
     // End of music tick is required in VTT for endRect and loopEnd
     tick = score->lastSegment()->tick();
@@ -4081,6 +4082,7 @@ static void streamRulers(Score*         score,
     qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
     qtsFile.setDevice(&qf);
     *qts << qtsFile.readAll().arg(width)
+                             .arg(width - 1)
                              .arg(margin)
                              .arg(endX);
 
