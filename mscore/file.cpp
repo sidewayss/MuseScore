@@ -3425,10 +3425,11 @@ static QString formatInt(const QString& attr,
 // Exact duplicate of SvgPaintEngine::fixedFormat()!!!
 static QString formatReal(const QString& attr,
                           const qreal    n,
+                          const int      precision,
                           const int      maxDigits,
                           const bool     withQuotes)
 {
-    QString qsReal = QString::number(n, 'f', SVG_PRECISION);
+    QString qsReal = QString::number(n, 'f', precision);
     QString qs;
     QTextStream qts(&qs);
     qts << attr;
@@ -4001,9 +4002,11 @@ static void streamRulers(Score*         score,
     QString noEvents; // elements with pointer-events="none"
     QString bars;     // markers elements must follow bars elements so that...
     QString marks;    // ...they can be on top of the full-height bar <rect>s
+    QString style;    // the markers text and lines that javascript styles
     QString tempos;   // tempos separate for readability and consistency
     QTextStream qtsBars( &bars);
     QTextStream qtsMarks(&marks);
+    QTextStream qtsStyle(&style);
     QTextStream qtsNoEvt(&noEvents);
     QTextStream qtsTempo(&tempos);
     QTextStream qtsFile;
@@ -4073,18 +4076,14 @@ static void streamRulers(Score*         score,
     getRulersTemplate(&textB, FILE_RULER_TB, qfi);
     getRulersTemplate(&textM, FILE_RULER_TM, qfi);
 
-    // Display floating point numbers with consistent precision
-    qts->setRealNumberPrecision(SVG_PRECISION);
-    qts->setRealNumberNotation(QTextStream::FixedNotation);
-
     // Stream the <defs> and initial content from template
     qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_RULER_DEFS));
     qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
     qtsFile.setDevice(&qf);
     *qts << qtsFile.readAll().arg(width)
-                             .arg(width - 1)
-                             .arg(margin)
-                             .arg(endX);
+                             .arg(width  - 1)
+                             .arg(margin - 1)
+                             .arg(endX   + 1);
 
     // Stream the line and text elements, with all their attributes:
     for (i = mapSVG.begin(); i != mapSVG.end(); ++i) {
@@ -4124,7 +4123,7 @@ static void streamRulers(Score*         score,
             isTempo   = false;
             break;
         case EType::REHEARSAL_MARK :
-            offX  =  6;
+            offX  =  7;
             x     = pxX - offX;
             label = static_cast<const Text*>(e)->xmlText();
             lineID    = lineMrks;
@@ -4163,14 +4162,14 @@ static void streamRulers(Score*         score,
                 pqts = (isMarker ? &qtsMarks : &qtsBars);
                 elm  = (isMarker ? rectM     : rectB);
                 *pqts << elm.arg(formatInt(SVG_CUE_NQ, rectCue, cueIdDigits, true))
-                            .arg(formatReal(SVG_X, x, xDigits, true))
+                            .arg(formatReal(SVG_X, x, 1, xDigits, true))
                             .arg(isMarker ? "" : QString::number(rectWidth, 'f', 1));
                 if (!isMarker)
                     rectX += rectWidth;
             }
 
             // Lines: both Markers and Bars get a line and, conditionally, text.
-            pqts = (isMarker ? &qtsMarks : &qtsNoEvt);
+            pqts = (isMarker ? &qtsStyle : &qtsNoEvt);
             *pqts << SVG_4SPACES << SVG_USE << SVG_SPACE
                   << formatInt(SVG_CUE_NQ, tick, cueIdDigits, true)
                   << formatInt(SVG_X, pxX, xDigits, true)
@@ -4183,7 +4182,7 @@ static void streamRulers(Score*         score,
             if (!label.isEmpty()) {
                 elm = (isMarker ? textM : textB);
                 *pqts << elm.arg(formatInt(SVG_CUE_NQ, tick, cueIdDigits, true))
-                            .arg(formatReal(SVG_X, pxX + offX, xDigits, true))
+                            .arg(formatInt(SVG_X, pxX + offX, xDigits, true))
                             .arg(label);
             }
 
@@ -4197,15 +4196,15 @@ static void streamRulers(Score*         score,
     // Invisible <rect> for final start-of-bar line
     rectWidth = endX - ((endX - lineX) / 2) - rectX;
     qtsBars << rectB.arg(formatInt(SVG_CUE_NQ, tick, cueIdDigits, true))
-                    .arg(formatReal(SVG_X, rectX, xDigits, true))
+                    .arg(formatReal(SVG_X, rectX, 1, xDigits, true))
                     .arg(rectWidth);
 
     // Invisible <rect> for final end-of-bar line
     rectX    += rectWidth;
-    rectWidth = endX - rectX - 1;
+    rectWidth = width - rectX - 1;
     tick      = score->lastSegment()->tick();
     qtsBars << rectB.arg(formatInt(SVG_CUE_NQ, tick, cueIdDigits, true))
-                    .arg(formatReal(SVG_X, rectX, xDigits, true))
+                    .arg(formatReal(SVG_X, rectX, 1, xDigits, true))
                     .arg(rectWidth);
 
     // The final end-of-bar lines
@@ -4224,7 +4223,10 @@ static void streamRulers(Score*         score,
              << SVG_ELEMENT_END << endl;
 
     // Stream things in order and in groups as required
-    *qts << bars  << marks  << SVG_GROUP_END << endl
+    *qts << bars  << marks  << SVG_SPACE   << SVG_SPACE
+         << SVG_GROUP_BEGIN << SVG_POINTER << SVG_VISIBLE << SVG_QUOTE << SVG_GT
+         << endl << style   << SVG_SPACE   << SVG_SPACE   << SVG_GROUP_END
+         << endl << SVG_GROUP_END            << endl
          << SVG_GROUP_BEGIN << SVG_GT        << endl
          << noEvents        << SVG_GROUP_END << endl
          << SVG_GROUP_BEGIN << SVG_GT        << endl
@@ -4234,7 +4236,7 @@ static void streamRulers(Score*         score,
     qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_RULER_FTR));
     qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
     qtsFile.setDevice(&qf);
-    *qts << qtsFile.readAll().arg(endX);
+    *qts << qtsFile.readAll().arg(margin).arg(endX);
 }
 
 // MuseScore::saveSMAWS_Rulers()
