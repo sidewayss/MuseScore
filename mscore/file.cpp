@@ -117,9 +117,9 @@
 #define EXT_SVG  ".svg"
 #define EXT_VTT  ".vtt"
 #define EXT_HTML ".html"
+#define EXT_TEXT ".txt"
 
 // Template files
-#define FILE_LYRICS     "templates/SMAWS_Lyrics.svg.txt"     // lyrics svg boilerplate - complete file
 #define FILE_RULER_HDR  "templates/SMAWS_RulerHdr.svg.txt"   // ruler svg boilerplate file header/title
 #define FILE_RULER_FTR  "templates/SMAWS_RulerFtr.svg.txt"   // ditto content footer with loop cursors
 #define FILE_RULER_DEFS "templates/SMAWS_RulerDefs.svg.txt"  // ditto <defs>
@@ -6330,7 +6330,7 @@ bool MuseScore::saveSMAWS_Tree(Score* score, QFileInfo* qfi)
 }
 
 //
-// saveSMAWS_Lyrics() - produces one VTT file and one SVG file.
+// saveSMAWS_Lyrics() - produces one VTT file and one HTML text file.
 // All staves are exported to VTT.
 // Only staves with .hideSystemBarLine() == true are exported to SVG.
 // Multiple staves are consolidated into one flow in the SVG file.
@@ -6351,22 +6351,25 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
     int     i;
     int     tick;
     int     startTick  = 0;
-    bool    isSVG;
+    bool    isLyric;
     bool    isRest;
     bool    isOmit;
     bool    isPrevRest;
     bool    isPrevOmit;
     bool    isItalic;
     QString lyricsStaff;
-    QString lyricsItalic;
     QString lyricsEmpty;
     QString lyricsVTT;
-    QString lyricsSVG;
-    IntSet  setVTT;                     // std::set of mapSVG.uniqueKeys()
-    QMultiMap<QString, QString> mapVTT; // subtitles:  key = cue_id,    value = lyrics text
-    QMultiMap<int,     QString> mapSVG; // lyrics svg: key = startTick, value = lyrics text
+    QString lyricsHTML;
+    IntSet  setVTT;                      // std::set of mapHTML.uniqueKeys()
+    QMultiMap<QString, QString> mapVTT;  // subtitles:   key = cue_id,    value = lyrics text
+    QMultiMap<int,     QString> mapHTML; // lyrics html: key = startTick, value = lyrics text
 
-    const QString italicTag = "<i>";
+    RehearsalMark* rm;
+
+    const QString br           = "<br>";
+    const QString beginItalics = "<i>";
+    const QString endItalics   = "</i>";
     Articulation* art = new Articulation(score);
     art->setArticulationType(ArticulationType::Downbow);
 
@@ -6375,7 +6378,7 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
     for (i = 0; i < score->nstaves(); i++)
     {
         isPrevRest = true;
-        isSVG      = score->staff(i)->hideSystemBarLine(); // it's a reasonable property to hijack for this purpose
+        isLyric    = score->staff(i)->hideSystemBarLine(); // it's a reasonable property to hijack for this purpose
 
         // VTT+CSS-class version of part name, enclosed in angle brackets.
         // VTT cue text looks like this:
@@ -6393,7 +6396,7 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
                     continue;
 
                 // Chords with downbow articulations are treated like rests for
-                // the SVG file. Actual rests shouldn't have articulations...
+                // the HTML file. Actual rests shouldn't have articulations...
                 isOmit = cr->hasArticulation(art);
 
                 tick   = cr->tick();
@@ -6401,32 +6404,39 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
                 if (!isRest) { // It's a Chord
                     if (cr->lyrics().size() > 0) {
                         if (isPrevRest) { // New line of lyrics
-                            startTick  = tick;
-                            isItalic   = cr->lyrics()[0]->textStyle().italic();
-                            lyricsItalic = (isItalic ? "Italic" : "");
-                            lyricsVTT    = lyricsStaff + lyricsItalic + SVG_SPACE;
-                            if (isSVG && !isOmit) {
-                                lyricsSVG = (isItalic ? italicTag : "");
+                            startTick = tick;
+                            lyricsVTT = lyricsStaff;
+                            isItalic  = cr->lyrics()[0]->textStyle().italic();
+
+                            if (isItalic) {
+                                lyricsVTT += "Italic";
+                                lyricsHTML = beginItalics;
                             }
+                            else
+                                lyricsHTML.clear();
+
+                            lyricsVTT += SVG_SPACE;
                         }
                         else {            // Add to existing line of lyrics
                             switch (cr->lyrics()[0]->syllabic()) {
                             case Lyrics::Syllabic::SINGLE :
                             case Lyrics::Syllabic::BEGIN  :
                                 lyricsVTT += SVG_SPACE;   // new word, precede it with a space
-                                if (isSVG && !isOmit)
-                                    lyricsSVG += SVG_SPACE;
+                                if (isLyric && !isOmit)
+                                    lyricsHTML += SVG_SPACE;
                                 break;
                             default :
                                 break; // multi-syllable word with separate timestap tags, no preceding space
                             }
                         }
+
                         lyricsVTT += SVG_LT;
                         lyricsVTT += ticks2VTTmsecs(tick, tempos);
                         lyricsVTT += SVG_GT;
-                        lyricsVTT += cr->lyrics()[0]->plainText(); ///!!! looping over lyricsList vector will be necessary soon, tied in with repeats, which are also 100% unhandled in SMAWS today!!! though for animated scores it may not be necessary.  Repeats require multiple cue_ids per animated note.
-                        if (isSVG && !isOmit)
-                            lyricsSVG += cr->lyrics()[0]->plainText();
+                        lyricsVTT += cr->lyrics()[0]->plainText(); ///!!!Looping over lyricsList vector will be necessary soon, tied in with repeats, which are also 100% unhandled in SMAWS today!!! though for animated scores it may not be necessary.  Repeats require multiple cue_ids per animated note.
+
+                        if (isLyric && !isOmit)
+                            lyricsHTML += cr->lyrics()[0]->plainText();
                     }
                 }
                 else { // It's a rest
@@ -6434,22 +6444,36 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
                         lyricsVTT += VTT_CLASS_END;
                         mapVTT.insert(getCueID(startTick, tick), lyricsVTT);
 
-                        if (isSVG && !isPrevOmit) {
-                            mapSVG.insert(startTick, lyricsSVG);
+                        if (isLyric && !isPrevOmit) {
+                            if (isItalic)
+                                lyricsHTML += endItalics;
+                            mapHTML.insert(startTick, lyricsHTML);
                             setVTT.insert(startTick);
                         }
                     }
 
-                    // RehearsalMarks are used to create non-lyrics lines in the
-                    // SVG file. These are necessary to animate properly. They take
-                    // care of the intro/outro/instrumental sections animation.
-                    // SVG_LT distinguishes this from lyrics text in mapSVG.
-                    if (isRest && isSVG) { // no good way to restrict this further, every rest in this staff...
+                    // RehearsalMarks on rests are used to create non-lyrics
+                    // lines in the HTML file. These are necessary to animate
+                    // spaces between verses properly, intro/outro/solo sections too.
+                    if (isRest && isLyric) { // no good way to restrict this further, every rest in this staff...
                         for (Element* eAnn : s->annotations()) {
                             if (eAnn->type()  == EType::REHEARSAL_MARK
-                             && setVTT.find(tick) == setVTT.end()) { // rehearsal marks are system-level, not staff-level
-                                lyricsEmpty = static_cast<RehearsalMark*>(eAnn)->xmlText() + SVG_LT;
-                                mapSVG.insert(tick, lyricsEmpty);
+                             && setVTT.find(tick) == setVTT.end())
+                            { // rehearsal marks are system-level, not staff-level
+                                rm       = static_cast<RehearsalMark*>(eAnn);
+                                isItalic = rm->textStyle().italic();
+
+                                if (isItalic)
+                                    lyricsEmpty = beginItalics;
+                                else
+                                    lyricsEmpty.clear();
+                                lyricsEmpty += rm->xmlText();
+                                if (isItalic)
+                                    lyricsEmpty += endItalics;
+                                if (lyricsEmpty.trimmed().isEmpty())
+                                    lyricsEmpty = br;\
+
+                                mapHTML.insert(tick, lyricsEmpty);
                                 setVTT.insert(tick);
                                 break; // only one marker per segment
                             }
@@ -6468,13 +6492,14 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
     if (!isPrevRest) {
         lyricsVTT += VTT_CLASS_END;
         mapVTT.insert(getCueID(startTick, score->lastSegment()->tick()), lyricsVTT);
-        if (isSVG)
-            mapSVG.insert(startTick, lyricsSVG);
+        if (!lyricsHTML.isEmpty())
+            if (isItalic)
+                lyricsHTML += endItalics;
+            mapHTML.insert(startTick, lyricsHTML);
             setVTT.insert(startTick);
     }
 
     // It's file time
-    QString     qs;
     QFile       qf;
     QTextStream qts;
     QStringList keys;
@@ -6483,7 +6508,7 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
     const QString fnRoot   = QString("%1/%2").arg(qfi->path()).arg(score->metaTag(tagWorkNo));
     const QString fnLyrics = QString("%1%2%3").arg(fnRoot).arg(SMAWS_).arg(SMAWS_LYRICS);
 
-    // Subtitles VTT file
+    // Subtitles VTT file:
     qf.setFileName(QString("%1%2%3%4").arg(fnRoot).arg(SMAWS_).arg(SMAWS_VIDEO).arg(EXT_VTT));
     qf.open(QIODevice::WriteOnly | QIODevice::Text);  // TODO: check for failure here!!!
     qts.setDevice(&qf);
@@ -6513,74 +6538,31 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
     qts.flush();
     qf.close();
 
-    // SVG File assumes 14pt font, it's in the CSS for lyricsNo/Hi classes.
-    // It's SVG, so it scales, thus the initial font size is not critical.
-    const int startY    = 16;
-    const int increment = 18;
-    const int offset    = increment - 4; // bottom line + 4, but y is bottom line + increment at the time when this is used
-    const int lyricsX   = 24; // a fixed value for the x attribute of every text element - formatting done after this export...
-    const int maxDigits =  4; // max y value for vertically aligned number formatting == 9999, extremely reasonable value
-
-    int y = startY;
-
-    QTextStream qtsRead;  // SVG file is fully based on a template file
-    QString     className;
-
+    // HTML file:
     // Collect the cues into a string, iterating by cue_id, and calculating y
-    lyricsSVG.clear();
-    qts.setString(&lyricsSVG);
+    lyricsHTML.clear();
+    qts.setString(&lyricsHTML);
     for (IntSet::iterator tick = setVTT.begin(); tick != setVTT.end(); ++tick) {
-        values = mapSVG.values(*tick);
-        for (QStringList::iterator i = values.begin(); i != values.end(); ++i) {
-            if (i->startsWith(italicTag)) {
-                i->remove(0, italicTag.size());
-                lyricsItalic = " font-style=\"italic\"";
-            }
-            else
-                lyricsItalic = "";
-
-            if (i->endsWith(SVG_LT)) {
-                i->resize(i->size() - 1); // remove the SVG_LT
-                className = "lyricsOtMt"; // Mt == Empty
-            }
-            else
-                className = "lyricsOtNo"; // Ot == onmouseout
-
-            qts << SVG_8SPACES << SVG_TEXT_BEGIN
-                   << formatInt(SVG_X,        lyricsX, maxDigits,        true)
-                   << formatInt(SVG_Y,        y,       maxDigits,        true)
-                   << formatInt(SVG_CUE_NQ,   *tick, CUE_ID_FIELD_WIDTH, true)
-                   << SVG_CLASS << className  << SVG_QUOTE
-                   << lyricsItalic
+        values = mapHTML.values(*tick);
+        for (QStringList::iterator i = values.begin(); i != values.end(); ++i)
+            qts << "<span"
+                   << formatInt(SVG_CUE_NQ, *tick, CUE_ID_FIELD_WIDTH, true)
+                   << SVG_CLASS << "lyricsOtNo" << SVG_QUOTE
                    << SVG_GT    << *i
-                << SVG_TEXT_END << endl;
-
-            y += increment;
-        }
+                << "</span>" << endl;
     }
 
-    // Open the template file for read-only
-    qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_LYRICS));
-    qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
-    qtsRead.setDevice(&qf);
-    qs = qtsRead.readAll(); // the unpopulated template is small, < 400 bytes
-
-    // Open a stream into the SVG file
-    qf.setFileName(QString("%1%2").arg(fnLyrics).arg(EXT_SVG));
+    // Open a stream into the HTML file
+    qf.setFileName(QString("%1%2").arg(fnLyrics).arg(EXT_TEXT));
     qf.open(QIODevice::WriteOnly | QIODevice::Text);  // TODO: check for failure here!!!
     qts.setDevice(&qf);
+    qts << lyricsHTML;
 
-    qts << qs.replace("%1", QString::number(999)) ///!!!I have no way to calculate width here
-             .replace("%2", QString::number(y - offset))
-             .replace("%3", score->title())
-             .replace("%4", smawsDesc(score))
-             .replace("%5", lyricsSVG);
-
-    // Write and close the SVG file
+    // Write and close the HTML file
     qts.flush();
     qf.close();
 
-    // The SVG lyrics VTT file generation is pre-encapsulated (shared by frets)
+    // The HTML lyrics' VTT file generation is pre-encapsulated, shared by frets.
     saveStartVTT(score, fnLyrics, &setVTT, 0);
 
     delete art; // the friendly thing to do
