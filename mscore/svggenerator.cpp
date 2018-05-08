@@ -205,7 +205,7 @@ protected:
     int  _nStaves;  // Number of staves in the current score
     int  _idxStaff; // The current staff index
     int  _idxGrid;  // The grid staff index
-    qreal _fWidth;  // The full width of max-size def, including staff lines
+    int _fWidth;  // The full width of max-size def, including staff lines
 
     QVector<int>* _nonStdStaves; // Vector of staff indices for the tablature and percussion staves in this score
 
@@ -253,7 +253,7 @@ protected:
     void beginMultiGroup(const QString& iName,
                          const QString& fullName,
                          const QString& className,
-                         qreal height,
+                         int height,
                          qreal top,
                          const QString& cues)
     {
@@ -313,7 +313,7 @@ public:
         _nStaves       = 0;   // int
         _nLines        = 0;   // int
         _idxGrid       = -1;  // int
-        _fWidth        = 0.0; // qreal
+        _fWidth        = 0.0; // int
         _xLeft         = 0.0; // qreal
         _cursorTop     = 0.0; // qreal
         _cursorHeight  = 0.0; // qreal
@@ -525,9 +525,7 @@ bool SvgPaintEngine::end()
                          << SVG_ID          << (*_iNames)[i]    << SVG_QUOTE
                          << XLINK_HREF      << (*_iNames)[i]    << SVG_DASH
                                             << CUE_ID_ZERO      << SVG_QUOTE
-                         << SVG_GT
-                         << SVG_TITLE_BEGIN << (*_fullNames)[i] << SVG_TITLE_END
-                         << SVG_USE_END     << endl;
+                         << SVG_ELEMENT_END << endl;
 
             stream() << SVG_GROUP_END << endl;
         }
@@ -605,6 +603,8 @@ bool SvgPaintEngine::end()
             // This code finds the places where this happens and creates defs
             // with the proper time sig x-coord for the non-standard staves.
             // It assumes that non-standard staves never have clef changes.
+            // It also causes the frozen <def> groups for non-standard staves to
+            // appear out of order in the <svg> file (after the "system" staff).
             if (hasKeySig && _nonStdStaves != 0 && _nonStdStaves->size() > 0 && cue_id != CUE_ID_ZERO) {
                 for (i = 0; i < _nonStdStaves->size(); i++) {
                     QString timeKey = getDefKey(i, EType::TIMESIG);
@@ -1053,6 +1053,8 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 
     if (mode == PolylineMode) {
         bool  isStaffLines = (_et == EType::STAFF_LINES);
+        bool  isBarLine    = (_et == EType::BAR_LINE);
+        bool  isStraight   = (isBarLine || isStaffLines); // 1px straight lines
         int   height       = _e->bbox().height();
         qreal yOff         = _isFullMatrix ? 0 : _yOffset;
 
@@ -1065,14 +1067,18 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
         qts << SVG_POLYLINE << classState << styleState;
 
          // Barline cues only for the first staff in a system for SCORE
-        if (_et == EType::BAR_LINE && !_cue_id.isEmpty())
+        if (isBarLine && !_cue_id.isEmpty())
             qts << SVG_CUE << _cue_id << SVG_QUOTE;
 
         qts << SVG_POINTS;
         for (int i = 0; i < pointCount; ++i) {
             const QPointF &pt = points[i];
 
-            qts << pt.x() + _dx << SVG_COMMA << pt.y() + _dy + yOff;
+            if (isStraight) // stroke-width="1" transform="translate(0 0.5)"
+                qts << qRound(pt.x() + _dx) << SVG_COMMA
+                    << qRound(pt.y() + _dy + yOff);
+            else
+                qts << pt.x() + _dx << SVG_COMMA << pt.y() + _dy + yOff;
 
             if (i != pointCount - 1)
                 qts << SVG_SPACE;
@@ -1100,14 +1106,13 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 
         // For Frozen Pane (horizontal scrolling only), staff lines only
         if (_isFrozen) {
-            const qreal x1 = points[0].x() + _dx;
-            const qreal y1 = points[0].y() + _dy + yOff;
-            const qreal y2 = points[1].y() + _dy + yOff;
+            const int x1 = qRound(points[0].x() + _dx);
+            const int y  = qRound(points[0].y() + _dy + yOff); // y1 == y2
 
             if (frozenLines[_idxStaff] == 0) {
                 frozenLines[_idxStaff] = new QString;
                 if (isStaffLines && _e->staff()->linkedStaves())
-                    frozenINameY.insert(_idxStaff, y1 + (height / 2) + INAME_OFFSET);
+                    frozenINameY.insert(_idxStaff, y + (height / 2) + INAME_OFFSET);
             }
 
             qts.setString(frozenLines[_idxStaff]);
@@ -1115,15 +1120,15 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 
             // Frozen pane staff lines must be <line>, not <polyline>,
             // due to CSS color management and user color control.
-            if (_fWidth == 0.0) // assumes staff lines x1 is constant across staves
+            if (_fWidth == 0) // assumes staff lines x1 is constant across staves
                 _fWidth = x1 + FROZEN_WIDTH;
             qts << SVG_8SPACES << SVG_LINE
                    << SVG_CLASS      << "FrozenLines"     << SVG_QUOTE // a variation on StaffLines
                    << SVG_STROKE_URL << "gradFrozenLines" << SVG_RPAREN_QUOTE
                    << SVG_X1         << x1                << SVG_QUOTE
-                   << SVG_Y1         << y1                << SVG_QUOTE
+                   << SVG_Y1         << y                 << SVG_QUOTE
                    << SVG_X2         << _fWidth           << SVG_QUOTE
-                   << SVG_Y2         << y2                << SVG_QUOTE
+                   << SVG_Y2         << y                 << SVG_QUOTE
                 << SVG_ELEMENT_END << endl;
 
             if (_xLeft == 0)
@@ -1355,6 +1360,8 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         QString* elm = new QString;
         QTextStream qts(elm);
         initStream(&qts);
+        const QChar sep = ',';
+        QStringList list;
         if (_idxStaff != _idxGrid || _et == EType::TIMESIG) {
             if (_et == EType::KEYSIG || _et == EType::TIMESIG)
                 // KeySigs/TimeSigs simply cache the text content until freezeDef()
@@ -1363,13 +1370,26 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
                 // The other element types cache a fully-defined <text> element
                 qts << getFrozenElement(textContent, defClass, x, y);
 
-                // The solo (link off) version of instrument names, one for each
-                // staff. Linked staves' first staff's iname gets two elements.
-                if (_et == EType::INSTRUMENT_NAME && frozenINameY.contains(_idxStaff))
-                    qts << getFrozenElement(textContent,
-                                            _e->staff()->isTabStaff() ? CLASS_INAME_TABS
-                                                                      : CLASS_INAME_NOTE,
-                                            x, frozenINameY[_idxStaff]);
+                if (_et == EType::INSTRUMENT_NAME) {
+                    list = textContent.split(sep);       // short name, long name
+
+                    // The solo (link off) version of instrument names, one for each
+                    // staff. Linked staves' first staff's iname gets two elements.
+                    if (frozenINameY.contains(_idxStaff))
+                        qts << getFrozenElement(list[0], // short name
+                                                _e->staff()->isTabStaff() ? CLASS_INAME_TABS
+                                                                          : CLASS_INAME_NOTE,
+                                                x, frozenINameY[_idxStaff]);
+
+                    // All frozen pane defs have a title for tooltips
+                    qts << SVG_8SPACES << SVG_TITLE_BEGIN;
+                    if (list.size() == 1)                // long name:
+                        qts << (*_fullNames)[_idxStaff]; // instrument name
+                    else
+                        qts << list[1];                  // instrument change
+                    qts << SVG_TITLE_END << endl;
+
+                }
             }
 
             // Ensure that tempo defs have the correct width
@@ -2155,7 +2175,7 @@ void SvgGenerator::streamBody() {
 void SvgGenerator::beginMultiGroup(QStringList* pINames,
                                    QStringList* pFullNames,
                                    const QString& className,
-                                   qreal height,
+                                   int height,
                                    qreal top,
                                    const QString& cues)
 {

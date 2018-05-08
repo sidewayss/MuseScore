@@ -386,7 +386,7 @@ public:
     void freezeIt(int idxStaff);
     void streamDefs();
     void streamBody();
-    void beginMultiGroup(QStringList* pINames, QStringList *pFullNames, const QString& className, qreal height, qreal top, const QString& cues);
+    void beginMultiGroup(QStringList* pINames, QStringList *pFullNames, const QString& className, int height, qreal top, const QString& cues);
     void beginMouseGroup();
     void beginGroup(int indent = 0);
     void endGroup(int indent = 0);
