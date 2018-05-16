@@ -1172,6 +1172,8 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     if (p.fillRule() == Qt::OddEvenFill)
         stream() << SVG_FILL_RULE;
 
+    bool isBeam = (_element->type() == Ms::ElementType::BEAM);
+
     // Path data
     stream() << SVG_D;
     for (int i = 0; i < p.elementCount(); ++i) {
@@ -1180,10 +1182,12 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
                                qreal y = e.y + _dy;
         switch (e.type) {
         case QPainterPath::MoveToElement:
-            stream() << SVG_MOVE  << x << SVG_COMMA << y;
+            stream() << SVG_MOVE  << (isBeam ? qRound(x) : x) << SVG_COMMA
+                                  << (isBeam ? qRound(y) : y);
             break;
         case QPainterPath::LineToElement:
-            stream() << SVG_LINE  << x << SVG_COMMA << y;
+            stream() << SVG_LINE  << (isBeam ? qRound(x) : x) << SVG_COMMA
+                                  << (isBeam ? qRound(y) : y);
             break;
         case QPainterPath::CurveToElement:
             stream() << SVG_CURVE << x << SVG_COMMA << y;
@@ -1220,11 +1224,31 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount,
         path.lineTo(points[i]);
 
     if (mode == PolylineMode) {
+        Ms::ElementType et = _element->type();
+        bool  isStaffLines = (et == Ms::ElementType::STAFF_LINES); // stroke-width="2", horizontal
+        bool  isBarLine    = (et == Ms::ElementType::BAR_LINE);    // stroke-width="4", vertical
+        bool  isLedger     = (et == Ms::ElementType::LEDGER_LINE); // stroke-width="3", horizontal
+        bool  isStem       = (et == Ms::ElementType::STEM);        // stroke-width="3", vertical
+        bool  is24 = isBarLine || isStaffLines;
+
         stream() << SVG_POLYLINE << stateString
                  << SVG_POINTS;
+
         for (int i = 0; i < pointCount; ++i) {
             const QPointF &pt = points[i];
-            stream() << pt.x() + _dx << SVG_COMMA << pt.y() + _dy;
+
+            if (is24)
+                stream() << qRound(pt.x() + _dx)        << SVG_COMMA
+                         << qRound(pt.y() + _dy);
+            else if (isStem)
+                stream() << qRound(pt.x() + _dx)        << SVG_COMMA
+                         << qFloor(pt.y() + _dy) + 0.5;
+            else if (isLedger)
+                stream() << qFloor(pt.x() + _dx) + 0.5  << SVG_COMMA
+                         << qRound(pt.y() + _dy);
+            else
+                 stream() << pt.x() + _dx << SVG_COMMA << pt.y() + _dy;
+
             if (i != pointCount - 1)
                 stream() << SVG_SPACE;
         }
