@@ -991,6 +991,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     QString qs;
     QTextStream qts(&qs);
     initStream(&qts);
+    bool isBeam = false;
 
     // Not a text frame: draw an actual path. Stream class/style states.
     qts << SVG_PATH << classState << styleState;
@@ -1003,6 +1004,8 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     case EType::NOTE         : // Tablature has rects behind numbers
     case EType::SLUR_SEGMENT :
     case EType::TREMOLO      :
+        if (_et == EType::BEAM)
+            isBeam = true;
         break;                 // fill-rule styled by CSS
     default:
         if (p.fillRule() == Qt::OddEvenFill)
@@ -1015,12 +1018,20 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
         const QPainterPath::Element &ppe = p.elementAt(i);
         qreal x = ppe.x + _dx;
         qreal y = ppe.y + _dy + yOff;
+        if (isBeam) {
+            x = qRound(x); // a path with no fill and no curves renders best
+            y = qRound(y); // when all the points are integers.
+        }
         switch (ppe.type) {
         case QPainterPath::MoveToElement:
-            qts << SVG_M << x << SVG_COMMA << y;
-            break;
+            qts << SVG_M;
         case QPainterPath::LineToElement:
-            qts << SVG_L << x << SVG_COMMA << y;
+            if (ppe.type != QPainterPath::MoveToElement)
+                qts << SVG_L;
+            if (isBeam)
+                qts << qRound(x) << SVG_COMMA << qRound(y);
+            else
+                qts << x << SVG_COMMA << y;
             break;
         case QPainterPath::CurveToElement:
             qts << SVG_C << x << SVG_COMMA << y;
@@ -1058,16 +1069,26 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 {
     Q_ASSERT(pointCount >= 2);
 
+    // Keep in mind: staff lines, bar lines and stems are everywhere in a score.
+    // It's worth some effort to render them properly in SVG.
+    // These are maximum 0.5px adjustments on a canvas that is 5x normal size.
+    // The position changes are virtually invisible, but rendering is improved.
     if (mode == PolylineMode) {
-        bool  isStaffLines = (_et == EType::STAFF_LINES); // stroke-width="2"
-        bool  isBarLine    = (_et == EType::BAR_LINE);    // stroke-width="4"
-        bool  isHorzVert   = _isSMAWS && (isBarLine || isStaffLines);
-        int   height       = _e->bbox().height();
-        qreal yOff         = _isFullMatrix ? 0 : _yOffset;
+        bool  isStaffLines = (_et == EType::STAFF_LINES); // stroke-width="2", horizontal
+        bool  isBarLine    = (_et == EType::BAR_LINE);    // stroke-width="4", vertical
+        bool  isLedger     = (_et == EType::LEDGER_LINE); // stroke-width="3", horizontal
+        bool  isStem       = (_et == EType::STEM);        // stroke-width="3", vertical
+        bool  is24   = isBarLine || isStaffLines;
+        bool  is3    = isLedger  || isStem;
+        int   height = _e->bbox().height();
+        qreal yOff   = _isFullMatrix ? 0 : _yOffset;
 
         QString qs;
         QTextStream qts(&qs);
         initStream(&qts);
+
+        if (is3) // they only need 1 decimal place
+            qts.setRealNumberPrecision(1);
 
         if (_isMulti) qts << SVG_4SPACES; // isMulti staff is inside a <g>
 
@@ -1081,8 +1102,14 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
         for (int i = 0; i < pointCount; ++i) {
             const QPointF &pt = points[i];
 
-            if (isHorzVert)
-                qts << qRound(pt.x() + _dx) << SVG_COMMA
+            if (is24)
+                qts << qRound(pt.x() + _dx)               << SVG_COMMA
+                    << qRound(pt.y() + _dy + yOff);
+            else if (isStem)
+                qts << qRound(pt.x() + _dx)               << SVG_COMMA
+                    << qFloor(pt.y() + _dy + yOff) + 0.5;
+            else if (isLedger)
+                qts << qFloor(pt.x() + _dx) + 0.5         << SVG_COMMA
                     << qRound(pt.y() + _dy + yOff);
             else
                 qts << pt.x() + _dx << SVG_COMMA << pt.y() + _dy + yOff;
@@ -1092,6 +1119,9 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 
         }
         qts << SVG_QUOTE;
+
+        if (is3) // revert
+            qts.setRealNumberPrecision(SVG_PRECISION);
 
         // Vertical scrolling: top staff line in each system has cue id + height
         if (isStaffLines && !_cue_id.isEmpty()) {
