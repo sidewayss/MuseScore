@@ -3161,15 +3161,15 @@ static void paintStaffLines(Score*        score,
                             QVector<int>* pVisibleStaves =  0,
                             int           nVisible       =  0,
                             int           idxStaff       = -1, // element.staffIdx()
-                            bool          isMulti        = false,
                             QStringList*  pINames        =  0,
                             QStringList*  pFullNames     =  0,
                             QList<qreal>* pStaffTops     =  0)
 {
     const qreal cursorOverlap = Ms::SPATIUM20 / 2; // half staff-space overlap, top + bottom
 
-    bool  isFirstSystem = true;
-    bool  isStaff       = true;
+    bool  isMulti = (idxStaff != -1);
+    bool  isFirst = true;             // first system
+    bool  isStaff = true;
     qreal cursorTop;
     qreal cursorBot;
     qreal vSpacerUp = 0;
@@ -3278,7 +3278,7 @@ static void paintStaffLines(Score*        score,
             // same height. Systems and staves are in top-to-bottom order here.
             if (pVisibleStaves != 0) {
                 printer->setStaffIndex(pVisibleStaves->value(i));
-                if (isFirstSystem) {
+                if (isFirst) {
                     int j;
                     StaffLines* sl = s->firstMeasure()->staffLines(i);
 
@@ -3401,7 +3401,7 @@ static void paintStaffLines(Score*        score,
 
         } // for each Staff
         if (s->staves()->size() > 0) //!!invisible first systems in parts...
-            isFirstSystem = false;
+            isFirst = false;
 
     } //for each System
     if (isVertical)
@@ -3932,7 +3932,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
             }
             // We're starting s new staff, paint its staff lines
             paintStaffLines(score, &p, &printer, page, &visibleStaves, nVisible,
-                            idx, isMulti, &iNames, &fullNames, &staffTops);
+                            idx, &iNames, &fullNames, &staffTops);
             idxStaff = idx;
         }
 

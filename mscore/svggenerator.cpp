@@ -148,6 +148,10 @@ private:
 // For centering text in frames. The frame is drawn first, before the text.
     QRectF _textFrame;
 
+// For notes and other elements to get the offsets from stems and ledger lines
+//            tick       x      y
+    QMap<int, QPair<qreal, qreal>> _offsets;
+
 ////////////////////
 // for Frozen Pane:
 //
@@ -1083,14 +1087,15 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
         int   height = _e->bbox().height();
         qreal yOff   = _isFullMatrix ? 0 : _yOffset;
 
+        int x, y, z;
         QString qs;
         QTextStream qts(&qs);
         initStream(&qts);
 
-        if (is3) // they only need 1 decimal place
-            qts.setRealNumberPrecision(1);
+        if (is3)
+            qts.setRealNumberPrecision(1); // they only need 1 decimal place
 
-        if (_isMulti) qts << SVG_4SPACES; // isMulti staff is inside a <g>
+        if (_isMulti) qts << SVG_4SPACES;  // isMulti staff is inside a <g>
 
         qts << SVG_POLYLINE << classState << styleState;
 
@@ -1105,12 +1110,18 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
             if (is24)
                 qts << qRound(pt.x() + _dx)               << SVG_COMMA
                     << qRound(pt.y() + _dy + yOff);
-            else if (isStem)
-                qts << qRound(pt.x() + _dx)               << SVG_COMMA
-                    << qFloor(pt.y() + _dy + yOff) + 0.5;
-            else if (isLedger)
-                qts << qFloor(pt.x() + _dx) + 0.5         << SVG_COMMA
-                    << qRound(pt.y() + _dy + yOff);
+            else if (isStem) {
+                z = pt.x() + _dx;
+                x = qFloor(z) + 0.5;
+                qts << x << SVG_COMMA << qRound(pt.y() + _dy + yOff);
+                x -= z;
+            }
+            else if (isLedger) {
+                z = pt.y() + _dy + yOff;
+                y = qFloor(z) + 0.5;
+                qts << qRound(pt.x() + _dx) << SVG_COMMA << y;
+                y -= z;
+            }
             else
                 qts << pt.x() + _dx << SVG_COMMA << pt.y() + _dy + yOff;
 
@@ -1120,8 +1131,18 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
         }
         qts << SVG_QUOTE;
 
-        if (is3) // revert
-            qts.setRealNumberPrecision(SVG_PRECISION);
+        if (is3) {
+            qts.setRealNumberPrecision(SVG_PRECISION); // revert
+            int tick = _e->tick();
+            if (isStem) // stems are first in the score elements sort order
+                _offsets.insert(tick, RealPair(x, 0));
+            else  {     // ledger line
+                if (_offsets.contains(tick))
+                    _offsets[tick].second = y;
+                else
+                    _offsets.insert(tick, RealPair(0, y));
+            }
+        }
 
         // Vertical scrolling: top staff line in each system has cue id + height
         if (isStaffLines && !_cue_id.isEmpty()) {
@@ -1187,6 +1208,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     if (_e == NULL)
         return;
 
+    int tick;
     qreal x, y;
 
     // Variables, constants, initial setup
@@ -1221,7 +1243,6 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
                              : font.pointSizeF());
     QString qs;
     QTextStream qts(&qs);
-
     if (_isMulti)
         qts << SVG_4SPACES;
 
@@ -1233,16 +1254,22 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         pitch = static_cast<const Ms::Note*>(_e)->pitch();
     case EType::ACCIDENTAL        :
     case EType::ARTICULATION      :
+    case EType::HOOK              :
+    case EType::NOTEDOT           :
+        tick = _e->tick();
+        if (_offsets.contains(tick)) {
+            RealPair& xy = _offsets[tick];
+            x += xy.first;
+            y += xy.second;
+        }
     case EType::BRACKET           :
     case EType::CLEF              :
     case EType::GLISSANDO_SEGMENT :
     case EType::HARMONY           : // Chord text/symbols for song book, fake book, etc,
-    case EType::HOOK              :
     case EType::INSTRUMENT_CHANGE :
     case EType::INSTRUMENT_NAME   :
     case EType::KEYSIG            :
     case EType::LYRICS            :
-    case EType::NOTEDOT           :
     case EType::REST              :
     case EType::STAFF_TEXT        :
     case EType::TEMPO_TEXT        :
