@@ -460,6 +460,16 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       void updateViewModeCombo();
       void switchLayoutMode(LayoutMode);
 
+///// SMAWS ///////////////////////////////////////////////////////////////////
+      bool autoSMAWS        (Score* score, QFileInfo* qfi, bool isAll);
+      bool saveSMAWS_Music  (Score* score, QFileInfo* qfi, bool isMulti, bool isAuto);
+      bool saveSMAWS_Rulers (Score* score, QFileInfo* qfi);
+      bool saveSMAWS_Tables (Score* score, QFileInfo* qfi, bool isHTML, bool hasRulers);
+      bool saveSMAWS_Frets  (Score* score, QFileInfo* qfi);
+      bool saveSMAWS_Tree   (Score* score, QFileInfo* qfi);
+      bool saveSMAWS_Lyrics (Score* score, QFileInfo* qfi);
+      bool saveSMAWS_Tour   (Score* score, QFileInfo* qfi);
+///////////////////////////////////////////////////////////////////////////////
    private slots:
       void cmd(QAction* a, const QString& cmd);
       void autoSaveTimerTimeout();
@@ -620,7 +630,7 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       QList<LanguageItem>& languages() { return _languages; }
 
       QStringList getOpenScoreNames(const QString& filter, const QString& title);
-      QString getSaveScoreName(const QString& title, QString& name, const QString& filter, bool folder = false);
+      QString getSaveScoreName(const QString& title, QString& name, const QString& filter, bool folder = false, QString *selectedFilter = 0);
       QString getStyleFilename(bool open, const QString& title = QString());
       QString getFotoFilename(QString& filter, QString *selectedFilter);
       QString getChordStyleFilename(bool open);

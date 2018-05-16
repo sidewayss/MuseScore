@@ -60,6 +60,7 @@ class PageSettings : public AbstractDialog, private Ui::PageSettingsBase {
       void elmChanged(double val);
       void ermChanged(double val);
       void spatiumChanged(double val);
+      void spatiumDefault();
       void pageHeightChanged(double);
       void pageWidthChanged(double);
       void pageOffsetChanged(int val);

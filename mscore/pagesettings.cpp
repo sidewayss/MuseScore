@@ -59,6 +59,7 @@ PageSettings::PageSettings(QWidget* parent)
       connect(buttonOk,             SIGNAL(clicked()),            SLOT(ok()));
       connect(portraitButton,       SIGNAL(clicked()),            SLOT(orientationClicked()));
       connect(landscapeButton,      SIGNAL(clicked()),            SLOT(orientationClicked()));
+      connect(resetSpatium,         SIGNAL(clicked()),            SLOT(spatiumDefault()));
       connect(twosided,             SIGNAL(toggled(bool)),        SLOT(twosidedToggled(bool)));
       connect(pageHeight,           SIGNAL(valueChanged(double)), SLOT(pageHeightChanged(double)));
       connect(pageWidth,            SIGNAL(valueChanged(double)), SLOT(pageWidthChanged(double)));
@@ -115,7 +116,7 @@ void PageSettings::blockSignals(bool block)
       {
       for (auto w : { oddPageTopMargin, oddPageBottomMargin, oddPageLeftMargin, oddPageRightMargin,
          evenPageTopMargin, evenPageBottomMargin, evenPageLeftMargin, evenPageRightMargin, spatiumEntry,
-         pageWidth, pageHeight } )
+         pageWidth, pageHeight } ) //!!should resetSpatium be added here or anywhere else??
             {
             w->blockSignals(block);
             }
@@ -298,7 +299,9 @@ void PageSettings::applyToScore(Score* s)
       s->undoChangeStyleVal(Sid::pageOddBottomMargin, oddPageBottomMargin->value() * f);
       s->undoChangeStyleVal(Sid::pageOddLeftMargin, oddPageLeftMargin->value() * f);
       s->undoChangeStyleVal(Sid::pageTwosided, twosided->isChecked());
-      s->undoChangeStyleVal(Sid::spatium, spatiumEntry->value() * f1);
+      double spat = spatiumEntry->value() * f1;
+      if (qAbs(spat - s->spatium()) > 0.002)      // helps avoid extra rounding
+        s->undoChangeStyleVal(Sid::spatium, spat);
 
       s->endCmd();
       }
@@ -504,6 +507,21 @@ void PageSettings::spatiumChanged(double val)
       preview->score()->setSpatium(val);
       preview->score()->spatiumChanged(oldVal, val);
       updatePreview(0);
+      }
+
+//---------------------------------------------------------
+//   spatiumDefault - resets the spatium to SPATIUM20
+//---------------------------------------------------------
+
+void PageSettings::spatiumDefault()
+      {
+      double newVal = SPATIUM20 * 1.0; // why is it naturally an int in disguise?
+      double oldVal = preview->score()->spatium();
+      preview->score()->setSpatium(newVal);
+      preview->score()->spatiumChanged(oldVal, newVal);
+      updatePreview(0);
+      cs->setSpatium(newVal); // overrides rounded value in applyToScore()
+      cs->spatiumChanged(oldVal, newVal);
       }
 
 //---------------------------------------------------------

@@ -195,13 +195,24 @@
            <double>0.001000000000000</double>
           </property>
           <property name="maximum">
-           <double>999.990000000000009</double>
+           <double>9999.989999999999782</double>
           </property>
           <property name="singleStep">
            <double>0.200000000000000</double>
           </property>
           <property name="value">
            <double>2.001000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="resetSpatium">
+          <property name="text">
+           <string>...</string>
+          </property>
+          <property name="icon">
+           <iconset resource="musescore.qrc">
+            <normaloff>:/data/icons/edit-reset.svg</normaloff>:/data/icons/edit-reset.svg</iconset>
           </property>
          </widget>
         </item>
@@ -516,7 +527,9 @@
   <tabstop>buttonOk</tabstop>
   <tabstop>buttonCancel</tabstop>
  </tabstops>
- <resources/>
+ <resources>
+  <include location="musescore.qrc"/>
+ </resources>
  <connections>
   <connection>
    <sender>buttonOk</sender>
