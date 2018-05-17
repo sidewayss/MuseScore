@@ -150,7 +150,7 @@ private:
 
 // For notes and other elements to get the offsets from stems and ledger lines
 //            tick       x      y
-    QMap<int, QPair<qreal, qreal>> _offsets;
+    map<int, RealPair> _offsets;
 
 ////////////////////
 // for Frozen Pane:
@@ -1086,8 +1086,7 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
         bool  is3    = isLedger  || isStem;
         int   height = _e->bbox().height();
         qreal yOff   = _isFullMatrix ? 0 : _yOffset;
-
-        int x, y, z;
+        qreal x, y, z;
         QString qs;
         QTextStream qts(&qs);
         initStream(&qts);
@@ -1135,12 +1134,12 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
             qts.setRealNumberPrecision(SVG_PRECISION); // revert
             int tick = _e->tick();
             if (isStem) // stems are first in the score elements sort order
-                _offsets.insert(tick, RealPair(x, 0));
+                _offsets[tick] = RealPair(x, 0);
             else  {     // ledger line
-                if (_offsets.contains(tick))
+                if (_offsets.find(tick) != _offsets.end())
                     _offsets[tick].second = y;
                 else
-                    _offsets.insert(tick, RealPair(0, y));
+                    _offsets[tick] = RealPair(0, y);
             }
         }
 
@@ -1257,7 +1256,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     case EType::HOOK              :
     case EType::NOTEDOT           :
         tick = _e->tick();
-        if (_offsets.contains(tick)) {
+        if (_offsets.find(tick) != _offsets.end()) {
             RealPair& xy = _offsets[tick];
             x += xy.first;
             y += xy.second;
