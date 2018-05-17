@@ -42,6 +42,10 @@
 #include "svggenerator.h"
 #include "libmscore/mscore.h"
 
+using RealPair    = std::pair<qreal, qreal>;
+using TickToXY    = std::map<int, RealPair>;
+using StaffToTTXY = std::vector<TickToXY*>;
+
 ///////////////////////////////////////////////////////////////////////////////
 // FOR GRADIENT FUNCTIONALITY THAT IS NOT IMPLEMENTED (YET):
 //
@@ -238,8 +242,8 @@ private:
     qreal _dy;
 
 protected:
-// The Ms::Element being generated right now
-    const Ms::Element* _element = NULL;
+    const Ms::Element* _element = NULL; // the Ms::Element being painted now
+    StaffToTTXY        _offsets;        // vector by staff of offsets by tick
 
 // SVG strings as constants
 #define SVG_SPACE    ' '
@@ -998,6 +1002,19 @@ void SvgGenerator::setElement(const Ms::Element* e) {
     static_cast<SvgPaintEngine*>(paintEngine())->_element = e;
 }
 
+/*!
+    setStaffCount() function
+    Sets the _nStaves variable in SvgPaintEngine.
+    Called by saveSVG() in mscore/file.cpp.
+*/
+void SvgGenerator::setStaffCount(int n)
+{
+    StaffToTTXY& ttxy = static_cast<SvgPaintEngine*>(paintEngine())->_offsets;
+    ttxy.resize(n);
+    for (int i = 0; i < n; i++)
+        ttxy[i] = new TickToXY;
+}
+
 /*****************************************************************************
  * class SvgPaintEngine
  */
@@ -1172,14 +1189,28 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     if (p.fillRule() == Qt::OddEvenFill)
         stream() << SVG_FILL_RULE;
 
-    bool isBeam = (_element->type() == Ms::ElementType::BEAM);
+    int  tick     = _element->tick();
+    int  idxStaff = _element->staffIdx();
+    bool isBeam   = _element->isBeam();
+
+    // Offsets that result from rounding stem and ledger line coordinates
+    bool useOffsets = _element->isNote()    || _element->isAccidental()
+                   || _element->isNoteDot() || _element->isArticulation()
+                   || _element->isHook();
 
     // Path data
     stream() << SVG_D;
     for (int i = 0; i < p.elementCount(); ++i) {
         const QPainterPath::Element &e = p.elementAt(i);
-                               qreal x = e.x + _dx;
-                               qreal y = e.y + _dy;
+        qreal x = e.x + _dx;
+        qreal y = e.y + _dy;
+        if (useOffsets) {
+            tick = _element->tick();
+            if (_offsets[idxStaff]->find(tick) != _offsets[idxStaff]->end()) {
+                x += (*_offsets[idxStaff])[tick].first;
+                y += (*_offsets[idxStaff])[tick].second;
+            }
+        }
         switch (e.type) {
         case QPainterPath::MoveToElement:
             stream() << SVG_MOVE  << (isBeam ? qRound(x) : x) << SVG_COMMA
@@ -1230,6 +1261,8 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount,
         bool  isLedger     = (et == Ms::ElementType::LEDGER_LINE); // stroke-width="3", horizontal
         bool  isStem       = (et == Ms::ElementType::STEM);        // stroke-width="3", vertical
         bool  is24 = isBarLine || isStaffLines;
+        qreal x, y, z;
+        int   tick, idxStaff;
 
         stream() << SVG_POLYLINE << stateString
                  << SVG_POINTS;
@@ -1238,14 +1271,32 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount,
             const QPointF &pt = points[i];
 
             if (is24)
-                stream() << qRound(pt.x() + _dx)        << SVG_COMMA
+                stream() << qRound(pt.x() + _dx) << SVG_COMMA
                          << qRound(pt.y() + _dy);
-            else if (isStem)
-                stream() << qFloor(pt.x() + _dx) + 0.5  << SVG_COMMA
-                         << qRound(pt.y() + _dy);
-            else if (isLedger)
-                stream() << qRound(pt.x() + _dx)        << SVG_COMMA
-                         << qFloor(pt.y() + _dy) + 0.5;
+            else if (isStem) {
+                z = pt.x() + _dx;
+                x = qFloor(z) + 0.5;
+                stream() << x << SVG_COMMA << qRound(pt.y() + _dy);
+                x -= z;
+                tick     = _element->tick();
+                idxStaff = _element->staffIdx();
+                if (_offsets[idxStaff]->find(tick) != _offsets[idxStaff]->end())
+                    (*_offsets[idxStaff])[tick].first = x;
+                else
+                    (*_offsets[idxStaff])[tick] = RealPair(x, 0);
+            }
+            else if (isLedger) {
+                z = pt.y() + _dy;
+                y = qFloor(z) + 0.5;
+                stream() << qRound(pt.x() + _dx) << SVG_COMMA << y;
+                y -= z;
+                tick     = _element->tick();
+                idxStaff = _element->staffIdx();
+                if (_offsets[idxStaff]->find(tick) != _offsets[idxStaff]->end())
+                    (*_offsets[idxStaff])[tick].second = y;
+                else
+                    (*_offsets[idxStaff])[tick] = RealPair(0, y);
+            }
             else
                  stream() << pt.x() + _dx << SVG_COMMA << pt.y() + _dy;
 

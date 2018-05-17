@@ -103,6 +103,7 @@ public:
     int resolution() const;
 
     void setElement(const Ms::Element* e);
+    void setStaffCount(int n);
 
 protected:
     QPaintEngine *paintEngine() const;

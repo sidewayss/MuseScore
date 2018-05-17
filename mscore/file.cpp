@@ -2685,6 +2685,7 @@ bool MuseScore::saveSvg(Score* score, const QString& saveName)
             qreal h = r.height();
             printer.setSize(QSize(w, h));
             printer.setViewBox(QRectF(0, 0, w, h));
+            printer.setStaffCount(score->nstaves());
             QPainter p(&printer);
             p.setRenderHint(QPainter::Antialiasing, true);
             p.setRenderHint(QPainter::TextAntialiasing, true);
