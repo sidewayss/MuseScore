@@ -1241,11 +1241,11 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount,
                 stream() << qRound(pt.x() + _dx)        << SVG_COMMA
                          << qRound(pt.y() + _dy);
             else if (isStem)
-                stream() << qRound(pt.x() + _dx)        << SVG_COMMA
-                         << qFloor(pt.y() + _dy) + 0.5;
-            else if (isLedger)
                 stream() << qFloor(pt.x() + _dx) + 0.5  << SVG_COMMA
                          << qRound(pt.y() + _dy);
+            else if (isLedger)
+                stream() << qRound(pt.x() + _dx)        << SVG_COMMA
+                         << qFloor(pt.y() + _dy) + 0.5;
             else
                  stream() << pt.x() + _dx << SVG_COMMA << pt.y() + _dy;
 
