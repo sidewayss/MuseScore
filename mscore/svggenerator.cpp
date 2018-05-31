@@ -160,6 +160,7 @@ private:
 
     Str2IntMap   frozenWidths;
     FDefs        frozenDefs;
+    Int2BoolMap  frozenClefs; // by tick: true if any staff has non-G clef
     QFile        frozenFile;
     qreal        _xLeft;      // StaffLines left x-coord, for element alignment
 
@@ -208,7 +209,6 @@ protected:
     int  _nStaves;  // Number of staves in the current score
     int  _idxStaff; // The current staff index
     int  _idxGrid;  // The grid staff index
-    int _fWidth;    // The full width of max-size def, including staff lines
 
     QVector<int>* _nonStdStaves; // Vector of staff indices for the tablature and percussion staves in this score
 
@@ -314,7 +314,6 @@ public:
         _nStaves       = 0;   // int
         _nLines        = 0;   // int
         _idxGrid       = -1;  // int
-        _fWidth        = 0.0; // int
         _xLeft         = 0.0; // qreal
         _cursorTop     = 0.0; // qreal
         _cursorHeight  = 0.0; // qreal
@@ -445,18 +444,18 @@ bool SvgPaintEngine::end()
                                              << qCeil(d->viewBox.width()) << SVG_SPACE
                                              << height << SVG_QUOTE;
     if (_isScrollVertical)
-        stream() << SVG_WIDTH  << d->size.width()  << SVG_QUOTE;
+        stream() << SVG_WIDTH  << d->size.width() << SVG_QUOTE;
     else
-        stream() << SVG_HEIGHT << height         << SVG_QUOTE;
-    stream()     << SVG_CLASS  << "fgFillStroke" << SVG_QUOTE << endl;
+        stream() << SVG_HEIGHT << height          << SVG_QUOTE;
+    stream()     << SVG_CLASS  << "fgFillStroke"  << SVG_QUOTE << endl;
 
     if (_isSMAWS) {
-        stream()<< SVG_4SPACES << SVG_XYMIN_SLICE
-                               << SVG_POINTER     << SVG_NONE   << SVG_QUOTE
-                << SVG_4SPACES << SVG_SCROLL      << scrollAxis << SVG_QUOTE;
+        stream() << SVG_4SPACES << SVG_XYMIN_SLICE
+                 << SVG_POINTER << SVG_NONE   << SVG_QUOTE
+                 << SVG_SCROLL  << scrollAxis << SVG_QUOTE;
 
         if (!_isMulti)
-            stream()           << SVG_STAFFLINES  <<_nLines     << SVG_QUOTE;
+            stream() << SVG_STAFFLINES <<_nLines << SVG_QUOTE;
     }
     stream() << SVG_GT << endl;
 
@@ -512,11 +511,11 @@ bool SvgPaintEngine::end()
 
         // The fader <rect> for crossfading between frozen and thawed
         stream() << SVG_RECT
-                    << SVG_ID       << "Fader"     << SVG_QUOTE
-                    << SVG_WIDTH    << _fWidth     << SVG_QUOTE
-                    << SVG_HEIGHT   << height      << SVG_QUOTE
-                    << SVG_FILL_URL << "gradFader" << SVG_RPAREN_QUOTE
-                    << SVG_STROKE   << SVG_NONE    << SVG_QUOTE
+                    << SVG_ID       << "Fader"      << SVG_QUOTE
+                    << SVG_WIDTH    << FROZEN_WIDTH << SVG_QUOTE
+                    << SVG_HEIGHT   << height       << SVG_QUOTE
+                    << SVG_FILL_URL << "gradFader"  << SVG_RPAREN_QUOTE
+                    << SVG_STROKE   << SVG_NONE     << SVG_QUOTE
                  << SVG_ELEMENT_END << endl;
 
         if (_isMulti) {
@@ -558,7 +557,7 @@ bool SvgPaintEngine::end()
                  << "        <stop stop-color=\"white\" stop-opacity=\"0\" offset=\"0.55\"/>\n"
                  << "    </linearGradient>\n"
                  << "    <linearGradient id=\"gradFrozenLines\" x1=\"0\" y1=\"0\" x2=\""
-                 << _fWidth << "\" y2=\"0\" gradientUnits=\"userSpaceOnUse\">\n"
+                 << FROZEN_WIDTH << "\" y2=\"0\" gradientUnits=\"userSpaceOnUse\">\n"
                  << "        <stop stop-color=\"black\" stop-opacity=\"1\" offset=\"0.50\"/>\n"
                  << "        <stop stop-color=\"black\" stop-opacity=\"0\" offset=\"0.55\"/>\n"
                  << "    </linearGradient>\n";
@@ -1177,14 +1176,12 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 
             // Frozen pane staff lines must be <line>, not <polyline>,
             // due to CSS color management and user color control.
-            if (_fWidth == 0) // assumes staff lines x1 is constant across staves
-                _fWidth = x1 + FROZEN_WIDTH;
             qts << SVG_8SPACES << SVG_LINE
                    << SVG_CLASS      << "FrozenLines"     << SVG_QUOTE // a variation on StaffLines
                    << SVG_STROKE_URL << "gradFrozenLines" << SVG_RPAREN_QUOTE
                    << SVG_X1         << x1                << SVG_QUOTE
                    << SVG_Y1         << y                 << SVG_QUOTE
-                   << SVG_X2         << _fWidth           << SVG_QUOTE
+                   << SVG_X2         << FROZEN_WIDTH      << SVG_QUOTE
                    << SVG_Y2         << y                 << SVG_QUOTE
                 << SVG_ELEMENT_END << endl;
 
@@ -1368,7 +1365,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
             break;
 
         case EType::CLEF :
-            x = _xLeft + (4 * Ms::DPI_F); //!!! literal value: clefOffset
+            x = _xLeft + CLEF_OFFSET;
 
             // No frozen class="ClefCourtesy", only "Clef"
             defClass = _e->name(_et);
@@ -1382,8 +1379,8 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
             // never require a translation. This is a y-axis offset.
             if (yLineKeySig[_idxStaff] != line && _cue_id != CUE_ID_ZERO)
                 yOffsetKeySig[_idxStaff] = line
-                                        - yLineKeySig[_idxStaff]
-                                        + yOffsetKeySig[_idxStaff];
+                                         - yLineKeySig[_idxStaff]
+                                         + yOffsetKeySig[_idxStaff];
             yLineKeySig[_idxStaff] = line;
             break;
 
@@ -1398,7 +1395,9 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
 
                 // The x-offset for the ensuing time signature is determined by the number of accidentals
                 if (!xOffsetTimeSig.contains(_cue_id) && _e->staff()->isPitchedStaff(0))
-                    xOffsetTimeSig.insert(_cue_id, qAbs((int)(static_cast<const Ms::KeySig*>(_e)->keySigEvent().key())) * 5 * Ms::DPI_F); //!!! literal keysig-accidental-width
+                    xOffsetTimeSig.insert(_cue_id,
+                                          qAbs((int)(static_cast<const Ms::KeySig*>(_e)->keySigEvent().key()))
+                                            * 5 * Ms::DPI_F); //!!! literal keysig-accidental-width
             }
             // Natural signs are not frozen
             if (*(textItem.text().unicode()) != NATURAL_SIGN)
@@ -1608,12 +1607,28 @@ void SvgPaintEngine::beginDef(const int      idx,
 // Protected: only called by SvgGenerator::freezeIt()
 void SvgPaintEngine::freezeDef(int idxStaff)
 {
-    int         idx, w;
-    QString     key;
-    qreal       timeX;                       // x-coord where timesig starts
-    const qreal keyX = _xLeft
-                     + ((4+16) * Ms::DPI_F); // x-coord where keysig  starts
-    FDef*       def  = frozenDefs[_cue_id];  // the frozen def we'll be updating
+    int     idx, w;
+    QString key;
+    qreal   timeX;                            // timesig x-coord
+    qreal   keyX = _xLeft + (20 * Ms::DPI_F); // keysig  x-coord
+    FDef*   def  = frozenDefs[_cue_id];       // the current frozen def
+
+    // All this just to offset keysigs and timesigs 5px to the right...
+    int  tick = _cue_id.left(CUE_ID_FIELD_WIDTH).toInt();
+    bool b    = false;
+    if (frozenClefs.find(tick) != frozenClefs.end())
+        b = true;
+    else {
+        Int2BoolMap::iterator i;
+        for (i = frozenClefs.begin(); i != frozenClefs.end(); ++i) {
+            if (i->first > tick)
+                break;
+            b = i->second;
+        }
+    }
+    if (b)
+        keyX += Ms::DPI_F;
+
 
     // Tempo is in the "system" staff, which is always based on the topmost
     // staff in the score, idx == 0. if (_isMulti) these are always the last
@@ -1670,7 +1685,7 @@ void SvgPaintEngine::freezeDef(int idxStaff)
             freezeSig(def, idx, frozenKeyY, EType::KEYSIG, keyX);
         }
         // TimeSigs
-        timeX = keyX + xOffsetTimeSig[_cue_id] + (3 * Ms::DPI_F); //!!! fixed margin between KeySig/TimeSig. Default setting is 0.5 * spatium, but it ends up more like 3 than 2.5. not sure why.
+        timeX = keyX + xOffsetTimeSig[_cue_id] + (5 * Ms::DPI_F); //!!! fixed margin between KeySig/TimeSig. Default setting is 0.5 * spatium, but it ends up more like 3 than 2.5. not sure why.
         freezeSig(def, idx, frozenTimeY, EType::TIMESIG, timeX);
 
         if (idxStaff > -1)
@@ -1680,8 +1695,8 @@ void SvgPaintEngine::freezeDef(int idxStaff)
     // The width of the entire frozen pane for this _cue_id
     // if (_isMulti) this runs more than once, so we use the widest value.
     // If MuseScore ever allows different keysigs by staff, this code is ready. :-)
-    w = qRound(timeX + 13);                                                     //!!! 13 = timesig width plus 3 for margin/rounding
-    if (!frozenWidths.contains(_cue_id) || frozenWidths[_cue_id] < w)
+    w = qRound(timeX + (13 * Ms::DPI_F));                             //!!!13 = timesig width plus 3 for margin/rounding
+    if (!frozenWidths.contains(_cue_id) || frozenWidths[_cue_id] < w) //!!!what about 12/8 timesig???
         frozenWidths.insert(_cue_id, w);
 
     // For the next time. If freezing by staff, _prevDef is reset to zero, by
@@ -2210,6 +2225,16 @@ void SvgGenerator::setCursorHeight(qreal height) {
 */
 void SvgGenerator::freezeIt(int idxStaff) {
     static_cast<SvgPaintEngine*>(paintEngine())->freezeDef(idxStaff);
+}
+/*!
+    frozenClefs() function
+    Sets a boolean to true for a cue_id if there is a non-treble clef
+    Called by saveSMAWS_Music() in mscore/file.cpp.
+*/
+void SvgGenerator::frozenClefs(int tick, bool b) {
+    Int2BoolMap& ibm = static_cast<SvgPaintEngine*>(paintEngine())->frozenClefs;
+    if (b || ibm.find(tick) == ibm.end()) // true or new
+        ibm[tick] = b;
 }
 
 /*!

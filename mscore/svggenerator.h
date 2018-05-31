@@ -63,7 +63,9 @@ using StrPtrVect      = QVector<QString*>;
 using StrPtrListList  = QList<StrPtrList*>;
 using StrPtrVectList  = QList<StrPtrVect*>;
 using StrPtrListVect  = QVector<StrPtrList*>;
+using StrPtrVectVect  = QVector<StrPtrVect*>;
 using StrPtrListVectList = QList<StrPtrListVect*>;
+using StrPtrListVectVect = QVector<StrPtrListVect*>;
 using Str2IntMap      = QMap<QString, int>;
 using Str2RealMap     = QMap<QString, qreal>;
 using BoolVect        = QVector<bool>;
@@ -77,8 +79,11 @@ using IntList         = QList<int>;
 using IntListList     = QList<IntList*>;
 using IntListVect     = QVector<IntList*>;
 using IntListVectList = QList<IntListVect*>;
-using Int2RealMap     = QMap<int, qreal>;
+using IntListVectVect = QVector<IntListVect*>;
 using Int2StrMap      = QMap<int, QString>;
+using Int2BoolMap     = std::map<int, bool>;
+using Int2IntMap      = std::map<int, int>;
+using Int2RealMap     = QMap<int, qreal>;
 using IntSet          = std::set<int>;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -228,16 +233,17 @@ using IntSet          = std::set<int>;
 #define SMAWS_VERSION "2.3"
 
 // Custom SVG attributes (and some default settings)
-#define SVG_SCROLL     " data-scroll=\"" // "x" or "y", horizontal or vertical
-#define SVG_STAVES     " data-staves=\"" // number of staves for the score (OBSOLETE?)
-#define SVG_STAFFLINES " data-lines=\""  // number of staff lines for the part
-#define SVG_CUE        " data-cue=\""    // the cue id
-#define SVG_CUE_NQ     " data-cue="      // the cue id with no quote char
-#define SVG_START      " data-start=\""  // cue start time in milliseconds
-#define SVG_START_NQ   " data-start="    // cue start time in milliseconds with no quote character
-#define SVG_INAME      " data-iname=\""  // full instrument name == MuseScore "short" instrument name
-#define SVG_BARNUMB    " data-barnumb="  // measure (bar) number for rulers/counters - no quotes!!
-#define SVG_BOTTOM     " data-bottom=\"" // vertical scroll: staff bottom y
+#define SVG_SCROLL     " data-scroll=\""  // "x" or "y", horizontal or vertical
+#define SVG_STAVES     " data-staves=\""  // number of staves for the score (OBSOLETE?)
+#define SVG_STAFFLINES " data-lines=\""   // number of staff lines for the part
+#define SVG_CUE        " data-cue=\""     // the cue id
+#define SVG_CUE_NQ     " data-cue="       // the cue id with no quote char
+#define SVG_COL_CUE    " data-col-cue="   // the relative cue id within a grid page (start tick only)
+#define SVG_START      " data-start=\""   // cue start time in milliseconds
+#define SVG_START_NQ   " data-start="     // cue start time in milliseconds with no quote character
+#define SVG_INAME      " data-iname=\""   // full instrument name == MuseScore "short" instrument name
+#define SVG_BARNUMB    " data-barnumb="   // measure (bar) number for rulers/counters - no quotes!!
+#define SVG_BOTTOM     " data-bottom=\""  // vertical scroll: staff bottom y
 
 #define SVG_PREFIX_TAB "tab" // For tablature class names
 
@@ -257,18 +263,19 @@ using IntSet          = std::set<int>;
 #define CLASS_LYRICS        "lyrics"
 
 // Miscellaneous SMAWS constants
-#define TEXT_BPM     "bpm"
+#define CUE_ID_FIELD_WIDTH 7
 #define CUE_ID_ZERO  "0000000_0000000"
+#define TEXT_BPM     "bpm"
 #define NATURAL_SIGN 57953  // 0xE261, natural signs excluded from frozen panes
-#define FROZEN_WIDTH 90
+#define FROZEN_WIDTH 535    // frozen-staff-lines:x2; fader-rect:width;
 #define RULER_HEIGHT 47
 #define INAME_OFFSET  4     //!!third of 12px, which is default font size - alignment-baseline!!
+#define CLEF_OFFSET  16
 #define STAFF_GRID   "grid" // Yes, it's the same as CLASS_GRID, but they serve different roles, STAFF_GRID is used outside of saveSMAWS_Tables() too.
 #define PICK_DOWN    "d"
 #define PICK_UP      "u"
 #define PICK_NO      "n"
 #define ID_STAVES    "Staves"
-
 // Imaginary MIDI note values for rests and invisible "cells" in SVG "tables"
 #define MIDI_REST  -1
 #define MIDI_EMPTY -2
@@ -386,6 +393,7 @@ public:
     void setCursorHeight(qreal height);
     void setStartMSecs(int start);
     void freezeIt(int idxStaff);
+    void frozenClefs(int tick, bool b);
     void streamDefs();
     void streamBody();
     void beginMultiGroup(QStringList* pINames, QStringList *pFullNames, const QString& className, int height, int top);
