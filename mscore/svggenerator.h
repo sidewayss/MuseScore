@@ -111,6 +111,7 @@ using IntSet          = std::set<int>;
 #define SVG_SPACE     ' '
 
 // Strings
+#define SVG_2SPACES      "  "
 #define SVG_4SPACES      "    "
 #define SVG_8SPACES      "        "
 #define SVG_ELEMENT_END  "/>"
