@@ -85,6 +85,8 @@ using Int2BoolMap     = std::map<int, bool>;
 using Int2IntMap      = std::map<int, int>;
 using Int2RealMap     = QMap<int, qreal>;
 using IntSet          = std::set<int>;
+using IntPair         = std::pair<int, int>;
+using IntPairSet      = std::set<IntPair>;
 
 ///////////////////////////////////////////////////////////////////////////////
 // SVG and SMAWS constants
@@ -98,7 +100,6 @@ using IntSet          = std::set<int>;
 #define SVG_COMMA     ','
 #define SVG_DASH      '-'
 #define SVG_SEMICOLON ';'
-#define SVG_DASH      '-'
 #define SVG_HASH      '#'
 #define SVG_PERCENT   '%'
 #define SVG_DOLLARS   '$'
@@ -222,6 +223,7 @@ using IntSet          = std::set<int>;
 #define XML_XLINK      "     xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n"
 #define VTT_HEADER     "WEBVTT\n\nNOTE\n    SMAWS  - Sheet Music Animation w/Sound -\n    This file links to one or more SVG files via the\n    cue ids, which are in this format: 0000000_1234567\nNOTE\n\n"
 #define VTT_START_ONLY "WEBVTT\n\nNOTE\n    SMAWS  - Sheet Music Animation w/Sound -\n    This file links to one or more SVG files via the\n    cue ids, which are integer MIDI tick values formatted variable-length\nNOTE\n\n"
+#define VTT_MIXED      "WEBVTT\n\nNOTE\n    SMAWS  - Sheet Music Animation w/Sound -\n    This file links to one or more SVG files via the\n    cue ids, which are in two formats:\n    1) fixed 7-digit start_end ticks: 0000000_1234567\n    2) variable-length tick values, start time only\nNOTE\n\n"
 #define HTML_HEADER    "<!DOCTYPE html>\n<!-- SMAWS HTML Tables -->\n<html>\n<head>\n    <meta charset=\"utf-8\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">\n    <link rel=\"stylesheet\" href=\"../SMAWS_22.css\">\n</head>\n\n<body onload=\"onLoadHTMLTables()\">\n\n"
 
 // Boilerplate events

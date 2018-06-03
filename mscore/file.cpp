@@ -3700,9 +3700,7 @@ static bool saveVTT(Score* score, const QString& fileRoot, QStringList& setVTT)
     fileVTT.setFileName(QString("%1%2").arg(fileRoot).arg(EXT_VTT));
     fileVTT.open(QIODevice::WriteOnly | QIODevice::Text);  // TODO: check for failure here!!!
     QTextStream streamVTT(&fileVTT);
-
-    // Stream the header
-    streamVTT << VTT_HEADER;
+    streamVTT << VTT_HEADER;        // stream the header
 
     // Change setVTT into a sorted set of unique cue IDs, then iterate over it
     setVTT.removeDuplicates();
@@ -3716,6 +3714,28 @@ static bool saveVTT(Score* score, const QString& fileRoot, QStringList& setVTT)
     }
     // Write and close the VTT file
     streamVTT.flush();
+    fileVTT.close();
+    return true;
+}
+
+static bool saveMixedVTT (Score* score, const QString& fileRoot, IntPairSet* setVTT) {
+    const TempoMap* tempos = score->tempomap();
+
+    QFile fileVTT;
+    fileVTT.setFileName(QString("%1%2").arg(fileRoot).arg(EXT_VTT));
+    fileVTT.open(QIODevice::WriteOnly | QIODevice::Text);  // TODO: check for failure here!!!
+    QTextStream streamVTT(&fileVTT); // open a stream into the file
+    streamVTT << VTT_MIXED;          // stream the header
+
+    for (auto i = setVTT->begin(); i != setVTT->end(); ++i) {
+        if (i->second == -1)
+            streamVTT << getVTTStartCue(i->first, tempos) << endl;
+        else
+            streamVTT << getVTTCueTwo(getCueID(i->first, i->second), tempos)
+                      << endl;
+    }
+
+    streamVTT.flush();               // write and close the VTT file
     fileVTT.close();
     return true;
 }
@@ -4752,8 +4772,8 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
     const QString LO   = "Lo";
     const QString NO   = "No";
 
-    QString instNo = QString("instNo");
-    QString instLo = QString("instLo");
+    QString instNo = QString("No");
+    QString instLo = QString("Lo");
 
     // Currently two HTML table styles, one kludgy option implementation.
     // Two styles are: tableChords and tableDrumMachine
@@ -4971,11 +4991,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         tableCues.append(cue_id);
 
                         QString ref = STAFF_GRID;
-                        if (isPages && idxPage > 0)
-                            ref += LO;
-                        else
-                            ref += NO;
-
+                        ref += (isPages && idxPage > 0 ? LO: NO);
                         tick = startTick - pageOffset;
                         // Grid <use> element
                         if (!isPages || idxCol == gridUse.size()) {
@@ -5119,17 +5135,15 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             }
                         }
                         if (iNames[r] == 0 || isPageStart) {
-                            pqs = (isStaffVisible[r] ? &instNo: &instLo);
                             if (iNames[r] == 0) {
                                 iNames[r] = new QString;
                                 qts.setString(iNames[r]);
-                                qts << SVG_CLASS << *pqs << SVG_QUOTE;
+                                qts << SVG_CLASS << "iName" << SVG_QUOTE;
                             }
-                            if (isPageStart) {
-                                (*pageStyles[idxPage])[r] = pqs;
-                                if (r != idxChords && (*pageNames[idxPage])[r] == 0)
-                                    (*pageNames[idxPage])[r] = (*pageNames[idxPage - 1])[r];
-                            }
+                            if (isPageStart)
+                                (*pageStyles[idxPage])[r] = (isStaffVisible[r]
+                                                             ? &instNo
+                                                             : &instLo);
                         }
                     }
 
@@ -5791,7 +5805,11 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                 QMessageBox::critical(this, tr("SMAWS: saveSMAWS_Tables"), tr("There is a staff without an initial instrument name!"));
                                 return false;
                             }
-                            names = (*pageNames[0])[r]->split(SVG_COMMA);
+                            names = (*pageNames[0])[r]->split(SVG_PERCENT);
+                            if (names.size() < 3) {
+                                QMessageBox::critical(this, tr("SMAWS: saveSMAWS_Tables"), tr("There is a staff without all 3 parts of the initial instrument name!"));
+                                return false;
+                            }
                             name  = names[0];
                             id    = stringToUTF8(stripNonCSS(name)); // id value cannot contain spaces
                             name  = stringToUTF8(name, true);
@@ -5814,7 +5832,9 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                      ? stringToUTF8(names[1], true)
                                      : name);
 
-                            tableStream << ctrls.arg(title).arg(*iNames[r]);
+                            tableStream << ctrls.arg(title)
+                                        << SVG_FILL_URL << names[2] << SVG_RPAREN_QUOTE
+                                        << *iNames[r];
                         }
                         else                  // the one and only chords row
                             tableStream << SVG_2SPACES << SVG_TEXT_BEGIN
@@ -5827,7 +5847,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             if (r != idxChords) { // chords staff never changes name
                                 pqs = (*pageNames[0])[r];
                                 for (int p = 1; p < idxPage; p++) {
-                                     if ((*pageNames[p])[r] != pqs) {
+                                     if ((*pageNames[p])[r] != 0) { // if user creates identical intrument changes, it's their own fault.
                                         changesName = true;
                                         break;
                                     }
@@ -5842,16 +5862,30 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                 }
                             }
                             if (changesName || changesStyle) { // page cues required
+                                bool isName, isStyle;
+                                QString* pqN;
+                                QString* pqS;
                                 tableStream << SVG_CUE;
                                 for (int p = 0; p < idxPage; p++) {
-                                    if (p > 0)
+                                    pqN = (*pageNames[p])[r];
+                                    pqS = (*pageStyles[p])[r];
+
+                                    if (p == 0)
+                                        isStyle = true;
+                                    else {
                                         tableStream << SVG_COMMA;
-                                    tableStream << pageIDs[p] << SVG_SEMICOLON;
-                                    if (changesName)
-                                        tableStream << *(*pageNames[p])[r];
-                                    if (changesStyle)
-                                        tableStream << SVG_SEMICOLON
-                                                    << *(*pageStyles[p])[r];
+                                        isStyle = (changesStyle && pqS != (*pageStyles[p - 1])[r]);
+                                    }
+                                    tableStream << pageIDs[p];
+
+                                    isName = (changesName && pqN != 0);
+                                    if (isName || isStyle) {
+                                            tableStream << SVG_SEMICOLON;
+                                        if (isName)
+                                            tableStream << *pqN;
+                                        if (isStyle)
+                                            tableStream << SVG_SEMICOLON << *pqS;
+                                    }
                                 }
                                 tableStream << SVG_QUOTE;
                             }
@@ -5883,7 +5917,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                     << SVG_CLASS   << CLASS_NOTES << SMAWS_GRID
                                     << SVG_QUOTE   << click;
 
-                        if (!isChordsRow && names.size() > 2)
+                        if (!isChordsRow)
                             tableStream << SVG_FILL_URL << names[2] << SVG_RPAREN_QUOTE;
 
                         tableStream << SVG_GT << endl;
