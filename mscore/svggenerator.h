@@ -253,7 +253,7 @@ using IntPairSet      = std::set<IntPair>;
 // SMAWS class attribute values
 #define CLASS_CLEF_COURTESY "ClefCourtesy"
 #define CLASS_CURSOR        "cursor HiScore" // always hiLited
-#define CLASS_GRAY          "gray bgFill"
+#define CLASS_GRAY          "bgFill loScore"
 #define CLASS_NOTES         "notes"
 #define CLASS_TABS          "tablature"
 #define CLASS_GRID          "grid"

@@ -483,7 +483,6 @@ bool SvgPaintEngine::end()
                         << SVG_WIDTH          << SVG_ZERO    << SVG_QUOTE
                         << SVG_HEIGHT         << height      << SVG_QUOTE
                         << SVG_STROKE         << SVG_NONE    << SVG_QUOTE
-                        << SVG_FILL_OPACITY   << SVG_ZERO    << SVG_QUOTE
                      << SVG_ELEMENT_END << endl;
 
         if (_isMulti) // fixed margins relative to page height, modified in javascript

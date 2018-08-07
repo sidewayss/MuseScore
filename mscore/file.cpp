@@ -4964,6 +4964,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
             // Iterate over all the staves and collect stuff
             for (int r = 0; r < nStaves; r++) {
                 const int track = r * VOICES;
+                const bool isChordsRow = (r == idxChords);
 
                 // The ChordRest for this staff, using only Voice #1
                 crData  = s->cr(track);
@@ -5137,8 +5138,10 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         if (iNames[r] == 0 || isPageStart) {
                             if (iNames[r] == 0) {
                                 iNames[r] = new QString;
-                                qts.setString(iNames[r]);
-                                qts << SVG_CLASS << "iName" << SVG_QUOTE;
+                                if (!isChordsRow) { //!!no initial class value for chords row hdr!!
+                                    qts.setString(iNames[r]);
+                                    qts << SVG_CLASS << "iName" << SVG_QUOTE;
+                                }
                             }
                             if (isPageStart)
                                 (*pageStyles[idxPage])[r] = (isStaffVisible[r]
@@ -5310,7 +5313,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                        .arg(colSpan != 1 ? QString::number(colSpan) : "")
                                        .arg(sme)
                                        .arg(isChord ? NO : LO);
-                        else if (r == idxChords) {
+                        else if (isChordsRow) {
                             Harmony* pHarm = getHarmony(s);
                             if (pHarm != 0) // this prevents crashes for misaligned scores
                                 cellValue = pHarm->rootName();
@@ -5346,7 +5349,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                 qts << SVG_TEXT_BEGIN
                                     << formatInt(SVG_X, x, maxDigits, true)
                                     << formatInt(SVG_Y, y, 2, true)
-                                    << SVG_CLASS << (r == idxChords ? chord : lyric)
+                                    << SVG_CLASS << (isChordsRow ? chord : lyric)
                                     << NO << SVG_QUOTE
                                     << formatInt(SVG_COL_CUE, tick, cueIdDigits, true);
                             }
@@ -5820,7 +5823,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         tableStream << SVG_SPACE << SVG_GROUP_BEGIN
                                     << SVG_ID    << id << SVG_QUOTE;
 
-                        if (!isLED && r != idxChords)
+                        if (!isLED && !isChordsRow)
                             tableStream << SVG_CLASS << "lyrics" << SVG_QUOTE;
 
                         tableStream << SVG_TRANSFORM << SVG_TRANSLATE << SVG_ZERO
@@ -5839,8 +5842,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         else                  // the one and only chords row
                             tableStream << SVG_2SPACES << SVG_TEXT_BEGIN
                                         << formatInt(SVG_X, nameLeft, 2, true)
-                                        << formatInt(SVG_Y, baseline, 2, true)
-                                        << *iNames[r];
+                                        << formatInt(SVG_Y, baseline, 2, true);
 
                         if (isPages) {
                             bool changesName  = false;
