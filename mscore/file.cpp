@@ -4130,7 +4130,11 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
                 maxNote = qMax(maxNote, cr->actualTicks());
                 break;
             case EType::NOTEDOT    :
-            case EType::ACCIDENTAL :
+				if (e->parent()->isRest()) {
+					cr = static_cast<const ChordRest*>(e->parent());
+					break;
+				}                // else falls through
+			case EType::ACCIDENTAL :
                 cr = static_cast<const ChordRest*>(e->parent()->parent());
                 break;
 //            case EType::STEM :
