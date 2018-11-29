@@ -80,6 +80,8 @@ enum class MusicxmlExportBreaks : char {
 #define PREF_APP_AUTOSAVE_AUTOSAVETIME                      "application/autosave/autosaveTime"
 #define PREF_APP_AUTOSAVE_USEAUTOSAVE                       "application/autosave/useAutosave"
 #define PREF_APP_KEYBOARDLAYOUT                             "application/keyboardLayout"
+#define PREF_APP_PAGE_UNITS_SOURCE                          "application/pageunits/source"
+#define PREF_APP_PAGE_UNITS_VALUE                           "application/pageunits/value"
 // file path of instrument templates
 #define PREF_APP_PATHS_INSTRUMENTLIST1                      "application/paths/instrumentList1"
 #define PREF_APP_PATHS_INSTRUMENTLIST2                      "application/paths/instrumentList2"

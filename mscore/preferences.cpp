@@ -73,8 +73,10 @@ void Preferences::init(bool storeInMemoryOnly)
       {
             {PREF_APP_AUTOSAVE_AUTOSAVETIME,                       new IntPreference(2 /* minutes */, false)},
             {PREF_APP_AUTOSAVE_USEAUTOSAVE,                        new BoolPreference(true, false)},
-            {PREF_APP_KEYBOARDLAYOUT,                              new StringPreference("US - International")},
-            {PREF_APP_PATHS_INSTRUMENTLIST1,                       new StringPreference(":/data/instruments.xml", false)},
+			{PREF_APP_KEYBOARDLAYOUT,                              new StringPreference("US - International")},
+			{PREF_APP_PAGE_UNITS_SOURCE,                           new BoolPreference(true, false)},
+			{PREF_APP_PAGE_UNITS_VALUE,                            new IntPreference(true, false)},
+			{PREF_APP_PATHS_INSTRUMENTLIST1,                       new StringPreference(":/data/instruments.xml", false)},
             {PREF_APP_PATHS_INSTRUMENTLIST2,                       new StringPreference("", false)},
             {PREF_APP_PATHS_MYIMAGES,                              new StringPreference(QFileInfo(QString("%1/%2").arg(wd).arg(QCoreApplication::translate("images_directory", "Images"))).absoluteFilePath(), false)},
             {PREF_APP_PATHS_MYPLUGINS,                             new StringPreference(QFileInfo(QString("%1/%2").arg(wd).arg(QCoreApplication::translate("plugins_directory", "Plugins"))).absoluteFilePath(), false)},
