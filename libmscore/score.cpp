@@ -3365,7 +3365,7 @@ qreal Score::tempo(int tick) const
 
 qreal Score::loWidth() const
       {
-      return styleD(Sid::pageWidth) * DPI;
+      return styleD(Sid::pageWidth) * DPI_F;
       }
 
 //---------------------------------------------------------
@@ -3374,7 +3374,7 @@ qreal Score::loWidth() const
 
 qreal Score::loHeight() const
       {
-      return styleD(Sid::pageHeight) * DPI;
+      return styleD(Sid::pageHeight) * DPI_F;
       }
 
 //---------------------------------------------------------

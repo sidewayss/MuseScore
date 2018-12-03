@@ -363,15 +363,15 @@ struct StyleVal2 {
 
 void setPageFormat(MStyle* style, const PageFormat& pf)
       {
-      style->set(Sid::pageWidth,            pf.size().width());
-      style->set(Sid::pageHeight,           pf.size().height());
-      style->set(Sid::pagePrintableWidth,   pf.printableWidth());
-      style->set(Sid::pageEvenLeftMargin,   pf.evenLeftMargin());
-      style->set(Sid::pageOddLeftMargin,    pf.oddLeftMargin());
-      style->set(Sid::pageEvenTopMargin,    pf.evenTopMargin());
-      style->set(Sid::pageEvenBottomMargin, pf.evenBottomMargin());
-      style->set(Sid::pageOddTopMargin,     pf.oddTopMargin());
-      style->set(Sid::pageOddBottomMargin,  pf.oddBottomMargin());
+      style->set(Sid::pageWidth,            PPI * pf.size().width());
+      style->set(Sid::pageHeight,           PPI * pf.size().height());
+      style->set(Sid::pagePrintableWidth,   PPI * pf.printableWidth());
+      style->set(Sid::pageEvenLeftMargin,   PPI * pf.evenLeftMargin());
+      style->set(Sid::pageOddLeftMargin,    PPI * pf.oddLeftMargin());
+      style->set(Sid::pageEvenTopMargin,    PPI * pf.evenTopMargin());
+      style->set(Sid::pageEvenBottomMargin, PPI * pf.evenBottomMargin());
+      style->set(Sid::pageOddTopMargin,     PPI * pf.oddTopMargin());
+      style->set(Sid::pageOddBottomMargin,  PPI * pf.oddBottomMargin());
       style->set(Sid::pageTwosided,         pf.twosided());
       }
 
