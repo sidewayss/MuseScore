@@ -767,7 +767,7 @@
            <widget class="QRadioButton" name="unitsGlobal">
             <property name="geometry">
              <rect>
-              <x>10</x>
+              <x>9</x>
               <y>30</y>
               <width>111</width>
               <height>17</height>
@@ -780,7 +780,7 @@
            <widget class="QRadioButton" name="untsByScore">
             <property name="geometry">
              <rect>
-              <x>10</x>
+              <x>9</x>
               <y>50</y>
               <width>111</width>
               <height>17</height>
@@ -793,15 +793,18 @@
            <widget class="QComboBox" name="unitsList">
             <property name="geometry">
              <rect>
-              <x>120</x>
-              <y>30</y>
-              <width>101</width>
-              <height>22</height>
+              <x>118</x>
+              <y>29</y>
+              <width>108</width>
+              <height>20</height>
              </rect>
+            </property>
+            <property name="sizeAdjustPolicy">
+             <enum>QComboBox::AdjustToContents</enum>
             </property>
             <item>
              <property name="text">
-              <string>Millimeters (mm)</string>
+              <string>Centimeters (cm)</string>
              </property>
             </item>
             <item>

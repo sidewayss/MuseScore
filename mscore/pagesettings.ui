@@ -214,17 +214,31 @@
         <string>Unit</string>
        </property>
        <layout class="QGridLayout" name="gridLayout_1">
-        <item row="0" column="0">
-         <widget class="QRadioButton" name="inchButton">
-          <property name="text">
-           <string>Inch (in)</string>
+        <item row="0" column="1">
+         <widget class="QComboBox" name="unitsList">
+          <property name="currentText">
+           <string>Centimeters (cm)</string>
           </property>
+          <property name="sizeAdjustPolicy">
+           <enum>QComboBox::AdjustToContents</enum>
+          </property>
+          <item>
+           <property name="text">
+            <string>Centimeters (cm)</string>
+           </property>
+          </item>
          </widget>
         </item>
-        <item row="0" column="1">
-         <widget class="QRadioButton" name="mmButton">
+        <item row="0" column="0">
+         <widget class="QLabel" name="unitLabel">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
           <property name="text">
-           <string>Millimeter (mm)</string>
+           <string>Unit of Measure:</string>
           </property>
          </widget>
         </item>
@@ -500,8 +514,6 @@
   <tabstop>landscapeButton</tabstop>
   <tabstop>twosided</tabstop>
   <tabstop>spatiumEntry</tabstop>
-  <tabstop>inchButton</tabstop>
-  <tabstop>mmButton</tabstop>
   <tabstop>oddPageTopMargin</tabstop>
   <tabstop>oddPageLeftMargin</tabstop>
   <tabstop>oddPageRightMargin</tabstop>

@@ -39,31 +39,34 @@ PageSettings::PageSettings(QWidget* parent)
       preview = new Navigator(sa, this);
 //      preview->setPreviewOnly(true);
 
+	  pageSize = new QPageSize();
+	  pageLayoutOdd  = new QPageLayout();
+	  pageLayoutEven = new QPageLayout();
+
       static_cast<QVBoxLayout*>(previewGroup->layout())->insertWidget(0, sa);
 
       mmUnit = true;      // should be made a global configuration item
-
-      if (mmUnit)
-            mmButton->setChecked(true);
-      else
-            inchButton->setChecked(true);
 
       MuseScore::restoreGeometry(this);
 
       for (int i = 0; i < QPageSize::LastPageSize; ++i)
             pageGroup->addItem(QPageSize::name(QPageSize::PageSizeId(i)), i);
 
-      connect(mmButton,             SIGNAL(clicked()),            SLOT(mmClicked()));
-      connect(inchButton,           SIGNAL(clicked()),            SLOT(inchClicked()));
+//	  for (int i = 0; i <= QPageSize::Cicero; ++i)
+//		    unitsList->addItem(QPageSize::name(QPageSize::PageSizeId(i)), i);
+
       connect(buttonApply,          SIGNAL(clicked()),            SLOT(apply()));
       connect(buttonApplyToAllParts,SIGNAL(clicked()),            SLOT(applyToAllParts()));
       connect(buttonOk,             SIGNAL(clicked()),            SLOT(ok()));
       connect(portraitButton,       SIGNAL(clicked()),            SLOT(orientationClicked()));
       connect(landscapeButton,      SIGNAL(clicked()),            SLOT(orientationClicked()));
       connect(twosided,             SIGNAL(toggled(bool)),        SLOT(twosidedToggled(bool)));
+      connect(pageGroup,            SIGNAL(activated(int)),       SLOT(pageFormatSelected(int)));
       connect(pageHeight,           SIGNAL(valueChanged(double)), SLOT(pageHeightChanged(double)));
       connect(pageWidth,            SIGNAL(valueChanged(double)), SLOT(pageWidthChanged(double)));
-      connect(oddPageTopMargin,     SIGNAL(valueChanged(double)), SLOT(otmChanged(double)));
+      connect(spatiumEntry,         SIGNAL(valueChanged(double)), SLOT(spatiumChanged(double)));
+      connect(unitsList,            SIGNAL(valueChanged(int)),    SLOT(unitsChanged()));
+	  connect(oddPageTopMargin,     SIGNAL(valueChanged(double)), SLOT(otmChanged(double)));
       connect(oddPageBottomMargin,  SIGNAL(valueChanged(double)), SLOT(obmChanged(double)));
       connect(oddPageLeftMargin,    SIGNAL(valueChanged(double)), SLOT(olmChanged(double)));
       connect(oddPageRightMargin,   SIGNAL(valueChanged(double)), SLOT(ormChanged(double)));
@@ -71,8 +74,6 @@ PageSettings::PageSettings(QWidget* parent)
       connect(evenPageBottomMargin, SIGNAL(valueChanged(double)), SLOT(ebmChanged(double)));
       connect(evenPageRightMargin,  SIGNAL(valueChanged(double)), SLOT(ermChanged(double)));
       connect(evenPageLeftMargin,   SIGNAL(valueChanged(double)), SLOT(elmChanged(double)));
-      connect(pageGroup,            SIGNAL(activated(int)),       SLOT(pageFormatSelected(int)));
-      connect(spatiumEntry,         SIGNAL(valueChanged(double)), SLOT(spatiumChanged(double)));
       connect(pageOffsetEntry,      SIGNAL(valueChanged(int)),    SLOT(pageOffsetChanged(int)));
       }
 
@@ -225,22 +226,12 @@ void PageSettings::updateValues()
       }
 
 //---------------------------------------------------------
-//   inchClicked
+//   unitsClicked
 //---------------------------------------------------------
 
-void PageSettings::inchClicked()
+void PageSettings::unitsChanged()
       {
       mmUnit = false;
-      updateValues();
-      }
-
-//---------------------------------------------------------
-//   mmClicked
-//---------------------------------------------------------
-
-void PageSettings::mmClicked()
-      {
-      mmUnit = true;
       updateValues();
       }
 

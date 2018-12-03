@@ -29,8 +29,11 @@ class Navigator;
 class PageSettings : public AbstractDialog, private Ui::PageSettingsBase {
       Q_OBJECT
 
-      Navigator* preview;
-      bool mmUnit;
+      Navigator*   preview;
+	  QPageSize*   pageSize;
+	  QPageLayout* pageLayoutOdd;
+	  QPageLayout* pageLayoutEven;
+	  bool mmUnit;
       Score* cs;
       Score* clonedScore;
 
@@ -44,9 +47,8 @@ class PageSettings : public AbstractDialog, private Ui::PageSettingsBase {
       void setMarginsMax(double);
 
    private slots:
-      void mmClicked();
-      void inchClicked();
       void pageFormatSelected(int);
+      void unitsChanged();
 
       void apply();
       void applyToAllParts();
