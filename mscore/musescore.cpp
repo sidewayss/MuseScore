@@ -7153,10 +7153,13 @@ int main(int argc, char* av[])
             QPrinter p;
             if (p.isValid()) {
 //                  qDebug("set paper size from default printer");
-                  QRectF psf = p.paperRect(QPrinter::Inch);
+                  QRectF psf = p.paperRect(QPrinter::Point);
                   MScore::defaultStyle().set(Sid::pageWidth,  psf.width());
                   MScore::defaultStyle().set(Sid::pageHeight, psf.height());
-                  MScore::defaultStyle().set(Sid::pagePrintableWidth, psf.width()-20.0/INCH);
+                  ///!!!This is where p.pageRect is useful for minimum margins
+                  ///!!!this next line is a duplicate of the hardcoded value in style.cpp
+                  ///!!!I am making Sid::pagePrintableWidth obsolete...
+                  ///MScore::defaultStyle().set(Sid::pagePrintableWidth, psf.width()-20.0/INCH);
                   }
             }
 #endif

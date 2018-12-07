@@ -1078,6 +1078,10 @@ class MStyle {
 
       void reset(Score*);
 
+      void fromPageLayout(QPageLayout* odd, QMarginsF* even);
+      void   toPageLayout(QPageLayout** pageLayout, QPageSize** pageSize,
+                          QMarginsF**   oddMargins, QMarginsF** evenMargins);
+
       static const char* valueType(const Sid);
       static const char* valueName(const Sid);
       static Sid styleIdx(const QString& name);

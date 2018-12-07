@@ -444,7 +444,7 @@ QList<Element*> Page::elements()
 qreal Page::tm() const
       {
       return ((!score()->styleB(Sid::pageTwosided) || isOdd())
-         ? score()->styleD(Sid::pageOddTopMargin) : score()->styleD(Sid::pageEvenTopMargin)) * DPI_F;
+         ? score()->pageOddMargins()->top() : score()->pageEvenMargins()->top()) * DPI_F;
       }
 
 //---------------------------------------------------------
@@ -454,8 +454,8 @@ qreal Page::tm() const
 qreal Page::bm() const
       {
       return ((!score()->styleB(Sid::pageTwosided) || isOdd())
-         ? score()->styleD(Sid::pageOddBottomMargin) : score()->styleD(Sid::pageEvenBottomMargin)) * DPI_F;
-      }
+         ? score()->pageOddMargins()->bottom() : score()->pageEvenMargins()->bottom()) * DPI_F;
+}
 
 //---------------------------------------------------------
 //   lm
@@ -464,8 +464,8 @@ qreal Page::bm() const
 qreal Page::lm() const
       {
       return ((!score()->styleB(Sid::pageTwosided) || isOdd())
-         ? score()->styleD(Sid::pageOddLeftMargin) : score()->styleD(Sid::pageEvenLeftMargin)) * DPI_F;
-      }
+         ? score()->pageOddMargins()->left() : score()->pageEvenMargins()->left()) * DPI_F;
+}
 
 //---------------------------------------------------------
 //   rm
@@ -473,8 +473,9 @@ qreal Page::lm() const
 
 qreal Page::rm() const
       {
-      return (score()->styleD(Sid::pageWidth) - score()->styleD(Sid::pagePrintableWidth)) * DPI_F - lm();
-      }
+      return ((!score()->styleB(Sid::pageTwosided) || isOdd())
+          ? score()->pageOddMargins()->right() : score()->pageEvenMargins()->right()) * DPI_F;
+}
 
 //---------------------------------------------------------
 //   tbbox

@@ -66,6 +66,27 @@
       </widget>
      </item>
      <item>
+      <widget class="QPushButton" name="pushButton">
+       <property name="text">
+        <string>Reset All Styles to Default</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="pushButton_2">
+       <property name="text">
+        <string>Save Current Style as Default</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="pushButton_3">
+       <property name="text">
+        <string>Save Current Style as Default for Parts</string>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QDialogButtonBox" name="buttonBox">
        <property name="standardButtons">
         <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
@@ -1647,7 +1668,7 @@
                </widget>
               </item>
               <item row="0" column="7">
-               <widget class="Ms::FontStyleSelect" name="footerFontStyle"/>
+               <widget class="Ms::FontStyleSelect" name="footerFontStyle" native="true"/>
               </item>
               <item row="0" column="8">
                <widget class="QToolButton" name="resetFooterFontStyle">
@@ -1990,7 +2011,7 @@
                </widget>
               </item>
               <item row="0" column="7">
-               <widget class="Ms::FontStyleSelect" name="headerFontStyle"/>
+               <widget class="Ms::FontStyleSelect" name="headerFontStyle" native="true"/>
               </item>
               <item row="0" column="8">
                <widget class="QToolButton" name="resetHeaderFontStyle">
@@ -2517,7 +2538,7 @@
                <widget class="Ms::AlignSelect" name="longInstrumentAlign" native="true"/>
               </item>
               <item row="2" column="1">
-               <widget class="Ms::FontStyleSelect" name="longInstrumentFontStyle"/>
+               <widget class="Ms::FontStyleSelect" name="longInstrumentFontStyle" native="true"/>
               </item>
               <item row="1" column="3">
                <spacer name="horizontalSpacer_18">
@@ -2680,7 +2701,7 @@
                </spacer>
               </item>
               <item row="2" column="1">
-               <widget class="Ms::FontStyleSelect" name="shortInstrumentFontStyle"/>
+               <widget class="Ms::FontStyleSelect" name="shortInstrumentFontStyle" native="true"/>
               </item>
               <item row="2" column="2">
                <widget class="QToolButton" name="resetShortInstrumentFontStyle">
@@ -3935,7 +3956,7 @@
             </spacer>
            </item>
            <item row="5" column="1">
-            <widget class="Ms::FontStyleSelect" name="measureNumberFontStyle"/>
+            <widget class="Ms::FontStyleSelect" name="measureNumberFontStyle" native="true"/>
            </item>
            <item row="5" column="2">
             <widget class="QToolButton" name="resetMeasureNumberFontStyle">
@@ -8702,7 +8723,7 @@
             </widget>
            </item>
            <item row="2" column="9">
-            <widget class="Ms::FontStyleSelect" name="bendFontStyle"/>
+            <widget class="Ms::FontStyleSelect" name="bendFontStyle" native="true"/>
            </item>
            <item row="2" column="10">
             <widget class="QToolButton" name="resetBendFontStyle">
@@ -11031,7 +11052,7 @@
             </widget>
            </item>
            <item row="3" column="1">
-            <widget class="Ms::FontStyleSelect" name="textStyleFontStyle"/>
+            <widget class="Ms::FontStyleSelect" name="textStyleFontStyle" native="true"/>
            </item>
           </layout>
          </widget>

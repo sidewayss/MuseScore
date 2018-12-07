@@ -39,10 +39,6 @@ PageSettings::PageSettings(QWidget* parent)
       preview = new Navigator(sa, this);
 //      preview->setPreviewOnly(true);
 
-	  pageSize = new QPageSize();
-	  pageLayoutOdd  = new QPageLayout();
-	  pageLayoutEven = new QPageLayout();
-
       static_cast<QVBoxLayout*>(previewGroup->layout())->insertWidget(0, sa);
 
       mmUnit = true;      // should be made a global configuration item
@@ -150,13 +146,13 @@ void PageSettings::setMarginsMax(double pw)
 void PageSettings::updateValues()
       {
       Score* score = preview->score();
-      bool mm = mmButton->isChecked();
 
       blockSignals(true);
 
       const char* suffix;
       double singleStepSize;
       double singleStepScale;
+
       if (mm) {
             suffix = "mm";
             singleStepSize = 1.0;

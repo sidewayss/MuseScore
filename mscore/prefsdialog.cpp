@@ -1388,7 +1388,7 @@ void PreferenceDialog::printShortcutsClicked()
       const MStyle& s = MScore::defaultStyle();
       qreal pageW = s.value(Sid::pageWidth).toReal();
       qreal pageH = s.value(Sid::pageHeight).toReal();
-      printer.setPaperSize(QSizeF(pageW, pageH), QPrinter::Inch);
+      printer.setPaperSize(QSizeF(pageW, pageH), QPrinter::Point);
 
       printer.setCreator("MuseScore Version: " VERSION);
       printer.setFullPage(true);

@@ -57,18 +57,18 @@ struct StyleType {
 //---------------------------------------------------------
 
 
-static const StyleType styleTypes[] {
-      { Sid::pageWidth,               "pageWidth",               210.0/INCH },
-      { Sid::pageHeight,              "pageHeight",              297.0/INCH }, // A4
-      { Sid::pagePrintableWidth,      "pagePrintableWidth",      190.0/INCH },
-      { Sid::pageEvenLeftMargin,      "pageEvenLeftMargin",      10.0/INCH  },
-      { Sid::pageOddLeftMargin,       "pageOddLeftMargin",       10.0/INCH  },
-      { Sid::pageEvenTopMargin,       "pageEvenTopMargin",       10.0/INCH  },
-      { Sid::pageEvenBottomMargin,    "pageEvenBottomMargin",    20.0/INCH  },
-      { Sid::pageOddTopMargin,        "pageOddTopMargin",        10.0/INCH  },
-      { Sid::pageOddBottomMargin,     "pageOddBottomMargin",     20.0/INCH  },
+static const StyleType styleTypes[] { // page sizes and margins in points
+      { Sid::pageWidth,               "pageWidth",               210.0/INCH*PPI },
+      { Sid::pageHeight,              "pageHeight",              297.0/INCH*PPI }, // A4
+      { Sid::pagePrintableWidth,      "pagePrintableWidth",      190.0/INCH*PPI },
+      { Sid::pageEvenLeftMargin,      "pageEvenLeftMargin",       10.0/INCH*PPI },
+      { Sid::pageOddLeftMargin,       "pageOddLeftMargin",        10.0/INCH*PPI },
+      { Sid::pageEvenTopMargin,       "pageEvenTopMargin",        10.0/INCH*PPI },
+      { Sid::pageEvenBottomMargin,    "pageEvenBottomMargin",     20.0/INCH*PPI },
+      { Sid::pageOddTopMargin,        "pageOddTopMargin",         10.0/INCH*PPI },
+      { Sid::pageOddBottomMargin,     "pageOddBottomMargin",      20.0/INCH*PPI },
       { Sid::pageTwosided,            "pageTwosided",            true       },
-
+                                      // most other numeric values are in staff spaces
       { Sid::staffUpperBorder,        "staffUpperBorder",        Spatium(7.0)  },
       { Sid::staffLowerBorder,        "staffLowerBorder",        Spatium(7.0)  },
       { Sid::staffDistance,           "staffDistance",           Spatium(6.5)  },
@@ -2224,7 +2224,7 @@ void MStyle::load(XmlReader& e)
                   set(Sid::ottavaHookBelow, -y);
                   }
             else if (tag == "Spatium")
-                  set(Sid::spatium, e.readDouble() * DPMM);
+                  set(Sid::spatium, e.readDouble() * DPI_F);
             else if (tag == "page-layout") {    // obsolete
                   readPageFormat(this, e);      // from read206.cpp
                   }
@@ -2316,7 +2316,7 @@ void MStyle::save(XmlWriter& xml, bool optimize)
             _chordList.write(xml);
             xml.etag();
             }
-      xml.tag("Spatium", value(Sid::spatium).toDouble() / DPMM);
+      xml.tag("Spatium", value(Sid::spatium).toDouble() / DPI_F);
       xml.etag();
       }
 
@@ -2329,6 +2329,47 @@ void MStyle::reset(Score* score)
       for (const StyleType& st : styleTypes)
             score->undo(new ChangeStyleVal(score, st.styleIdx(), MScore::defaultStyle().value(st.styleIdx())));
       }
+
+//---------------------------------------------------------
+//   from & toPageLayout convert between QPageLayout/QMarginsF and style values
+//---------------------------------------------------------
+void MStyle::fromPageLayout(QPageLayout* odd, QMarginsF* even)
+      {
+      QRectF    rect = odd->fullRect(QPageLayout::Point);
+      QMarginsF marg = odd->margins( QPageLayout::Point);
+      set(Sid::pagePrintableWidth,   odd->paintRect(QPageLayout::Point).width());
+      set(Sid::pageWidth,            rect.width());
+      set(Sid::pageHeight,           rect.height());
+      set(Sid::pageOddLeftMargin,    marg.left());
+      set(Sid::pageOddTopMargin,     marg.top());
+      set(Sid::pageOddBottomMargin,  marg.bottom());
+      set(Sid::pageEvenLeftMargin,   even->left());
+      set(Sid::pageEvenTopMargin,    even->top());
+      set(Sid::pageEvenBottomMargin, even->bottom());
+      }
+void MStyle::toPageLayout(QPageLayout** pageLayout, QPageSize** pageSize,
+                          QMarginsF**   oddMargins, QMarginsF** evenMargins)
+      {
+      *oddMargins  = new QMarginsF(value(Sid::pageOddLeftMargin).toDouble(),
+                                   value(Sid::pageOddTopMargin).toDouble(),
+                                   value(Sid::pageEvenLeftMargin).toDouble(),
+                                   value(Sid::pageOddBottomMargin).toDouble());
+
+      *evenMargins = new QMarginsF(value(Sid::pageEvenLeftMargin).toDouble(),
+                                   value(Sid::pageEvenTopMargin).toDouble(),
+                                   value(Sid::pageOddLeftMargin).toDouble(),
+                                   value(Sid::pageEvenBottomMargin).toDouble());
+
+      QSizeF* qsf  = new QSizeF(value(Sid::pageWidth).toDouble(),
+                                value(Sid::pageHeight).toDouble());
+      *pageSize    = new QPageSize(*qsf, QPageSize::Point);
+
+      QPageLayout::Orientation orient = qsf->height() >= qsf->width()
+                                      ? QPageLayout::Portrait : QPageLayout::Landscape;
+      *pageLayout  = new QPageLayout(**pageSize, orient, **oddMargins);
+      }
+}
+
 
 #ifndef NDEBUG
 //---------------------------------------------------------

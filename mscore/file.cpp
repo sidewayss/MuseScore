@@ -1586,13 +1586,13 @@ void MuseScore::printFile()
             }
 
       QPrinter printerDev(QPrinter::HighResolution);
-      QSizeF size(cs->styleD(Sid::pageWidth), cs->styleD(Sid::pageHeight));
-      QPageSize ps(QPageSize::id(size, QPageSize::Inch));
-      printerDev.setPageSize(ps);
-      printerDev.setPageOrientation(size.width() > size.height() ? QPageLayout::Landscape : QPageLayout::Portrait);
-
+      printerDev.setPageLayout(*cs->pageLayout());
       printerDev.setCreator("MuseScore Version: " VERSION);
       printerDev.setFullPage(true);
+
+      //!!why are the margins cleared here and then apparently never set??
+      //!!the dialog box will set them, if it shows, but how does it get them??
+      //!!they should come from the QPageLayout, and none of this should be necessary...
       if (!printerDev.setPageMargins(QMarginsF()))
             qDebug("unable to clear printer margins");
       printerDev.setColorMode(QPrinter::Color);
@@ -2040,34 +2040,34 @@ bool MuseScore::savePdf(const QString& saveName)
       return savePdf(cs, saveName);
       }
 
-bool MuseScore::savePdf(Score* cs_, const QString& saveName)
+bool MuseScore::savePdf(Score* score, const QString& saveName)
       {
       QPdfWriter printerDev(saveName);
-      return savePdf(cs_, printerDev);
+      return savePdf(score, printerDev);
       }
 
-bool MuseScore::savePdf(Score* cs_, QPdfWriter& pdfWriter)
+bool MuseScore::savePdf(Score* score, QPdfWriter& pdfWriter)
       {
-      cs_->setPrinting(true);
+      score->setPrinting(true);
       MScore::pdfPrinting = true;
 
       pdfWriter.setResolution(preferences.getInt(PREF_EXPORT_PDF_DPI));
-      QSizeF size(cs_->styleD(Sid::pageWidth), cs_->styleD(Sid::pageHeight));
-      QPageSize ps(QPageSize::id(size, QPageSize::Inch));
-      pdfWriter.setPageSize(ps);
-      pdfWriter.setPageOrientation(size.width() > size.height() ? QPageLayout::Landscape : QPageLayout::Portrait);
+      pdfWriter.setPageLayout(*score->pageLayout());
+      QSizeF size(score->pageLayout()->fullRect(QPageLayout::Inch).size());
+      //!!I believe that using QPageLayout::Point would make no difference here, except maybe precision
 
+      //!!Again, why clear the margins??
       pdfWriter.setCreator("MuseScore Version: " VERSION);
       if (!pdfWriter.setPageMargins(QMarginsF()))
             qDebug("unable to clear printer margins");
 
-      QString title = cs_->metaTag("workTitle");
+      QString title = score->metaTag("workTitle");
       if (title.isEmpty()) // workTitle unset?
-            title = cs_->masterScore()->title(); // fall back to (master)score's tab title
-      if (!cs_->isMaster()) { // excerpt?
-            QString partname = cs_->metaTag("partName");
+            title = score->masterScore()->title(); // fall back to (master)score's tab title
+      if (!score->isMaster()) { // excerpt?
+            QString partname = score->metaTag("partName");
             if (partname.isEmpty()) // partName unset?
-                  partname = cs_->title(); // fall back to excerpt's tab title
+                  partname = score->title(); // fall back to excerpt's tab title
             title += " - " + partname;
             }
       pdfWriter.setTitle(title); // set PDF's meta data for Title
@@ -2077,45 +2077,44 @@ bool MuseScore::savePdf(Score* cs_, QPdfWriter& pdfWriter)
             return false;
       p.setRenderHint(QPainter::Antialiasing, true);
       p.setRenderHint(QPainter::TextAntialiasing, true);
-
-      p.setViewport(QRect(0.0, 0.0, size.width() * pdfWriter.logicalDpiX(),
-         size.height() * pdfWriter.logicalDpiY()));
-      p.setWindow(QRect(0.0, 0.0, size.width() * DPI, size.height() * DPI));
+      p.setViewport(0, 0, size.width()  * pdfWriter.logicalDpiX(),
+                          size.height() * pdfWriter.logicalDpiY());
+      p.setWindow  (0, 0, size.width()  * DPI,
+                          size.height() * DPI);
 
       double pr = MScore::pixelRatio;
       MScore::pixelRatio = DPI / pdfWriter.logicalDpiX();
 
-      const QList<Page*> pl = cs_->pages();
+      const QList<Page*> pl = score->pages();
       int pages = pl.size();
       bool firstPage = true;
       for (int n = 0; n < pages; ++n) {
             if (!firstPage)
                   pdfWriter.newPage();
             firstPage = false;
-            cs_->print(&p, n);
+            score->print(&p, n);
             }
       p.end();
-      cs_->setPrinting(false);
+      score->setPrinting(false);
 
       MScore::pixelRatio = pr;
       MScore::pdfPrinting = false;
       return true;
       }
 
-bool MuseScore::savePdf(QList<Score*> cs_, const QString& saveName)
+bool MuseScore::savePdf(QList<Score*> scoreList, const QString& saveName)
       {
-      if (cs_.empty())
+      if (scoreList.empty())
             return false;
-      Score* firstScore = cs_[0];
+      Score* firstScore = scoreList[0];
 
       QPdfWriter pdfWriter(saveName);
       pdfWriter.setResolution(preferences.getInt(PREF_EXPORT_PDF_DPI));
+      pdfWriter.setPageLayout(*firstScore->pageLayout());
+      QSizeF size(firstScore->pageLayout()->fullRect(QPageLayout::Inch).size());
+      //!!I believe that using QPageLayout::Point would make no difference here, except maybe precision
 
-      QSizeF size(firstScore->styleD(Sid::pageWidth), firstScore->styleD(Sid::pageHeight));
-      QPageSize ps(QPageSize::id(size, QPageSize::Inch));
-      pdfWriter.setPageSize(ps);
-      pdfWriter.setPageOrientation(size.width() > size.height() ? QPageLayout::Landscape : QPageLayout::Portrait);
-
+      //!!Again, why clear the margins??
       pdfWriter.setCreator("MuseScore Version: " VERSION);
       if (!pdfWriter.setPageMargins(QMarginsF()))
             qDebug("unable to clear printer margins");
@@ -2133,16 +2132,18 @@ bool MuseScore::savePdf(QList<Score*> cs_, const QString& saveName)
       p.setRenderHint(QPainter::Antialiasing, true);
       p.setRenderHint(QPainter::TextAntialiasing, true);
 
-      p.setViewport(QRect(0.0, 0.0, size.width() * pdfWriter.logicalDpiX(),
-         size.height() * pdfWriter.logicalDpiY()));
       p.setWindow(QRect(0.0, 0.0, size.width() * DPI, size.height() * DPI));
+      p.setViewport(0, 0, size.width()  * pdfWriter.logicalDpiX(),
+                          size.height() * pdfWriter.logicalDpiY());
+      p.setWindow  (0, 0, size.width()  * DPI,
+                          size.height() * DPI);
 
       double pr = MScore::pixelRatio;
       MScore::pixelRatio = DPI / pdfWriter.logicalDpiX();
       MScore::pdfPrinting = true;
 
       bool firstPage = true;
-      for (Score* s : cs_) {
+      for (Score* s : scoreList) { //!!shouldn't the pageLayout be reset for each score??
             LayoutMode layoutMode = s->layoutMode();
             if (layoutMode != LayoutMode::PAGE) {
                   s->setLayoutMode(LayoutMode::PAGE);
@@ -3098,8 +3099,9 @@ QJsonObject MuseScore::saveMetadataJSON(Score* score)
 
       // pageFormat
       QJsonObject jsonPageformat;
-      jsonPageformat.insert("height",round(score->styleD(Sid::pageHeight) * INCH));
-      jsonPageformat.insert("width", round(score->styleD(Sid::pageWidth) * INCH));
+      QSizeF      size = score->pageSize()->size(QPageSize::Millimeter);
+      jsonPageformat.insert("height", round(size.width() ));
+      jsonPageformat.insert("width",  round(size.height()));
       jsonPageformat.insert("twosided", boolToString(score->styleB(Sid::pageTwosided)));
       json.insert("pageFormat", jsonPageformat);
 
