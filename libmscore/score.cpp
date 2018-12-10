@@ -270,30 +270,20 @@ Score::Score(MasterScore* parent)
       Score::validScores.insert(this);
       _masterScore = parent;
 
-      if (MScore::defaultStyleForParts()) {
+      if (MScore::defaultStyleForParts()) 
           _style = *MScore::defaultStyleForParts();
-          _style.toPageLayout(&_pageLayout, &_pageSize, &_pageOddMargins, &_pageEvenMargins);
-      }
       else {
             // inherit most style settings from parent
             _style = parent->style();
 
-            // but use page layout settings
-            if (new QLocale()->measurementSystem() == QLocale::ImperialUSSystem) {
-                _pageSize        = new QPageSize(QPageSize::Letter);
-                _pageOddMargins  = new QMarginsF(0.5, 0.5, 0.5, 0.75);
-                _pageEvenMargins = new QMarginsF(0.5, 0.5, 0.5, 0.75);
-            }
-            else {
-                _pageSize        = new QPageSize(QPageSize::A4); // for ImperialUK too
-                _pageOddMargins  = new QMarginsF(10, 10, 10, 20);
-                _pageEvenMargins = new QMarginsF(10, 10, 10, 20);
-            }
-            _pageLayout = new QPageLayout(*_pageSize, QPageLayout::Portrait, *_pageOddMargins,
-                                          QPageLayout::Unit(_pageSize->definitionUnits()));
-            _style.fromPageLayout(_pageLayout, _pageEvenMargins);
-            _style.set(Sid::pageTwosided, MScore::defaultStyle().value(Sid::pageTwosided));
-            _style.set(Sid::spatium, SPATIUM20);
+            // but use default page layout settings
+            MStyle s = MScore::defaultStyle();
+            _style.pageSize()->swap(*s.pageSize());
+            _style.pageOdd() ->swap(*s.pageOdd());
+            _style.pageEven()->swap(*s.pageEven());
+            _style.set(Sid::pageTwosided, s.value(Sid::pageTwosided));
+            _style.set(Sid::spatium,      s.value(Sid::spatium));
+            _style.fromPageLayout(); ///!!!probably unnecessary here...
 
             // and force some style settings that just make sense for parts
             style().set(Sid::concertPitch, false);
@@ -302,7 +292,7 @@ Score::Score(MasterScore* parent)
             style().set(Sid::dividerRight, false);
             }
       _synthesizerState = parent->_synthesizerState;
-      _mscVersion = parent->_mscVersion;
+      _mscVersion       = parent->_mscVersion;
       }
 
 Score::Score(MasterScore* parent, const MStyle& s)
@@ -3369,7 +3359,8 @@ qreal Score::tempo(int tick) const
 
 qreal Score::loWidth() const
       {
-      return _pageSize->size(QPageSize::Point).width() * DPI_F;
+      MStyle st = style();
+      return st.pageSize()->size(QPageSize::Point).width() * DPI_F;
       }
 
 //---------------------------------------------------------
@@ -3378,7 +3369,8 @@ qreal Score::loWidth() const
 
 qreal Score::loHeight() const
       {
-      return _pageSize->size(QPageSize::Point).height() * DPI_F;
+      MStyle st = style();
+      return st.pageSize()->size(QPageSize::Point).height() * DPI_F;
       }
 
 //---------------------------------------------------------

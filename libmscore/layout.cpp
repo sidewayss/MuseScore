@@ -1429,7 +1429,7 @@ static void checkDivider(bool left, System* s, qreal yOffset)
             else {
                   divider->rypos() += s->score()->styleD(Sid::dividerRightY) * SPATIUM20;
                   divider->rxpos() = (s->score()->styleD(Sid::dividerRightX) * SPATIUM20)
-                                   + (s->score()->pageLayout()->paintRect().width() * DPI_F - divider->width());
+                                   + (s->score()->style().pageOdd()->paintRect().width() * DPI_F - divider->width());
                   }
             }
       else if (divider) {
@@ -3007,7 +3007,7 @@ System* Score::collectSystem(LayoutContext& lc)
       qreal layoutSystemMinWidth = 0;
       bool firstMeasure = true;
       bool createHeader = false;
-      qreal systemWidth = pageLayout()->paintRect().width() * DPI_F;
+      qreal systemWidth = style().pageOdd()->paintRect().width() * DPI_F;
       system->setWidth(systemWidth);
 
       while (lc.curMeasure) {    // collect measure for system

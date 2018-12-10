@@ -93,7 +93,7 @@
          </widget>
         </item>
         <item row="0" column="0" colspan="2">
-         <widget class="QComboBox" name="pageGroup"/>
+         <widget class="QComboBox" name="sizesList"/>
         </item>
         <item row="4" column="0">
          <widget class="QCheckBox" name="twosided">
@@ -118,7 +118,7 @@
            </sizepolicy>
           </property>
           <property name="maximum">
-           <double>2000.000000000000000</double>
+           <double>9999.000000000000000</double>
           </property>
          </widget>
         </item>
@@ -131,7 +131,7 @@
            </sizepolicy>
           </property>
           <property name="maximum">
-           <double>2000.000000000000000</double>
+           <double>9999.000000000000000</double>
           </property>
          </widget>
         </item>
@@ -195,7 +195,7 @@
            <double>0.001000000000000</double>
           </property>
           <property name="maximum">
-           <double>999.990000000000009</double>
+           <double>999.999000000000024</double>
           </property>
           <property name="singleStep">
            <double>0.200000000000000</double>
@@ -209,28 +209,23 @@
       </widget>
      </item>
      <item>
-      <widget class="QGroupBox" name="groupBox_6">
+      <widget class="QGroupBox" name="unitsGroup">
        <property name="title">
-        <string>Unit</string>
+        <string>Units</string>
        </property>
        <layout class="QGridLayout" name="gridLayout_1">
         <item row="0" column="1">
          <widget class="QComboBox" name="unitsList">
           <property name="currentText">
-           <string>Centimeters (cm)</string>
+           <string/>
           </property>
           <property name="sizeAdjustPolicy">
            <enum>QComboBox::AdjustToContents</enum>
           </property>
-          <item>
-           <property name="text">
-            <string>Centimeters (cm)</string>
-           </property>
-          </item>
          </widget>
         </item>
         <item row="0" column="0">
-         <widget class="QLabel" name="unitLabel">
+         <widget class="QLabel" name="unitsLabel">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
             <horstretch>0</horstretch>
@@ -262,7 +257,7 @@
       <number>0</number>
      </property>
      <item>
-      <widget class="QPushButton" name="pushButton">
+      <widget class="QPushButton" name="buttonReset">
        <property name="text">
         <string>Reset to Default</string>
        </property>
@@ -271,7 +266,7 @@
      <item>
       <widget class="QPushButton" name="buttonApplyToAllParts">
        <property name="text">
-        <string>Apply to all Parts</string>
+        <string>Apply to All Parts</string>
        </property>
       </widget>
      </item>
@@ -501,7 +496,7 @@
   </layout>
  </widget>
  <tabstops>
-  <tabstop>pageGroup</tabstop>
+  <tabstop>sizesList</tabstop>
   <tabstop>pageWidth</tabstop>
   <tabstop>pageHeight</tabstop>
   <tabstop>portraitButton</tabstop>

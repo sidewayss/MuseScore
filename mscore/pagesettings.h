@@ -30,29 +30,32 @@ class PageSettings : public AbstractDialog, private Ui::PageSettingsBase {
       Q_OBJECT
 
       Navigator*   preview;
-	  bool mmUnit;
       Score* cs;
       Score* clonedScore;
 
 //      std::unique_ptr<Score> clonedScoreForNavigator;
 
       virtual void hideEvent(QHideEvent*);
-      void updateValues();
-      void updatePreview(int);
+      void updateWidgets();
+      void updateWidthHeight(QRectF & rect);
+      void updatePreview();
       void blockSignals(bool);
       void applyToScore(Score*);
-      void setMarginsMax(double);
+      void setPageSize(QPageSize::PageSizeId psid);
+      void marginMinMax(double val, double max, QPageLayout* layout, QDoubleSpinBox* spinner);
+      void lrMargins(double val, bool isL, bool isOdd, QPageLayout* one, QPageLayout* other, QDoubleSpinBox* spinOne);
 
    private slots:
-      void pageFormatSelected(int);
+      void sizeChanged(int);
       void unitsChanged();
 
+      void resetToDefault();
       void apply();
       void applyToAllParts();
       void ok();
       void done(int val);
-
-      void twosidedToggled(bool);
+      
+      void twosidedToggled(bool b);
       void otmChanged(double val);
       void obmChanged(double val);
       void olmChanged(double val);
@@ -62,10 +65,9 @@ class PageSettings : public AbstractDialog, private Ui::PageSettingsBase {
       void elmChanged(double val);
       void ermChanged(double val);
       void spatiumChanged(double val);
-      void pageHeightChanged(double);
-      void pageWidthChanged(double);
+      void widthHeightChanged(double val);
       void pageOffsetChanged(int val);
-      void orientationClicked();
+      void orientationToggled(bool);
 
    protected:
       virtual void retranslate() { retranslateUi(this); }
@@ -75,8 +77,6 @@ class PageSettings : public AbstractDialog, private Ui::PageSettingsBase {
       ~PageSettings();
       void setScore(Score*);
       };
-
-
 } // namespace Ms
 #endif
 

@@ -26,24 +26,6 @@ class XmlWriter;
 class Score;
 class MeasureBase;
 
-//--------------------------------------------------------------------
-//   PageFormat Units (named Unit singular because of QPageSize::Unit)
-//--------------------------------------------------------------------
-enum class Unit : char {
-	MM = 0, // Millimeters, for printing
-	PT,     // Points @72DPI for font sizes and spatium storage
-	INCH,   // Inches, for printing
-	P,      // Picas,  for future typesetting use
-	DD,     // Didot,  for future French typesetting use
-	C,      // Cicero, for future European typesetting use
-	CM,     // Centimeters, for future use
-	PX,     // Pixels, for SVG exports and internal use, same as points @360DPI
-	SP      // Staff Spaces
-};
-// For converting from Ms::Units to a two-char string used as a suffix
-static const char TRANSLATE_CTX_UNITS[] = "unitSuffix";
-extern const char* unitSuffixes[];
-
 //---------------------------------------------------------
 //   @@ Page
 //   @P pagenumber int (read only)

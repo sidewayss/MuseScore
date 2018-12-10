@@ -73,10 +73,10 @@ void Preferences::init(bool storeInMemoryOnly)
       {
             {PREF_APP_AUTOSAVE_AUTOSAVETIME,                       new IntPreference(2 /* minutes */, false)},
             {PREF_APP_AUTOSAVE_USEAUTOSAVE,                        new BoolPreference(true, false)},
-			{PREF_APP_KEYBOARDLAYOUT,                              new StringPreference("US - International")},
-			{PREF_APP_PAGE_UNITS_SOURCE,                           new BoolPreference(true, false)},
-			{PREF_APP_PAGE_UNITS_VALUE,                            new IntPreference(true, false)},
-			{PREF_APP_PATHS_INSTRUMENTLIST1,                       new StringPreference(":/data/instruments.xml", false)},
+	      {PREF_APP_KEYBOARDLAYOUT,                              new StringPreference("US - International")},
+	      {PREF_APP_PAGE_UNITS_GLOBAL,                           new BoolPreference(true, false)},
+	      {PREF_APP_PAGE_UNITS_VALUE,                            new IntPreference(0, false)},
+	      {PREF_APP_PATHS_INSTRUMENTLIST1,                       new StringPreference(":/data/instruments.xml", false)},
             {PREF_APP_PATHS_INSTRUMENTLIST2,                       new StringPreference("", false)},
             {PREF_APP_PATHS_MYIMAGES,                              new StringPreference(QFileInfo(QString("%1/%2").arg(wd).arg(QCoreApplication::translate("images_directory", "Images"))).absoluteFilePath(), false)},
             {PREF_APP_PATHS_MYPLUGINS,                             new StringPreference(QFileInfo(QString("%1/%2").arg(wd).arg(QCoreApplication::translate("plugins_directory", "Plugins"))).absoluteFilePath(), false)},
@@ -85,7 +85,7 @@ void Preferences::init(bool storeInMemoryOnly)
             {PREF_APP_PATHS_MYSHORTCUTS,                           new StringPreference(QFileInfo(QString("%1/%2").arg(wd).arg(QCoreApplication::translate("shortcuts_directory", "Shortcuts"))).absoluteFilePath(), false)},
             {PREF_APP_PATHS_MYSTYLES,                              new StringPreference(QFileInfo(QString("%1/%2").arg(wd).arg(QCoreApplication::translate("styles_directory", "Styles"))).absoluteFilePath(), false)},
             {PREF_APP_PATHS_MYTEMPLATES,                           new StringPreference(QFileInfo(QString("%1/%2").arg(wd).arg(QCoreApplication::translate("templates_directory", "Templates"))).absoluteFilePath(), false)},
-            {PREF_APP_PATHS_MYEXTENSIONS,                           new StringPreference(QFileInfo(QString("%1/%2").arg(wd).arg(QCoreApplication::translate("extensions_directory", "Extensions"))).absoluteFilePath(), false)},
+            {PREF_APP_PATHS_MYEXTENSIONS,                          new StringPreference(QFileInfo(QString("%1/%2").arg(wd).arg(QCoreApplication::translate("extensions_directory", "Extensions"))).absoluteFilePath(), false)},
             {PREF_APP_PLAYBACK_FOLLOWSONG,                         new BoolPreference(true)},
             {PREF_APP_PLAYBACK_PANPLAYBACK,                        new BoolPreference(true)},
             {PREF_APP_PLAYBACK_PLAYREPEATS,                        new BoolPreference(true)},
@@ -196,6 +196,9 @@ void Preferences::init(bool storeInMemoryOnly)
             {PREF_UI_PIANOROLL_LIGHT_BG_TEXT_COLOR,                new ColorPreference(QColor("#111111"))},
       });
 
+      QLocale* local = new QLocale();
+      set(PREF_APP_PAGE_UNITS_VALUE, local->measurementSystem() == QLocale::MetricSystem 
+                                   ? int(QPageSize::Millimeter) :  int(QPageSize::Inch));
       _initialized = true;
       updateLocalPreferences();
       }

@@ -23,6 +23,54 @@ struct ChordDescription;
 class Element;
 class Score;
 
+//--------------------------------------------------------------------
+//   Unit
+//    Same order as QPageSize::Unit so that the values align until SP
+//    Thus it is like an extended QPageSize::Unit
+//    Keep in sync with units[] in style.cpp
+//--------------------------------------------------------------------
+enum class Unit {
+    MM = 0, // Millimeters    for printing
+    PT,     // Points @72DPI  for US typesetting, font sizes, spatium storage
+    INCH,   // Inches         for printing
+    P,      // Picas          for US typesetting
+    DD,     // Didot          for French typesetting
+    C,      // Cicero         for French typesetting
+    SP,     // Staff Spaces   for MStyle and inspectors, aka Spatium units
+    PX      // Pixels @360DPI for SVG exports and internal use
+};
+//---------------------------------------------------------
+//   PageUnits
+//    Units require a custom structure for text suffixes and
+//    widget steps because Qt does not provide them.
+//---------------------------------------------------------
+struct PageUnits {
+      const char* _name;
+      const char* _suffix;
+      qreal       _step;        // for spin widgets in specific units
+      qreal       _stepSpatium; // ditto
+
+   public:
+      const char*  name()        const { return _name; }
+      const char*  suffix()      const { return _suffix;      }
+      qreal        step()        const { return _step;        }
+      qreal        stepSpatium() const { return _stepSpatium; }
+      };
+
+//---------------------------------------------------------
+//   units
+//---------------------------------------------------------
+const PageUnits units[] = {
+      { QT_TRANSLATE_NOOP("unitName", "Millimeters"),  QT_TRANSLATE_NOOP("unitSuffix", "mm"), 1.0,  0.2   },
+      { QT_TRANSLATE_NOOP("unitName", "Points"),       QT_TRANSLATE_NOOP("unitSuffix", "pt"), 1.0,  0.5   },
+      { QT_TRANSLATE_NOOP("unitName", "Inches"),       QT_TRANSLATE_NOOP("unitSuffix", "in"), 0.05, 0.005 },
+      { QT_TRANSLATE_NOOP("unitName", "Picas"),        QT_TRANSLATE_NOOP("unitSuffix", "p"),  1.0,  0.1   },
+      { QT_TRANSLATE_NOOP("unitName", "Diderot"),      QT_TRANSLATE_NOOP("unitSuffix", "dd"), 1.0,  0.5   },
+      { QT_TRANSLATE_NOOP("unitName", "Cicero"),       QT_TRANSLATE_NOOP("unitSuffix", "c"),  1.0,  0.1   },
+      { QT_TRANSLATE_NOOP("unitName", "Staff Spaces"), QT_TRANSLATE_NOOP("unitSuffix", "sp"), 0.1,  0.01  },
+      { QT_TRANSLATE_NOOP("unitName", "Pixels"),       QT_TRANSLATE_NOOP("unitSuffix", "px"), 1.0,  1.0   }
+};
+
 //---------------------------------------------------------
 //   Sid
 //
@@ -42,6 +90,8 @@ enum class Sid {
       pageOddTopMargin,
       pageOddBottomMargin,
       pageTwosided,
+      pageSize,
+      pageUnits,
 
       staffUpperBorder,
       staffLowerBorder,
@@ -1051,6 +1101,10 @@ class MStyle {
       std::array<QVariant, int(Sid::STYLES)> _values;
       std::array<qreal, int(Sid::STYLES)> _precomputedValues;
 
+      QPageSize*   _pageSize;
+      QPageLayout* _pageOdd;
+      QPageLayout* _pageEven;
+
       ChordList _chordList;
       bool _customChordList;        // if true, chordlist will be saved as part of score
 
@@ -1058,9 +1112,14 @@ class MStyle {
       MStyle();
 
       void precomputeValues();
+      void initPageLayout();
       QVariant value(Sid idx) const;
       qreal pvalue(Sid idx) const    { return _precomputedValues[int(idx)]; }
       void set(Sid idx, const QVariant& v);
+
+      QPageSize*   pageSize() { return _pageSize; }
+      QPageLayout* pageOdd()  { return _pageOdd;  }
+      QPageLayout* pageEven() { return _pageEven; }
 
       bool isDefault(Sid idx) const;
 
@@ -1078,9 +1137,8 @@ class MStyle {
 
       void reset(Score*);
 
-      void fromPageLayout(QPageLayout* odd, QMarginsF* even);
-      void   toPageLayout(QPageLayout** pageLayout, QPageSize** pageSize,
-                          QMarginsF**   oddMargins, QMarginsF** evenMargins);
+      void fromPageLayout();
+      void   toPageLayout();
 
       static const char* valueType(const Sid);
       static const char* valueName(const Sid);

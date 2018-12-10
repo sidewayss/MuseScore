@@ -1586,13 +1586,14 @@ void MuseScore::printFile()
             }
 
       QPrinter printerDev(QPrinter::HighResolution);
-      printerDev.setPageLayout(*cs->pageLayout());
+      printerDev.setPageLayout(*cs->style().pageOdd());
       printerDev.setCreator("MuseScore Version: " VERSION);
       printerDev.setFullPage(true);
 
       //!!why are the margins cleared here and then apparently never set??
       //!!the dialog box will set them, if it shows, but how does it get them??
       //!!they should come from the QPageLayout, and none of this should be necessary...
+      //!!even/odd page layouts must be applied correctly, including offset...
       if (!printerDev.setPageMargins(QMarginsF()))
             qDebug("unable to clear printer margins");
       printerDev.setColorMode(QPrinter::Color);
@@ -2052,11 +2053,11 @@ bool MuseScore::savePdf(Score* score, QPdfWriter& pdfWriter)
       MScore::pdfPrinting = true;
 
       pdfWriter.setResolution(preferences.getInt(PREF_EXPORT_PDF_DPI));
-      pdfWriter.setPageLayout(*score->pageLayout());
-      QSizeF size(score->pageLayout()->fullRect(QPageLayout::Inch).size());
+      pdfWriter.setPageLayout(*score->style().pageOdd());
+      QSizeF size(score->style().pageOdd()->fullRect(QPageLayout::Inch).size());
       //!!I believe that using QPageLayout::Point would make no difference here, except maybe precision
 
-      //!!Again, why clear the margins??
+      //!!Again, why clear the margins?? Where are margins set separately for odd/even printing??
       pdfWriter.setCreator("MuseScore Version: " VERSION);
       if (!pdfWriter.setPageMargins(QMarginsF()))
             qDebug("unable to clear printer margins");
@@ -2110,8 +2111,8 @@ bool MuseScore::savePdf(QList<Score*> scoreList, const QString& saveName)
 
       QPdfWriter pdfWriter(saveName);
       pdfWriter.setResolution(preferences.getInt(PREF_EXPORT_PDF_DPI));
-      pdfWriter.setPageLayout(*firstScore->pageLayout());
-      QSizeF size(firstScore->pageLayout()->fullRect(QPageLayout::Inch).size());
+      pdfWriter.setPageLayout(*firstScore->style().pageOdd());
+      QSizeF size(firstScore->style().pageOdd()->fullRect(QPageLayout::Inch).size());
       //!!I believe that using QPageLayout::Point would make no difference here, except maybe precision
 
       //!!Again, why clear the margins??
@@ -3099,7 +3100,7 @@ QJsonObject MuseScore::saveMetadataJSON(Score* score)
 
       // pageFormat
       QJsonObject jsonPageformat;
-      QSizeF      size = score->pageSize()->size(QPageSize::Millimeter);
+      QSizeF      size = score->style().pageSize()->size(QPageSize::Millimeter);
       jsonPageformat.insert("height", round(size.width() ));
       jsonPageformat.insert("width",  round(size.height()));
       jsonPageformat.insert("twosided", boolToString(score->styleB(Sid::pageTwosided)));

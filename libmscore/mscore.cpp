@@ -304,7 +304,9 @@ void MScore::init()
       //
       //  initialize styles
       //
+      _baseStyle.initPageLayout();
       _baseStyle.precomputeValues();
+      _defaultStyle.initPageLayout();
       QSettings s;
       QString defStyle = s.value("score/style/defaultStyleFile").toString();
       if (!(MScore::testMode || defStyle.isEmpty())) {

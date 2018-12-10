@@ -155,10 +155,13 @@ PreferenceDialog::PreferenceDialog(QWidget* parent)
       connect(myPluginsButton, SIGNAL(clicked()), SLOT(selectPluginsDirectory()));
       connect(myImagesButton, SIGNAL(clicked()), SLOT(selectImagesDirectory()));
       connect(mySoundfontsButton, SIGNAL(clicked()), SLOT(changeSoundfontPaths()));
-       connect(myExtensionsButton, SIGNAL(clicked()), SLOT(selectExtensionsDirectory()));
+      connect(myExtensionsButton, SIGNAL(clicked()), SLOT(selectExtensionsDirectory()));
 
 
       connect(updateTranslation, SIGNAL(clicked()), SLOT(updateTranslationClicked()));
+
+      connect(unitsGlobal,  SIGNAL(toggled(bool)), SLOT(unitsToggled(bool)));
+      connect(unitsByScore, SIGNAL(toggled(bool)), SLOT(unitsToggled(bool)));
 
       connect(defaultStyleButton,     SIGNAL(clicked()), SLOT(selectDefaultStyle()));
       connect(partStyleButton,        SIGNAL(clicked()), SLOT(selectPartStyle()));
@@ -412,6 +415,12 @@ void PreferenceDialog::updateValues(bool useDefaultValues)
                   }
             }
       language->blockSignals(false);
+
+      unitsList->setCurrentIndex(preferences.getInt(PREF_APP_PAGE_UNITS_VALUE));
+      if (preferences.getBool(PREF_APP_PAGE_UNITS_GLOBAL))
+            unitsGlobal->setChecked(true);
+      else
+            unitsByScore->setChecked(true);
 
       //
       // initialize local shortcut table
@@ -755,6 +764,15 @@ void PreferenceDialog::selectBgWallpaper()
       }
 
 //---------------------------------------------------------
+//   unitsToggled
+//---------------------------------------------------------
+
+void PreferenceDialog::unitsToggled(bool b)
+      { // if unitsByScore is checked, unitsList is disabled
+      unitsList->setEnabled(unitsGlobal->isChecked());
+      }
+
+//---------------------------------------------------------
 //   selectDefaultStyle
 //---------------------------------------------------------
 
@@ -909,7 +927,9 @@ void PreferenceDialog::apply()
             preferences.setCustomPreference<SessionStart>(PREF_APP_STARTUP_SESSIONSTART, SessionStart::EMPTY);
 
       preferences.setPreference(PREF_APP_AUTOSAVE_AUTOSAVETIME, autoSaveTime->value());
-      preferences.setPreference(PREF_APP_AUTOSAVE_USEAUTOSAVE, autoSave->isChecked());
+      preferences.setPreference(PREF_APP_AUTOSAVE_USEAUTOSAVE,  autoSave->isChecked());
+      preferences.setPreference(PREF_APP_PAGE_UNITS_GLOBAL,     unitsGlobal->isChecked());
+      preferences.setPreference(PREF_APP_PAGE_UNITS_VALUE,      unitsList->currentIndex());
       preferences.setPreference(PREF_APP_PATHS_INSTRUMENTLIST1, instrumentList1->text());
       preferences.setPreference(PREF_APP_PATHS_INSTRUMENTLIST2, instrumentList2->text());
       preferences.setPreference(PREF_APP_PATHS_MYIMAGES, myImages->text());

@@ -444,7 +444,8 @@ QList<Element*> Page::elements()
 qreal Page::tm() const
       {
       return ((!score()->styleB(Sid::pageTwosided) || isOdd())
-         ? score()->pageOddMargins()->top() : score()->pageEvenMargins()->top()) * DPI_F;
+              ? score()->style().pageOdd() ->margins(QPageLayout::Point).top() 
+              : score()->style().pageEven()->margins(QPageLayout::Point).top()) * DPI_F;
       }
 
 //---------------------------------------------------------
@@ -454,7 +455,8 @@ qreal Page::tm() const
 qreal Page::bm() const
       {
       return ((!score()->styleB(Sid::pageTwosided) || isOdd())
-         ? score()->pageOddMargins()->bottom() : score()->pageEvenMargins()->bottom()) * DPI_F;
+              ? score()->style().pageOdd() ->margins(QPageLayout::Point).bottom() 
+              : score()->style().pageEven()->margins(QPageLayout::Point).bottom()) * DPI_F;
 }
 
 //---------------------------------------------------------
@@ -464,7 +466,8 @@ qreal Page::bm() const
 qreal Page::lm() const
       {
       return ((!score()->styleB(Sid::pageTwosided) || isOdd())
-         ? score()->pageOddMargins()->left() : score()->pageEvenMargins()->left()) * DPI_F;
+              ? score()->style().pageOdd() ->margins(QPageLayout::Point).left() 
+              : score()->style().pageEven()->margins(QPageLayout::Point).left()) * DPI_F;
 }
 
 //---------------------------------------------------------
@@ -474,7 +477,8 @@ qreal Page::lm() const
 qreal Page::rm() const
       {
       return ((!score()->styleB(Sid::pageTwosided) || isOdd())
-          ? score()->pageOddMargins()->right() : score()->pageEvenMargins()->right()) * DPI_F;
+              ? score()->style().pageOdd() ->margins(QPageLayout::Point).right() 
+              : score()->style().pageEven()->margins(QPageLayout::Point).right()) * DPI_F;
 }
 
 //---------------------------------------------------------

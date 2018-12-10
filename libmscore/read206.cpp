@@ -65,6 +65,7 @@
 #include "tempotext.h"
 #include "measurenumber.h"
 #include "marker.h"
+#include "mscore/preferences.h"
 
 #ifdef OMR
 #include "omr/omr.h"
@@ -363,8 +364,6 @@ struct StyleVal2 {
 
 void setPageFormat(MStyle* style, const PageFormat& pf)
       {
-      style->set(Sid::pageWidth,            PPI * pf.size().width());
-      style->set(Sid::pageHeight,           PPI * pf.size().height());
       style->set(Sid::pagePrintableWidth,   PPI * pf.printableWidth());
       style->set(Sid::pageEvenLeftMargin,   PPI * pf.evenLeftMargin());
       style->set(Sid::pageOddLeftMargin,    PPI * pf.oddLeftMargin());
@@ -373,13 +372,32 @@ void setPageFormat(MStyle* style, const PageFormat& pf)
       style->set(Sid::pageOddTopMargin,     PPI * pf.oddTopMargin());
       style->set(Sid::pageOddBottomMargin,  PPI * pf.oddBottomMargin());
       style->set(Sid::pageTwosided,         pf.twosided());
+      style->set(Sid::pageUnits,            preferences.getInt(PREF_APP_PAGE_UNITS_VALUE));
+
+      QPageSize::PageSizeId psid = QPageSize::id(pf.size(),
+                                                 QPageSize::Inch,
+                                                 QPageSize::FuzzyOrientationMatch);
+      style->set(Sid::pageSize, int(psid));
+      if (psid == QPageSize::Custom) {
+            style->set(Sid::pageWidth,  PPI * pf.size().width());
+            style->set(Sid::pageHeight, PPI * pf.size().height());
+            }
+      else {
+            QPageSize qps  = QPageSize(psid);
+            QSizeF    size = qps.size(QPageSize::Point);
+            bool      isPortrait = pf.size().height() >= pf.size().width();
+            style->set(Sid::pageWidth,  isPortrait ? size.width()  : size.height());
+            style->set(Sid::pageHeight, isPortrait ? size.height() : size.width());
+            }
+
+      style->toPageLayout();
       }
 
 //---------------------------------------------------------
 //   initPageFormat
 //    initialize PageFormat from Style
 //---------------------------------------------------------
-
+///!!!is this obsolete??? or do I need to convert to inches???
 void initPageFormat(MStyle* style, PageFormat* pf)
       {
       QSizeF sz;
