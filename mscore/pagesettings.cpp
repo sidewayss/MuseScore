@@ -367,7 +367,7 @@ void PageSettings::sizeChanged(int idx)
 //                        it can also change orientation
 //---------------------------------------------------------
 
-void PageSettings::widthHeightChanged(double val)
+void PageSettings::widthHeightChanged(double)
 {
       int idxCustom = int(QPageSize::Custom);
       if (sizesList->currentIndex() == idxCustom)
@@ -376,14 +376,21 @@ void PageSettings::widthHeightChanged(double val)
             sizesList->setCurrentIndex(idxCustom);
       ///!!!The line above causes the sizesList.valueChanged signal to fire
       ///!!!which calls sizeChanged()
+
       bool  isP = pageHeight->value() >= pageWidth->value();
       bool wasP = portraitButton->isChecked();
-      if (isP != wasP)
-            ;
+      if (isP != wasP) {
+            portraitButton ->blockSignals(true);
+            landscapeButton->blockSignals(true);
+            portraitButton ->setChecked( isP);
+            landscapeButton->setChecked(!isP);
+            portraitButton ->blockSignals(false);
+            landscapeButton->blockSignals(false);
+      }
 }
 
 //// Margins /////////////////////////////////////////////
-///!!!this code could be so much more compact if the signals provided a "this",
+///!!!this code could be much more compact if the signals provided a "this",
 ///!!!the element, the spin box. There might be a way to do that in Qt with events...
 //---------------------------------------------------------
 //   marginMinMax - helper for all 8 margins' signals - handles out of range error

@@ -56,6 +56,7 @@ class PageSettings : public AbstractDialog, private Ui::PageSettingsBase {
       void done(int val);
       
       void twosidedToggled(bool b);
+      void orientationToggled(bool);
       void otmChanged(double val);
       void obmChanged(double val);
       void olmChanged(double val);
@@ -65,9 +66,8 @@ class PageSettings : public AbstractDialog, private Ui::PageSettingsBase {
       void elmChanged(double val);
       void ermChanged(double val);
       void spatiumChanged(double val);
-      void widthHeightChanged(double val);
+      void widthHeightChanged(double);
       void pageOffsetChanged(int val);
-      void orientationToggled(bool);
 
    protected:
       virtual void retranslate() { retranslateUi(this); }

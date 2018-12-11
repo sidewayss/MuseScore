@@ -2103,11 +2103,11 @@ bool MuseScore::savePdf(Score* score, QPdfWriter& pdfWriter)
       return true;
       }
 
-bool MuseScore::savePdf(QList<Score*> scoreList, const QString& saveName)
+bool MuseScore::savePdf(QList<Score*> scores, const QString& saveName)
       {
-      if (scoreList.empty())
+      if (scores.empty())
             return false;
-      Score* firstScore = scoreList[0];
+      Score* firstScore = scores[0];
 
       QPdfWriter pdfWriter(saveName);
       pdfWriter.setResolution(preferences.getInt(PREF_EXPORT_PDF_DPI));
@@ -2144,7 +2144,7 @@ bool MuseScore::savePdf(QList<Score*> scoreList, const QString& saveName)
       MScore::pdfPrinting = true;
 
       bool firstPage = true;
-      for (Score* s : scoreList) { //!!shouldn't the pageLayout be reset for each score??
+      for (Score* s : scores) { ///!!!shouldn't the page layout be reset for each score??? what about odd/even page layouts???
             LayoutMode layoutMode = s->layoutMode();
             if (layoutMode != LayoutMode::PAGE) {
                   s->setLayoutMode(LayoutMode::PAGE);
