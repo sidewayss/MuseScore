@@ -160,9 +160,6 @@ PreferenceDialog::PreferenceDialog(QWidget* parent)
 
       connect(updateTranslation, SIGNAL(clicked()), SLOT(updateTranslationClicked()));
 
-      connect(unitsGlobal,  SIGNAL(toggled(bool)), SLOT(unitsToggled(bool)));
-      connect(unitsByScore, SIGNAL(toggled(bool)), SLOT(unitsToggled(bool)));
-
       connect(defaultStyleButton,     SIGNAL(clicked()), SLOT(selectDefaultStyle()));
       connect(partStyleButton,        SIGNAL(clicked()), SLOT(selectPartStyle()));
       connect(styleFileButton,        SIGNAL(clicked()), SLOT(styleFileButtonClicked()));
@@ -761,15 +758,6 @@ void PreferenceDialog::selectBgWallpaper()
             bgWallpaper->setText(s);
             updateBgView(false);
             }
-      }
-
-//---------------------------------------------------------
-//   unitsToggled
-//---------------------------------------------------------
-
-void PreferenceDialog::unitsToggled(bool b)
-      { // if unitsByScore is checked, unitsList is disabled
-      unitsList->setEnabled(unitsGlobal->isChecked());
       }
 
 //---------------------------------------------------------
@@ -1405,10 +1393,13 @@ void PreferenceDialog::printShortcutsClicked()
       {
 #ifndef QT_NO_PRINTER
       QPrinter printer(QPrinter::HighResolution);
-      const MStyle& s = MScore::defaultStyle();
-      qreal pageW = s.value(Sid::pageWidth).toReal();
-      qreal pageH = s.value(Sid::pageHeight).toReal();
-      printer.setPaperSize(QSizeF(pageW, pageH), QPrinter::Point);
+      ///!!!printer.setPaperSize() is no longer in the Qt docs for QPrinter
+      ///!!!is it obsolete??? I am switching to the documented setPageSize() function
+      printer.setPageLayout(*MScore::defaultStyle().pageOdd());
+///!!!      const MStyle& s = MScore::defaultStyle();
+///!!!      qreal pageW = s.value(Sid::pageWidth).toReal();
+///!!!      qreal pageH = s.value(Sid::pageHeight).toReal();
+///!!!      printer.setPaperSize(QSizeF(pageW, pageH), QPrinter::Point);
 
       printer.setCreator("MuseScore Version: " VERSION);
       printer.setFullPage(true);

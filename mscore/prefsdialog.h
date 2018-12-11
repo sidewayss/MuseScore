@@ -53,7 +53,6 @@ class PreferenceDialog : public AbstractDialog, private Ui::PrefsDialogBase {
       void updateFgView(bool);
       void selectFgWallpaper();
       void selectBgWallpaper();
-      void unitsToggled(bool b);
       void selectDefaultStyle();
       void selectPartStyle();
       void selectInstrumentList1();
