@@ -413,6 +413,9 @@ void PreferenceDialog::updateValues(bool useDefaultValues)
             }
       language->blockSignals(false);
 
+      for (int i = 0; i <= QPageSize::Cicero; ++i)
+            unitsList->addItem(QString("%1 (%2)").arg(units[i].name())
+                                                 .arg(units[i].suffix()));
       unitsList->setCurrentIndex(preferences.getInt(PREF_APP_PAGE_UNITS_VALUE));
       if (preferences.getBool(PREF_APP_PAGE_UNITS_GLOBAL))
             unitsGlobal->setChecked(true);

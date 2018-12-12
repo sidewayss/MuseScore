@@ -175,10 +175,27 @@ void PageSettings::updateWidgets()
       evenPageLeftMargin  ->setValue(marg.left());
       evenPageRightMargin ->setValue(marg.right());
 
-      ///!!!this is a bit clumsy, but I want all conversions to be handled by Qt
-      double sp72 = score->spatium() / DPI_F;             // spatium at 72dpi
-      QPageSize qps(QSizeF(sp72, sp72), QPageSize::Point);
-      spatiumEntry->setValue(qps.size(QPageSize::Unit(idxUnit)).width());
+      ///!!!Qt page and printer classes round to 2 decimals - spatium needs full resolution conversion
+      switch (QPageSize::Unit(idxUnit)) {
+            case QPageLayout::Millimeter:
+                  spatiumEntry->setValue(score->spatium() / DPI_F / PPI * INCH);
+                  break;
+            case QPageLayout::Inch:
+                  spatiumEntry->setValue(score->spatium() / DPI_F / PPI);
+                  break;
+            case QPageLayout::Point:
+                  spatiumEntry->setValue(score->spatium() / DPI_F);
+                  break;
+            case QPageLayout::Pica:
+                  spatiumEntry->setValue(score->spatium() / DPI_F / picaCicero);
+                  break;
+            case QPageLayout::Didot:
+                  spatiumEntry->setValue(score->spatium() / DPI_F / didotToPt);
+                  break;
+            case QPageLayout::Cicero:
+                  spatiumEntry->setValue(score->spatium() / DPI_F / picaCicero / didotToPt);
+                  break;
+      }
 
       if (qpl->orientation() == QPageLayout::Portrait)
             landscapeButton->setChecked(true);
@@ -546,13 +563,36 @@ void PageSettings::ermChanged(double val)
 //---------------------------------------------------------
 
 void PageSettings::spatiumChanged(double val)
-      {
-      Score*    score  = preview->score();
-      QPageSize qps    = QPageSize(QSizeF(val, val), QPageSize::Unit(score->style().pageOdd()->units()));
-
-      double    newVal = qps.size(QPageSize::Point).width() * DPI_F;
-      double    oldVal = score->spatium();
-      
+      { ///!!!QPageSize and all the other related classes round to 2 decimals.
+        ///!!!that's perfect for everything but the spatium value.
+      Score* score  = preview->score();
+      double oldVal = score->spatium();
+      double newVal = SPATIUM20;
+      switch (score->style().pageOdd()->units()) {
+            case QPageLayout::Millimeter:
+                  if (val != 1.764)     // rounding messes up the default value
+                        newVal = val / INCH * PPI * DPI_F;
+                  break;
+            case QPageLayout::Inch:
+                  if (val != 0.069)
+                        newVal = val * PPI * DPI_F;
+                  break;
+            case QPageLayout::Point:
+                  newVal = val * DPI_F;
+                  break;
+            case QPageLayout::Pica:
+                  if (val != 0.417)
+                        newVal = val * picaCicero * DPI_F;
+                  break;
+            case QPageLayout::Didot:
+                  if (val != 4.692)
+                        newVal = val * didotToPt * DPI_F;
+                  break;
+            case QPageLayout::Cicero:
+                  if (val != 0.391)
+                        newVal = val * didotToPt * picaCicero * DPI_F;
+                  break;
+            }
       preview->score()->setSpatium(newVal); 
       preview->score()->spatiumChanged(oldVal, newVal);
       updatePreview();

@@ -62,10 +62,10 @@ struct PageUnits {
 //---------------------------------------------------------
 const PageUnits units[] = {
       { QT_TRANSLATE_NOOP("unitName", "Millimeters"),  QT_TRANSLATE_NOOP("unitSuffix", "mm"), 1.0,  0.2   },
-      { QT_TRANSLATE_NOOP("unitName", "Points"),       QT_TRANSLATE_NOOP("unitSuffix", "pt"), 1.0,  0.5   },
+      { QT_TRANSLATE_NOOP("unitName", "Points"),       QT_TRANSLATE_NOOP("unitSuffix", "pt"), 1.0,  0.2   },
       { QT_TRANSLATE_NOOP("unitName", "Inches"),       QT_TRANSLATE_NOOP("unitSuffix", "in"), 0.05, 0.005 },
       { QT_TRANSLATE_NOOP("unitName", "Picas"),        QT_TRANSLATE_NOOP("unitSuffix", "p"),  1.0,  0.1   },
-      { QT_TRANSLATE_NOOP("unitName", "Diderot"),      QT_TRANSLATE_NOOP("unitSuffix", "dd"), 1.0,  0.5   },
+      { QT_TRANSLATE_NOOP("unitName", "Didot"),        QT_TRANSLATE_NOOP("unitSuffix", "dd"), 1.0,  0.5   },
       { QT_TRANSLATE_NOOP("unitName", "Cicero"),       QT_TRANSLATE_NOOP("unitSuffix", "c"),  1.0,  0.1   },
       { QT_TRANSLATE_NOOP("unitName", "Staff Spaces"), QT_TRANSLATE_NOOP("unitSuffix", "sp"), 0.1,  0.01  },
       { QT_TRANSLATE_NOOP("unitName", "Pixels"),       QT_TRANSLATE_NOOP("unitSuffix", "px"), 1.0,  1.0   }
@@ -1103,7 +1103,8 @@ class MStyle {
 
       QPageSize*   _pageSize;
       QPageLayout* _pageOdd;
-      QPageLayout* _pageEven;
+      QPageLayout* _pageEven;      
+      bool _isMMInch; ///!!!temporary: for conversion of previous file format!!!
 
       ChordList _chordList;
       bool _customChordList;        // if true, chordlist will be saved as part of score
@@ -1120,7 +1121,7 @@ class MStyle {
       QPageSize*   pageSize() { return _pageSize; }
       QPageLayout* pageOdd()  { return _pageOdd;  }
       QPageLayout* pageEven() { return _pageEven; }
-
+      void setMMInch(bool b)  { _isMMInch = b; } ///!!!temporary!!!
       bool isDefault(Sid idx) const;
 
       const ChordDescription* chordDescription(int id) const;

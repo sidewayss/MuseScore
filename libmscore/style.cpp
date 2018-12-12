@@ -1989,10 +1989,11 @@ void MStyle::initPageLayout()
       { // by default, units are millimeters or inches, depending on locale
         // default preferences are initialized prior to default styles in main()
       QPageLayout::Unit unit = QPageLayout::Unit(preferences.getInt(PREF_APP_PAGE_UNITS_VALUE));
-      _pageSize = (unit == QPageLayout::Millimeter ? new QPageSize(QPageSize::A4)
+      QMarginsF         marg = QMarginsF(10, 10, 10, 20); ///!!!much less risk is defaults the same regardless
+      _pageSize = (unit == QPageLayout::Millimeter ? new QPageSize(QPageSize::A4) ///!!!of units, same as v206.
                                                    : new QPageSize(QPageSize::Letter));
-      _pageOdd ->setPageSize(*_pageSize);
-      _pageEven->setPageSize(*_pageSize);
+      _pageOdd  = new QPageLayout(*_pageSize, QPageLayout::Portrait, marg, QPageLayout::Millimeter);
+      _pageEven = new QPageLayout(*_pageSize, QPageLayout::Portrait, marg, QPageLayout::Millimeter);
       _pageOdd ->setUnits(unit);
       _pageEven->setUnits(unit);
 }
@@ -2218,6 +2219,7 @@ bool MStyle::load(QFile* qf)
                   int mscVersion  = sl[0].toInt() * 100 + sl[1].toInt();
                   if (mscVersion != MSCVERSION)
                         return false;
+                  _isMMInch = mscVersion < 302; ///!!!temporary!!!
                   while (e.readNextStartElement()) {
                         if (e.name() == "Style")
                               load(e);
@@ -2246,8 +2248,18 @@ void MStyle::load(XmlReader& e)
                   set(Sid::ottavaHookAbove, y);
                   set(Sid::ottavaHookBelow, -y);
                   }
-            else if (tag == "Spatium")
-                  set(Sid::spatium, e.readDouble() * DPI_F);
+            else if (tag == "Spatium") {
+                  if (_isMMInch) { ///!!!temporary!!!
+                        _isMMInch = false; ///!!!this gets called when page settings dialog opens because of score.clone()
+                        QString txt = e.readElementText();
+                        if (txt == "1.76389" || txt == "1.764" || txt == "1.7526")
+                              set(Sid::spatium, SPATIUM20);
+                        else 
+                              set(Sid::spatium, e.readDouble() / INCH * PPI * DPI_F);
+                        }
+                  else
+                        set(Sid::spatium, e.readDouble() * DPI_F);
+                  }
             else if (tag == "page-layout") {    // obsolete
                   readPageFormat(this, e);      // from read206.cpp
                   }
@@ -2355,7 +2367,7 @@ void MStyle::reset(Score* score)
       }
 
 //---------------------------------------------------------
-//   from & toPageLayout convert between QPageLayout/QMarginsF and style values
+//   from & toPageLayout convert between QPageLayout/QPageSize and style values
 //---------------------------------------------------------
 void MStyle::fromPageLayout()
       {
@@ -2378,6 +2390,10 @@ void MStyle::toPageLayout()
       {
       double w = value(Sid::pageWidth) .toDouble();
       double h = value(Sid::pageHeight).toDouble();
+      if (_isMMInch) { ///!!!compatibility
+            w *= PPI;
+            h *= PPI;
+            }
       QPageSize::PageSizeId psid = QPageSize::PageSizeId(value(Sid::pageUnits).toInt());
 
       if (psid != QPageSize::Custom) 

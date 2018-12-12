@@ -33,6 +33,9 @@ class PageSettings : public AbstractDialog, private Ui::PageSettingsBase {
       Score* cs;
       Score* clonedScore;
 
+      const double picaCicero = 12;
+      const double didotToPt  =  1.06574601373228;
+
 //      std::unique_ptr<Score> clonedScoreForNavigator;
 
       virtual void hideEvent(QHideEvent*);
