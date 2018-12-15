@@ -364,15 +364,18 @@ struct StyleVal2 {
 
 void setPageFormat(MStyle* style, const PageFormat& pf)
       {
-      style->set(Sid::pagePrintableWidth,   PPI * pf.printableWidth());
-      style->set(Sid::pageEvenLeftMargin,   PPI * pf.evenLeftMargin());
-      style->set(Sid::pageOddLeftMargin,    PPI * pf.oddLeftMargin());
-      style->set(Sid::pageEvenTopMargin,    PPI * pf.evenTopMargin());
-      style->set(Sid::pageEvenBottomMargin, PPI * pf.evenBottomMargin());
+      double left = PPI * pf.oddLeftMargin();
+      double ppw  = PPI * pf.printableWidth();
+      style->set(Sid::pageOddLeftMargin,    left);
+      style->set(Sid::pageOddRightMargin,   ppw - left);
       style->set(Sid::pageOddTopMargin,     PPI * pf.oddTopMargin());
       style->set(Sid::pageOddBottomMargin,  PPI * pf.oddBottomMargin());
+      style->set(Sid::pageEvenTopMargin,    PPI * pf.evenTopMargin());
+      style->set(Sid::pageEvenBottomMargin, PPI * pf.evenBottomMargin());
       style->set(Sid::pageTwosided,         pf.twosided());
       style->set(Sid::pageUnits,            preferences.getInt(PREF_APP_PAGE_UNITS_VALUE));
+///!!!      style->set(Sid::pagePrintableWidth,   ppw); ///!!!these two are obsolete
+///!!!      style->set(Sid::pageEvenLeftMargin,   PPI * pf.evenLeftMargin());
 
       QPageSize::PageSizeId psid = QPageSize::id(pf.size(),
                                                  QPageSize::Inch,
@@ -385,9 +388,10 @@ void setPageFormat(MStyle* style, const PageFormat& pf)
       else {
             QPageSize qps  = QPageSize(psid);
             QSizeF    size = qps.size(QPageSize::Point);
-            bool      isPortrait = pf.size().height() >= pf.size().width();
-            style->set(Sid::pageWidth,  isPortrait ? size.width()  : size.height());
-            style->set(Sid::pageHeight, isPortrait ? size.height() : size.width());
+            if (pf.size().height() >= pf.size().width())
+                  size.transpose(); // QPageSize always defined as portrait
+            style->set(Sid::pageWidth,  size.width());
+            style->set(Sid::pageHeight, size.height());
             }
 
       style->toPageLayout();
@@ -397,20 +401,26 @@ void setPageFormat(MStyle* style, const PageFormat& pf)
 //   initPageFormat
 //    initialize PageFormat from Style
 //---------------------------------------------------------
-///!!!is this obsolete??? or do I need to convert to inches???
 void initPageFormat(MStyle* style, PageFormat* pf)
       {
       QSizeF sz;
-      sz.setWidth(style->value(Sid::pageWidth).toReal());
-      sz.setHeight(style->value(Sid::pageHeight).toReal());
+      double w = style->value(Sid::pageWidth).toReal() / PPI;
+      sz.setWidth (w);
+      sz.setHeight(style->value(Sid::pageHeight).toReal() / PPI);
       pf->setSize(sz);
-      pf->setPrintableWidth(style->value(Sid::pagePrintableWidth).toReal());
-      pf->setEvenLeftMargin(style->value(Sid::pageEvenLeftMargin).toReal());
-      pf->setOddLeftMargin(style->value(Sid::pageOddLeftMargin).toReal());
-      pf->setEvenTopMargin(style->value(Sid::pageEvenTopMargin).toReal());
-      pf->setEvenBottomMargin(style->value(Sid::pageEvenBottomMargin).toReal());
-      pf->setOddTopMargin(style->value(Sid::pageOddTopMargin).toReal());
-      pf->setOddBottomMargin(style->value(Sid::pageOddBottomMargin).toReal());
+      ///!!!pagePrintableWidth and pageEvenLeftMargin are obsolete styles
+      double l = style->value(Sid::pageOddLeftMargin ).toReal() / PPI;
+      double r = style->value(Sid::pageOddRightMargin).toReal() / PPI;
+      pf->setPrintableWidth(w - l - r);
+      pf->setOddLeftMargin(l);
+      if (style->value(Sid::pageTwosided).toBool())
+            l = r;
+      pf->setEvenLeftMargin(l);
+
+      pf->setEvenTopMargin(   style->value(Sid::pageEvenTopMargin).toReal()    / PPI);
+      pf->setEvenBottomMargin(style->value(Sid::pageEvenBottomMargin).toReal() / PPI);
+      pf->setOddTopMargin(    style->value(Sid::pageOddTopMargin).toReal()     / PPI);
+      pf->setOddBottomMargin( style->value(Sid::pageOddBottomMargin).toReal()  / PPI);
       pf->setTwosided(style->value(Sid::pageTwosided).toBool());
       }
 
@@ -3382,8 +3392,13 @@ static void readStyle(MStyle* style, XmlReader& e)
 
             if (tag == "TextStyle")
                   readTextStyle206(style, e);
-            else if (tag == "Spatium")
-                  style->set(Sid::spatium, e.readDouble() * DPMM);
+            else if (tag == "Spatium") {
+                  QString txt = e.readElementText();
+                  if (txt == "1.76389" || txt == "1.764" || txt == "1.7526")
+                        style->set(Sid::spatium, SPATIUM20);
+                  else
+                        style->set(Sid::spatium, e.readDouble() * DPMM);
+                  }
             else if (tag == "page-layout")
                   readPageFormat(style, e);
             else if (tag == "displayInConcertPitch")

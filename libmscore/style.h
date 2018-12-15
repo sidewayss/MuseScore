@@ -49,26 +49,28 @@ struct PageUnits {
       const char* _suffix;
       qreal       _step;        // for spin widgets in specific units
       qreal       _stepSpatium; // ditto
+      qreal       _factor;      // conversion to points factor
 
    public:
-      const char*  name()        const { return _name; }
+      const char*  name()        const { return _name;        }
       const char*  suffix()      const { return _suffix;      }
       qreal        step()        const { return _step;        }
       qreal        stepSpatium() const { return _stepSpatium; }
-      };
+      qreal        factor()      const { return _factor;      }
+};
 
 //---------------------------------------------------------
 //   units
 //---------------------------------------------------------
-const PageUnits units[] = {
-      { QT_TRANSLATE_NOOP("unitName", "Millimeters"),  QT_TRANSLATE_NOOP("unitSuffix", "mm"), 1.0,  0.2   },
-      { QT_TRANSLATE_NOOP("unitName", "Points"),       QT_TRANSLATE_NOOP("unitSuffix", "pt"), 1.0,  0.2   },
-      { QT_TRANSLATE_NOOP("unitName", "Inches"),       QT_TRANSLATE_NOOP("unitSuffix", "in"), 0.05, 0.005 },
-      { QT_TRANSLATE_NOOP("unitName", "Picas"),        QT_TRANSLATE_NOOP("unitSuffix", "p"),  1.0,  0.1   },
-      { QT_TRANSLATE_NOOP("unitName", "Didot"),        QT_TRANSLATE_NOOP("unitSuffix", "dd"), 1.0,  0.5   },
-      { QT_TRANSLATE_NOOP("unitName", "Cicero"),       QT_TRANSLATE_NOOP("unitSuffix", "c"),  1.0,  0.1   },
-      { QT_TRANSLATE_NOOP("unitName", "Staff Spaces"), QT_TRANSLATE_NOOP("unitSuffix", "sp"), 0.1,  0.01  },
-      { QT_TRANSLATE_NOOP("unitName", "Pixels"),       QT_TRANSLATE_NOOP("unitSuffix", "px"), 1.0,  1.0   }
+const PageUnits units[] = { ///!!!I am unsure about the appropriate way to include the PPI, DPI_F and INCH constants here...
+      { QT_TRANSLATE_NOOP("unitName", "Millimeters"),  QT_TRANSLATE_NOOP("unitSuffix", "mm"), 1.0,  0.2,   72.0 / 25.4 },
+      { QT_TRANSLATE_NOOP("unitName", "Points"),       QT_TRANSLATE_NOOP("unitSuffix", "pt"), 1.0,  0.2,   1    },
+      { QT_TRANSLATE_NOOP("unitName", "Inches"),       QT_TRANSLATE_NOOP("unitSuffix", "in"), 0.05, 0.005, 72.0 },
+      { QT_TRANSLATE_NOOP("unitName", "Picas"),        QT_TRANSLATE_NOOP("unitSuffix", "p"),  1.0,  0.1,   12.0 },
+      { QT_TRANSLATE_NOOP("unitName", "Didot"),        QT_TRANSLATE_NOOP("unitSuffix", "dd"), 1.0,  0.5,   1.06574601373228      },
+      { QT_TRANSLATE_NOOP("unitName", "Cicero"),       QT_TRANSLATE_NOOP("unitSuffix", "c"),  1.0,  0.1,   1.06574601373228 * 12 },
+      { QT_TRANSLATE_NOOP("unitName", "Staff Spaces"), QT_TRANSLATE_NOOP("unitSuffix", "sp"), 0.1,  0.01,  0       }, // must be set, somehow, if ever used
+      { QT_TRANSLATE_NOOP("unitName", "Pixels"),       QT_TRANSLATE_NOOP("unitSuffix", "px"), 1.0,  1.0,   1 / 5.0 }  // if ever used...
 };
 
 //---------------------------------------------------------
@@ -82,16 +84,17 @@ enum class Sid {
 
       pageWidth,
       pageHeight,
-      pagePrintableWidth,
-      pageEvenLeftMargin,
       pageOddLeftMargin,
-      pageEvenTopMargin,
-      pageEvenBottomMargin,
+      pageOddRightMargin,
       pageOddTopMargin,
       pageOddBottomMargin,
+      pageEvenTopMargin,
+      pageEvenBottomMargin,
       pageTwosided,
       pageSize,
       pageUnits,
+      pagePrintableWidth,
+      pageEvenLeftMargin,
 
       staffUpperBorder,
       staffLowerBorder,
@@ -1121,6 +1124,9 @@ class MStyle {
       QPageSize*   pageSize() { return _pageSize; }
       QPageLayout* pageOdd()  { return _pageOdd;  }
       QPageLayout* pageEven() { return _pageEven; }
+      void setPageSize(QPageSize*   val) { _pageSize = new QPageSize(  *val); }
+      void setPageOdd( QPageLayout* val) { _pageOdd  = new QPageLayout(*val); }
+      void setPageEven(QPageLayout* val) { _pageEven = new QPageLayout(*val); }
       void setMMInch(bool b)  { _isMMInch = b; } ///!!!temporary!!!
       bool isDefault(Sid idx) const;
 

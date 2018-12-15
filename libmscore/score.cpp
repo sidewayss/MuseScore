@@ -278,9 +278,9 @@ Score::Score(MasterScore* parent)
 
             // but use default page layout settings
             MStyle s = MScore::defaultStyle();
-            _style.pageSize()->swap(*s.pageSize());
-            _style.pageOdd() ->swap(*s.pageOdd());
-            _style.pageEven()->swap(*s.pageEven());
+            _style.setPageSize(s.pageSize());
+            _style.setPageOdd( s.pageOdd() );
+            _style.setPageEven(s.pageEven());
             _style.set(Sid::pageTwosided, s.value(Sid::pageTwosided));
             _style.set(Sid::spatium,      s.value(Sid::spatium));
             _style.fromPageLayout(); ///!!!probably unnecessary here...

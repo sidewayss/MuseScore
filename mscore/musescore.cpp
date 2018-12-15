@@ -7158,7 +7158,7 @@ int main(int argc, char* av[])
                   QPageLayout* even = def.pageEven();
                   QPageSize    ps   = p.pageLayout().pageSize();
 
-                  def.pageSize()->swap(ps);
+                  def.setPageSize(&ps);
                   odd ->setPageSize(ps);
                   even->setPageSize(ps);
 ///!!! this is a nice idea, but it implies additional code elsewhere...

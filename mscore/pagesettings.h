@@ -33,6 +33,8 @@ class PageSettings : public AbstractDialog, private Ui::PageSettingsBase {
       Score* cs;
       Score* clonedScore;
 
+      const int    sizeCount  = int(QPageSize::Postcard);
+      ///!!!these next two should probably be in style.h, maybe as #define
       const double picaCicero = 12;
       const double didotToPt  =  1.06574601373228;
 
@@ -47,6 +49,7 @@ class PageSettings : public AbstractDialog, private Ui::PageSettingsBase {
       void setPageSize(QPageSize::PageSizeId psid);
       void marginMinMax(double val, double max, QPageLayout* layout, QDoubleSpinBox* spinner);
       void lrMargins(double val, bool isL, bool isOdd, QPageLayout* one, QPageLayout* other, QDoubleSpinBox* spinOne);
+      void widthHeightChanged(double w, double h);
 
    private slots:
       void sizeChanged(int);
@@ -69,7 +72,8 @@ class PageSettings : public AbstractDialog, private Ui::PageSettingsBase {
       void elmChanged(double val);
       void ermChanged(double val);
       void spatiumChanged(double val);
-      void widthHeightChanged(double);
+      void widthChanged(double val);
+      void heightChanged(double val);
       void pageOffsetChanged(int val);
 
    protected:
