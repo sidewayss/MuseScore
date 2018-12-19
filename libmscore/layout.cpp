@@ -1428,7 +1428,8 @@ static void checkDivider(bool left, System* s, qreal yOffset)
                   }
             else {
                   divider->rypos() += s->score()->styleD(Sid::dividerRightY) * SPATIUM20;
-                  divider->rxpos() = (s->score()->styleD(Sid::dividerRightX) * SPATIUM20) +  s->score()->style().pageOdd()->paintWidth() -  divider->width();
+                  divider->rxpos() =  s->score()->style().pageOdd()->paintWidth() -  divider->width();
+                  divider->rxpos() += s->score()->styleD(Sid::dividerRightX) * SPATIUM20;
                   }
             }
       else if (divider) {
