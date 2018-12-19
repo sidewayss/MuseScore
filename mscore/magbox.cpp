@@ -140,9 +140,8 @@ double MagBox::getMag(ScoreView* canvas) const
       qreal pmag  = mscore->physicalDotsPerInch() / DPI;
       double cw   = canvas->width();
       double ch   = canvas->height();
-      QSizeF size = score->style().pageSize()->sizePoints();
-      qreal pw    = size.width()  * DPI_F;
-      qreal ph    = size.height() * DPI_F;
+      qreal pw    = score->style().pageOdd()->width();
+      qreal ph    = score->style().pageOdd()->height();
       double nmag;
 
       switch (idx) {

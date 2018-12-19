@@ -14,6 +14,7 @@
 #include "scoreview.h"
 #include "libmscore/style.h"
 #include "editstyle.h"
+#include "preferences.h"
 #include "libmscore/articulation.h"
 #include "libmscore/sym.h"
 #include "icons.h"
@@ -666,6 +667,11 @@ EditStyle::EditStyle(Score* s, QWidget* parent)
 
       connect(textStyles, SIGNAL(currentRowChanged(int)), SLOT(textStyleChanged(int)));
       textStyles->setCurrentRow(0);
+
+      connect(resetToBase,    SIGNAL(clicked()), SLOT(resetToBaseStyle()));
+      connect(saveAsDefault,  SIGNAL(clicked()), SLOT(saveAsDefaultStyle()));
+      connect(saveAsDefParts, SIGNAL(clicked()), SLOT(saveAsPartsStyle()));
+
       MuseScore::restoreGeometry(this);
       cs->startCmd();
       }
@@ -1385,5 +1391,54 @@ void EditStyle::resetTextStyle(Pid pid)
       textStyleChanged(textStyles->currentRow());     // update GUI
       cs->update();
       }
+
+//---------------------------------------------------------
+//   resetToBase
+//---------------------------------------------------------
+
+void EditStyle::resetToBaseStyle()
+{     ///!!!needs undo code or a confirm dialog because this is undoable!!!
+      ///!!!MStyle::reset() looks like an undoable version using MScore::defaultStyle()
+      ///!!!Should I clone that function as MStyle::resetToBase() or MStyle::fullReset()???
+      cs->setStyle(MScore::baseStyle());
+      setValues();
+      }
+
+//---------------------------------------------------------
+//   saveAs - helper for saveAsDefault and saveAsDefParts
+//---------------------------------------------------------
+
+void EditStyle::saveAs(bool isParts)
+      {
+      QFileInfo myStyles(preferences.getString(PREF_APP_PATHS_MYSTYLES));
+      if (myStyles.isRelative())
+            myStyles.setFile(QDir::home(), preferences.getString(PREF_APP_PATHS_MYSTYLES));
+
+      QString filePath = myStyles.absoluteFilePath() + (isParts ? "/part.mss" : "/default.mss");
+      cs->saveStyle(filePath);
+      preferences.setPreference(isParts ? PREF_SCORE_STYLE_PARTSTYLEFILE
+                                        : PREF_SCORE_STYLE_DEFAULTSTYLEFILE,
+                                filePath);
+      }
+
+//---------------------------------------------------------
+//   saveAsDefault
+//---------------------------------------------------------
+
+void EditStyle::saveAsDefaultStyle()
+      {
+      saveAs(false);
+      MScore::setDefaultStyle(cs->style());
+}
+
+//---------------------------------------------------------
+//   saveAsDefParts
+//---------------------------------------------------------
+
+void EditStyle::saveAsPartsStyle()
+      {
+      saveAs(true);
+      MScore::setDefaultStyleForParts(new MStyle(cs->style()));
+}
 } //namespace Ms
 

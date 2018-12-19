@@ -954,7 +954,7 @@ Score::FileError MasterScore::read1(XmlReader& e, bool ignoreVersionError)
                         if (mscVersion() == 300)
                               return FileError::FILE_OLD_300_FORMAT;
                         }
-                  if (mscVersion() < MSCVERSION) ///!!!temporary!!!
+                  if (mscVersion() == 301) ///!!!temporary!!!
                         style().setMMInch(true);
                   Score::FileError error;
                   if (mscVersion() <= 114)

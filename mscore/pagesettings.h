@@ -22,6 +22,10 @@ class MasterScore;
 class Score;
 class Navigator;
 
+#define PAPER_TYPE_METRIC   0
+#define PAPER_TYPE_IMPERIAL 1
+#define PAPER_TYPE_OTHER    2
+
 //---------------------------------------------------------
 //   PageSettings
 //---------------------------------------------------------
@@ -29,11 +33,11 @@ class Navigator;
 class PageSettings : public AbstractDialog, private Ui::PageSettingsBase {
       Q_OBJECT
 
-      Navigator*   preview;
       Score* cs;
       Score* clonedScore;
+      Navigator* preview;
+      std::set<int>* _sizes;
 
-      const int    sizeCount  = int(QPageSize::Postcard);
       ///!!!these next two should probably be in style.h, maybe as #define
       const double picaCicero = 12;
       const double didotToPt  =  1.06574601373228;
@@ -42,7 +46,7 @@ class PageSettings : public AbstractDialog, private Ui::PageSettingsBase {
 
       virtual void hideEvent(QHideEvent*);
       void updateWidgets();
-      void updateWidthHeight(QRectF & rect);
+      void updateWidthHeight(const QRectF & rect);
       void updatePreview();
       void blockSignals(bool);
       void applyToScore(Score*);
@@ -52,6 +56,7 @@ class PageSettings : public AbstractDialog, private Ui::PageSettingsBase {
       void widthHeightChanged(double w, double h);
 
    private slots:
+      void typeChanged(int idx);
       void sizeChanged(int);
       void unitsChanged();
 

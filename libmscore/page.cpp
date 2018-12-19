@@ -443,9 +443,9 @@ QList<Element*> Page::elements()
 
 qreal Page::tm() const
       {
-      return ((!score()->styleB(Sid::pageTwosided) || isOdd())
-              ? score()->style().pageOdd() ->margins(QPageLayout::Point).top() 
-              : score()->style().pageEven()->margins(QPageLayout::Point).top()) * DPI_F;
+      return !score()->styleB(Sid::pageTwosided) || isOdd()
+            ? score()->style().pageOdd() ->topMargin()
+            : score()->style().pageEven()->topMargin();
       }
 
 //---------------------------------------------------------
@@ -454,10 +454,10 @@ qreal Page::tm() const
 
 qreal Page::bm() const
       {
-      return ((!score()->styleB(Sid::pageTwosided) || isOdd())
-              ? score()->style().pageOdd() ->margins(QPageLayout::Point).bottom() 
-              : score()->style().pageEven()->margins(QPageLayout::Point).bottom()) * DPI_F;
-}
+      return !score()->styleB(Sid::pageTwosided) || isOdd()
+            ? score()->style().pageOdd() ->bottomMargin()
+            : score()->style().pageEven()->bottomMargin();
+      }
 
 //---------------------------------------------------------
 //   lm
@@ -465,10 +465,10 @@ qreal Page::bm() const
 
 qreal Page::lm() const
       {
-      return ((!score()->styleB(Sid::pageTwosided) || isOdd())
-              ? score()->style().pageOdd() ->margins(QPageLayout::Point).left() 
-              : score()->style().pageEven()->margins(QPageLayout::Point).left()) * DPI_F;
-}
+      return !score()->styleB(Sid::pageTwosided) || isOdd()
+            ? score()->style().pageOdd() ->leftMargin()
+            : score()->style().pageEven()->leftMargin();
+      }
 
 //---------------------------------------------------------
 //   rm
@@ -476,10 +476,10 @@ qreal Page::lm() const
 
 qreal Page::rm() const
       {
-      return ((!score()->styleB(Sid::pageTwosided) || isOdd())
-              ? score()->style().pageOdd() ->margins(QPageLayout::Point).right() 
-              : score()->style().pageEven()->margins(QPageLayout::Point).right()) * DPI_F;
-}
+      return !score()->styleB(Sid::pageTwosided) || isOdd()
+            ? score()->style().pageOdd() ->rightMargin()
+            : score()->style().pageEven()->rightMargin();
+      }
 
 //---------------------------------------------------------
 //   tbbox

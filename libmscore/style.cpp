@@ -75,7 +75,8 @@ static const StyleType styleTypes[] { // page sizes and margins in points w/deci
       { Sid::pageEvenBottomMargin,    "pageEvenBottomMargin",     20.0/INCH*PPI },
       { Sid::pageTwosided,            "pageTwosided",            true           },
       { Sid::pageSize,                "pageSize",                  0            }, // QPageSize::PageSizeId
-      { Sid::pageUnits,               "pageUnits",                 0            }, // QPageSize::Unit
+      { Sid::pageUnits,               "pageUnits",                 0            }, // QPageLayout::Unit
+      { Sid::pageOrientation,         "pageOrientation",           0            }, // QPageLayout::Orientation 
       { Sid::pagePrintableWidth,      "pagePrintableWidth",      190.0/INCH*PPI }, ///!!!obsolete
       { Sid::pageEvenLeftMargin,      "pageEvenLeftMargin",       10.0/INCH*PPI }, ///!!!obsolete
 // most other numeric values are in staff spaces aka spatium units
@@ -1986,28 +1987,6 @@ void MStyle::precomputeValues()
       }
 
 //---------------------------------------------------------
-//   initPageLayout - must wait until setMscoreLocale() is called in main()
-//---------------------------------------------------------
-
-void MStyle::initPageLayout()
-      { // by default, units are millimeters or inches, depending on locale
-        // default preferences are initialized prior to default styles in main()
-      QMarginsF             marg  = QMarginsF(10, 10, 10, 20); ///!!!much less risk if defaults the same
-      QLocale*              local = new QLocale();             ///!!!regardless of units, same as v206.
-      QPageLayout::Unit     unit  = QPageLayout::Unit(preferences.getInt(PREF_APP_PAGE_UNITS_VALUE));
-      QPageSize::PageSizeId psid  = (local->measurementSystem() == QLocale::MetricSystem
-                                   ? QPageSize::A4 : QPageSize::Letter);
-
-      _pageSize = new QPageSize(psid);           
-      _pageOdd  = new QPageLayout(*_pageSize, QPageLayout::Portrait, QMarginsF(marg), QPageLayout::Millimeter);
-      _pageEven = new QPageLayout(*_pageSize, QPageLayout::Portrait, QMarginsF(marg), QPageLayout::Millimeter);
-      _pageOdd ->setUnits(unit);
-      _pageEven->setUnits(unit);
-      set(Sid::pageUnits, int(unit)); ///!!!
-      set(Sid::pageSize,  int(psid));
-}
-
-//---------------------------------------------------------
 //   isDefault
 //    caution: custom types need to register comparison operator
 //          to make this work
@@ -2237,6 +2216,7 @@ bool MStyle::load(QFile* qf)
                         }
                   }
             }
+      toPageLayout();
       return true;
       }
 
@@ -2258,7 +2238,6 @@ void MStyle::load(XmlReader& e)
                   }
             else if (tag == "Spatium") {
                   if (_isMMInch) { ///!!!temporary!!!
-                        _isMMInch = false; ///!!!this gets called when page settings dialog opens because of score.clone()
                         QString txt = e.readElementText();
                         if (txt == "1.76389" || txt == "1.764" || txt == "1.7526")
                               set(Sid::spatium, SPATIUM20);
@@ -2282,7 +2261,6 @@ void MStyle::load(XmlReader& e)
             else if (!readProperties(e))
                   e.unknown();
             }
-      toPageLayout(); ///!!!
 
       // if we just specified a new chord description file
       // and didn't encounter a ChordList tag
@@ -2376,38 +2354,55 @@ void MStyle::reset(Score* score)
       }
 
 //---------------------------------------------------------
+//   initPageLayout - must wait until setMscoreLocale() is called in main()
+//---------------------------------------------------------
+
+void MStyle::initPageLayout()
+      { // by default, units are millimeters or inches, depending on locale
+        // default preferences are initialized prior to default styles in main()
+      QLocale*              local = new QLocale();           
+      QPageLayout::Unit     unit  = QPageLayout::Unit(preferences.getInt(PREF_APP_PAGE_UNITS_VALUE));
+      QPageSize::PageSizeId psid  = (local->measurementSystem() == QLocale::MetricSystem
+                                  ? QPageSize::A4 : QPageSize::Letter);
+
+      _pageSize = new QPageSize(psid);           
+      _pageOdd  = new MPageLayout();
+      _pageOdd->setPageSize(*_pageSize);
+      _pageOdd->setUnits(QPageLayout::Millimeter);
+      _pageOdd->setMargins(QMarginsF(10, 10, 10, 20)); // default margins in millimeters
+      _pageOdd->setUnits(unit);                        // set to user locale units
+      _pageOdd->setOrientation(QPageLayout::Portrait);
+      _pageEven = new MPageLayout(*_pageOdd);
+
+      set(Sid::pageUnits, int(unit));
+      set(Sid::pageSize,  int(psid));
+      }
+
+//---------------------------------------------------------
 //   from & toPageLayout convert between QPageLayout/QPageSize and style values
 //---------------------------------------------------------
 void MStyle::fromPageLayout()
       {
-      ///!!!Qt page/print classes round to 2 decimal places for inches and
-      ///!!!0 decimal places for points. Not enough precision for storage
-      ///!!!and re-conversion to original units. Manual conversions required,
-      ///!!!regardless of units, so points is the most precise and consistent.
-      double  factor = units[int(_pageOdd->units())].factor();
-      QRectF    rect = _pageOdd->fullRect();
-      QMarginsF marg = _pageOdd->margins();
-///!!!      set(Sid::pagePrintableWidth,   _pageOdd->paintRect().width() * factor);
-      set(Sid::pageWidth,            rect.width()  * factor);
-      set(Sid::pageHeight,           rect.height() * factor);
-      set(Sid::pageOddLeftMargin,    marg.left()   * factor);
-      set(Sid::pageOddRightMargin,   marg.right()  * factor);
-      set(Sid::pageOddTopMargin,     marg.top()    * factor);
-      set(Sid::pageOddBottomMargin,  marg.bottom() * factor);
+      set(Sid::pageWidth,            _pageOdd->widthPoints());
+      set(Sid::pageHeight,           _pageOdd->heightPoints());
+      set(Sid::pageOddLeftMargin,    _pageOdd->leftMarginPoints());
+      set(Sid::pageOddRightMargin,   _pageOdd->rightMarginPoints());
+      set(Sid::pageOddTopMargin,     _pageOdd->topMarginPoints());
+      set(Sid::pageOddBottomMargin,  _pageOdd->bottomMarginPoints());
 
-      marg = _pageEven->margins();
-///!!!      set(Sid::pageEvenLeftMargin,   marg.left()   * factor);
-      set(Sid::pageEvenTopMargin,    marg.top()    * factor);
-      set(Sid::pageEvenBottomMargin, marg.bottom() * factor);
+      set(Sid::pageEvenTopMargin,    _pageEven->topMarginPoints());
+      set(Sid::pageEvenBottomMargin, _pageEven->bottomMarginPoints());
+
       set(Sid::pageSize,             int(_pageOdd->pageSize().id()));
       set(Sid::pageUnits,            int(_pageOdd->units()));
       }
+
 void MStyle::toPageLayout()
-      {
+      {                // styles are in points, page layouts are in user units
       int    idxUnit = value(Sid::pageUnits).toInt();  ///!!!initialized in initPageLayout
-      double factor  = units[idxUnit].factor();           // styles are in points
-      double w       = value(Sid::pageWidth) .toDouble(); // page layouts are user units
-      double h       = value(Sid::pageHeight).toDouble();
+      double factor  = pageUnits[idxUnit].factor();           
+      double w       = value(Sid::pageWidth) .toDouble(); ///!!!temporary!!! should be scoped to custom page sizes only
+      double h       = value(Sid::pageHeight).toDouble(); ///!!!temporary!!! should be scoped to custom page sizes only
 
       QPageSize::PageSizeId psid;
       if (_isMMInch) { ///!!!temporary!!!
@@ -2426,51 +2421,100 @@ void MStyle::toPageLayout()
             }
             w /= factor;
             h /= factor;
-            QSizeF size = QSizeF(w, h);
-            if (w > h) // QPageSize is always defined in portrait orientation
-                  size.transpose();
-            _pageSize = new QPageSize(size,
+            _pageSize = new QPageSize(QSizeF(w, h),
                                       QPageSize::Unit(idxUnit),
                                       QPageSize::name(psid),
                                       QPageSize::ExactMatch);
             }
 
-      double right;
-      double left  = value(Sid::pageOddLeftMargin).toDouble() / factor;
-      bool   isTwo = value(Sid::pageTwosided).toBool();
-
+      // Odd and even margins' relationship defined by pageTwosided
+      bool   isTwo  = value(Sid::pageTwosided).toBool();
+      double left   = value(Sid::pageOddLeftMargin)  .toDouble();
+      double right  = value(Sid::pageOddRightMargin) .toDouble();
+      double top    = value(Sid::pageOddTopMargin)   .toDouble();
+      double bottom = value(Sid::pageOddBottomMargin).toDouble();
       if (_isMMInch) { ///!!!temporary!!!
+            left   *= PPI;
+            top    *= PPI;
+            bottom *= PPI;
             ///!!!This is the one place where pagePrintableWidth and 
             ///!!!pageEvenLeftMargin are still necessary as styles.
             if (isTwo)
-                  right = value(Sid::pageEvenLeftMargin).toDouble() / factor;
+                  right = value(Sid::pageEvenLeftMargin).toDouble() * PPI;
             else {
-                  double ppw = value(Sid::pagePrintableWidth).toDouble() / factor;
+                  double ppw = value(Sid::pagePrintableWidth).toDouble() * PPI;
                   right = ppw - left;
                   }
-            }
-      else
-            right = value(Sid::pageOddRightMargin).toDouble() / factor;
+            }      
+      left   /= factor;
+      right  /= factor;
+      top    /= factor;
+      bottom /= factor;
 
-      // Odd and even margins' relationship defined by pageTwosided
-      QMarginsF oddMarg = QMarginsF(
-                   left,  value(Sid::pageOddTopMargin)   .toDouble() / factor,
-                   right, value(Sid::pageOddBottomMargin).toDouble() / factor);
+      QMarginsF oddMarg  = QMarginsF(left, top, right, bottom);
+
       if (isTwo) {
             double tmp = left;
             left  = right;
             right = tmp;
             }
-      QMarginsF evenMarg = QMarginsF(
-                   left,  value(Sid::pageOddTopMargin)   .toDouble() / factor,
-                   right, value(Sid::pageOddBottomMargin).toDouble() / factor);
+      top    = value(Sid::pageEvenTopMargin)   .toDouble();
+      bottom = value(Sid::pageEvenBottomMargin).toDouble();
 
-      QPageLayout::Orientation orient = (h >= w ? QPageLayout::Portrait
-                                                : QPageLayout::Landscape);
+      if (_isMMInch) { ///!!!temporary!!!
+            top    *= PPI;
+            bottom *= PPI;
+            }
+      top    /= factor;
+      bottom /= factor;
 
-      QPageLayout::Unit unit = QPageLayout::Unit(idxUnit);
-      _pageOdd  = new QPageLayout(*_pageSize, orient,  oddMarg, unit);
-      _pageEven = new QPageLayout(*_pageSize, orient, evenMarg, unit);
+      QMarginsF evenMarg = QMarginsF(left, top, right, bottom);
+
+      QPageLayout::Orientation orient;
+      if (_isMMInch) { ///!!!temporary!!!
+            if (psid == QPageSize::Custom)
+                  orient = (h >= w ? QPageLayout::Portrait : QPageLayout::Landscape);
+            else {
+                  QSizeF size = _pageSize->definitionSize();
+                  if ((w > h) == (size.width() > size.height())) 
+                        orient = QPageLayout::Portrait;
+                  else
+                        orient = QPageLayout::Landscape;
+                  }
+            }
+      else
+            orient = QPageLayout::Orientation(value(Sid::pageOrientation).toInt());
+
+      _pageOdd  = new MPageLayout();
+      _pageOdd->setPageSize(*_pageSize);
+      _pageOdd->setUnits(QPageLayout::Unit(idxUnit));
+      _pageOdd->setMargins(oddMarg);
+      _pageOdd->setOrientation(orient);
+
+      _pageEven = new MPageLayout(*_pageOdd);
+      _pageOdd->setMargins(evenMarg);
+
+      if (_isMMInch) { ///!!!temporary!!!
+            fromPageLayout();  ///!!! sync the styles, which are unchanged here
+            _isMMInch = false; ///!!!this gets called when page settings dialog opens because of score.clone()
+            }
+      }
+
+void MStyle::setMMInch(bool b) ///!!!temporary!!!
+      {
+      _isMMInch = b;
+      if (b) { // convert default style values to inches, in case file is "optimized"
+            set(Sid::pageWidth,            value(Sid::pageWidth)           .toDouble() / PPI);
+            set(Sid::pageHeight,           value(Sid::pageHeight)          .toDouble() / PPI);
+            set(Sid::pageOddLeftMargin,    value(Sid::pageOddLeftMargin)   .toDouble() / PPI);
+            set(Sid::pageOddRightMargin,   value(Sid::pageOddRightMargin)  .toDouble() / PPI);
+            set(Sid::pageOddTopMargin,     value(Sid::pageOddTopMargin)    .toDouble() / PPI);
+            set(Sid::pageOddBottomMargin,  value(Sid::pageOddBottomMargin) .toDouble() / PPI);
+            set(Sid::pageEvenTopMargin,    value(Sid::pageEvenTopMargin)   .toDouble() / PPI);
+            set(Sid::pageEvenBottomMargin, value(Sid::pageEvenBottomMargin).toDouble() / PPI);
+            set(Sid::pageEvenLeftMargin,   value(Sid::pageEvenLeftMargin)  .toDouble() / PPI);
+            set(Sid::pagePrintableWidth,   value(Sid::pageOddLeftMargin)   .toDouble() / PPI);
+            }
       }
 
 #ifndef NDEBUG

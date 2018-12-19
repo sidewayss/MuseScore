@@ -2055,9 +2055,7 @@ bool MuseScore::savePdf(Score* score, QPdfWriter& pdfWriter)
       pdfWriter.setResolution(preferences.getInt(PREF_EXPORT_PDF_DPI));
       pdfWriter.setPageLayout(*score->style().pageOdd());
       QSizeF size(score->style().pageOdd()->fullRect(QPageLayout::Inch).size());
-      //!!I believe that using QPageLayout::Point would make no difference here, except maybe precision
 
-      //!!Again, why clear the margins?? Where are margins set separately for odd/even printing??
       pdfWriter.setCreator("MuseScore Version: " VERSION);
       if (!pdfWriter.setPageMargins(QMarginsF()))
             qDebug("unable to clear printer margins");
@@ -2113,9 +2111,7 @@ bool MuseScore::savePdf(QList<Score*> scores, const QString& saveName)
       pdfWriter.setResolution(preferences.getInt(PREF_EXPORT_PDF_DPI));
       pdfWriter.setPageLayout(*firstScore->style().pageOdd());
       QSizeF size(firstScore->style().pageOdd()->fullRect(QPageLayout::Inch).size());
-      //!!I believe that using QPageLayout::Point would make no difference here, except maybe precision
 
-      //!!Again, why clear the margins??
       pdfWriter.setCreator("MuseScore Version: " VERSION);
       if (!pdfWriter.setPageMargins(QMarginsF()))
             qDebug("unable to clear printer margins");
@@ -3100,9 +3096,9 @@ QJsonObject MuseScore::saveMetadataJSON(Score* score)
 
       // pageFormat
       QJsonObject jsonPageformat;
-      QSizeF      size = score->style().pageSize()->size(QPageSize::Millimeter);
-      jsonPageformat.insert("height", round(size.width() ));
-      jsonPageformat.insert("width",  round(size.height()));
+      QRectF      rect = score->style().pageOdd()->fullRect(QPageLayout::Millimeter);
+      jsonPageformat.insert("height", round(rect.width() ));
+      jsonPageformat.insert("width",  round(rect.height()));
       jsonPageformat.insert("twosided", boolToString(score->styleB(Sid::pageTwosided)));
       json.insert("pageFormat", jsonPageformat);
 

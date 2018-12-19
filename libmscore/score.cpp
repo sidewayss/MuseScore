@@ -286,10 +286,10 @@ Score::Score(MasterScore* parent)
             _style.fromPageLayout(); ///!!!probably unnecessary here...
 
             // and force some style settings that just make sense for parts
-            style().set(Sid::concertPitch, false);
-            style().set(Sid::createMultiMeasureRests, true);
-            style().set(Sid::dividerLeft, false);
-            style().set(Sid::dividerRight, false);
+            _style.set(Sid::concertPitch, false);
+            _style.set(Sid::createMultiMeasureRests, true);
+            _style.set(Sid::dividerLeft, false);
+            _style.set(Sid::dividerRight, false);
             }
       _synthesizerState = parent->_synthesizerState;
       _mscVersion       = parent->_mscVersion;
@@ -3358,9 +3358,13 @@ qreal Score::tempo(int tick) const
 //---------------------------------------------------------
 
 qreal Score::loWidth() const
-      {
-      MStyle st = style();
-      return st.pageSize()->size(QPageSize::Point).width() * DPI_F;
+      { ///!!!I don't know why the cast to MStyle is necessary
+      double w  = MStyle(style()).pageOdd()->width();
+      double wp = MStyle(style()).pageOdd()->widthPoints();
+      QRectF r  = MStyle(style()).pageOdd()->pageSize().rectPoints();
+      int o     = int(MStyle(style()).pageOdd()->orientation());
+      r.setBottom(o);
+      return w;
       }
 
 //---------------------------------------------------------
@@ -3369,8 +3373,7 @@ qreal Score::loWidth() const
 
 qreal Score::loHeight() const
       {
-      MStyle st = style();
-      return st.pageSize()->size(QPageSize::Point).height() * DPI_F;
+      return MStyle(style()).pageOdd()->height();
       }
 
 //---------------------------------------------------------

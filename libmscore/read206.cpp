@@ -364,10 +364,12 @@ struct StyleVal2 {
 
 void setPageFormat(MStyle* style, const PageFormat& pf)
       {
-      double left = PPI * pf.oddLeftMargin();
-      double ppw  = PPI * pf.printableWidth();
+      double width  = PPI * pf.size().width();
+      double height = PPI * pf.size().height();
+      double left   = PPI * pf.oddLeftMargin();
+      double ppw    = PPI * pf.printableWidth();
       style->set(Sid::pageOddLeftMargin,    left);
-      style->set(Sid::pageOddRightMargin,   ppw - left);
+      style->set(Sid::pageOddRightMargin,   width - ppw - left);
       style->set(Sid::pageOddTopMargin,     PPI * pf.oddTopMargin());
       style->set(Sid::pageOddBottomMargin,  PPI * pf.oddBottomMargin());
       style->set(Sid::pageEvenTopMargin,    PPI * pf.evenTopMargin());
@@ -380,18 +382,26 @@ void setPageFormat(MStyle* style, const PageFormat& pf)
       QPageSize::PageSizeId psid = QPageSize::id(pf.size(),
                                                  QPageSize::Inch,
                                                  QPageSize::FuzzyOrientationMatch);
+      int id = int(psid);
+      if (MScore::sizesMetric  .find(id) == MScore::sizesMetric  .end()
+       && MScore::sizesImperial.find(id) == MScore::sizesImperial.end()
+       && MScore::sizesOther   .find(id) == MScore::sizesOther   .end())
+            {
+            psid = QPageSize::Custom;
+            }
+
       style->set(Sid::pageSize, int(psid));
       if (psid == QPageSize::Custom) {
-            style->set(Sid::pageWidth,  PPI * pf.size().width());
-            style->set(Sid::pageHeight, PPI * pf.size().height());
+            style->set(Sid::pageWidth,  width);
+            style->set(Sid::pageHeight, height);
             }
       else {
-            QPageSize qps  = QPageSize(psid);
-            QSizeF    size = qps.size(QPageSize::Point);
-            if (pf.size().height() >= pf.size().width())
-                  size.transpose(); // QPageSize always defined as portrait
-            style->set(Sid::pageWidth,  size.width());
-            style->set(Sid::pageHeight, size.height());
+            QSizeF size   = QPageSize::definitionSize(psid);
+            double factor = pageUnits[int(QPageSize::definitionUnits(psid))].factor();
+            if ((width > height) != (size.width() > size.height())) 
+                  size.transpose(); // landscape orientation
+            style->set(Sid::pageWidth,  factor * size.width());
+            style->set(Sid::pageHeight, factor * size.height());
             }
 
       style->toPageLayout();

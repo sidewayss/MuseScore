@@ -414,8 +414,8 @@ void PreferenceDialog::updateValues(bool useDefaultValues)
       language->blockSignals(false);
 
       for (int i = 0; i <= QPageSize::Cicero; ++i)
-            unitsList->addItem(QString("%1 (%2)").arg(units[i].name())
-                                                 .arg(units[i].suffix()));
+            unitsList->addItem(QString("%1 (%2)").arg(Ms::pageUnits[i].name())
+                                                 .arg(Ms::pageUnits[i].suffix()));
       unitsList->setCurrentIndex(preferences.getInt(PREF_APP_PAGE_UNITS_VALUE));
       if (preferences.getBool(PREF_APP_PAGE_UNITS_GLOBAL))
             unitsGlobal->setChecked(true);
@@ -1123,15 +1123,28 @@ void PreferenceDialog::apply()
             mscore->update();
             }
 
+      QString partText = partStyle->text();
+      QString partPref = preferences.getString(PREF_SCORE_STYLE_PARTSTYLEFILE);
       if (defaultStyle->text() != preferences.getString(PREF_SCORE_STYLE_DEFAULTSTYLEFILE)) {
-            preferences.setPreference(PREF_SCORE_STYLE_DEFAULTSTYLEFILE, defaultStyle->text());
-            MScore::readDefaultStyle(preferences.getString(PREF_SCORE_STYLE_DEFAULTSTYLEFILE));
+            QString qs = defaultStyle->text();
+            preferences.setPreference(PREF_SCORE_STYLE_DEFAULTSTYLEFILE, qs);
+            if (qs.isEmpty()) {
+                  MScore::setDefaultStyle(MScore::baseStyle());
+                  if (partText.isEmpty() && partPref.isEmpty())
+                        MScore::setDefaultStyleForParts(new MStyle(MScore::defaultStyle()));
+                  }
+            else 
+                  MScore::readDefaultStyle(qs);
             }
 
-      if (partStyle->text() != preferences.getString(PREF_SCORE_STYLE_PARTSTYLEFILE)) {
-            preferences.setPreference(PREF_SCORE_STYLE_PARTSTYLEFILE, partStyle->text());
-            MScore::defaultStyleForPartsHasChanged();
-            }
+      if (partText != partPref) {
+            preferences.setPreference(PREF_SCORE_STYLE_PARTSTYLEFILE, partText);
+///!!!      MScore::defaultStyleForPartsHasChanged(); ///!!!it's an empty function, this is the only place it's called
+            if (partText.isEmpty())
+                  MScore::setDefaultStyleForParts(new MStyle(MScore::defaultStyle()));
+            else
+                  MScore::readDefaultStyle(partText);
+      }
       
       Workspace::retranslate();
       preferences.setPreference(PREF_APP_WORKSPACE, Workspace::currentWorkspace->name());

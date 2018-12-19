@@ -23,56 +23,6 @@ struct ChordDescription;
 class Element;
 class Score;
 
-//--------------------------------------------------------------------
-//   Unit
-//    Same order as QPageSize::Unit so that the values align until SP
-//    Thus it is like an extended QPageSize::Unit
-//    Keep in sync with units[] in style.cpp
-//--------------------------------------------------------------------
-enum class Unit {
-    MM = 0, // Millimeters    for printing
-    PT,     // Points @72DPI  for US typesetting, font sizes, spatium storage
-    INCH,   // Inches         for printing
-    P,      // Picas          for US typesetting
-    DD,     // Didot          for French typesetting
-    C,      // Cicero         for French typesetting
-    SP,     // Staff Spaces   for MStyle and inspectors, aka Spatium units
-    PX      // Pixels @360DPI for SVG exports and internal use
-};
-//---------------------------------------------------------
-//   PageUnits
-//    Units require a custom structure for text suffixes and
-//    widget steps because Qt does not provide them.
-//---------------------------------------------------------
-struct PageUnits {
-      const char* _name;
-      const char* _suffix;
-      qreal       _step;        // for spin widgets in specific units
-      qreal       _stepSpatium; // ditto
-      qreal       _factor;      // conversion to points factor
-
-   public:
-      const char*  name()        const { return _name;        }
-      const char*  suffix()      const { return _suffix;      }
-      qreal        step()        const { return _step;        }
-      qreal        stepSpatium() const { return _stepSpatium; }
-      qreal        factor()      const { return _factor;      }
-};
-
-//---------------------------------------------------------
-//   units
-//---------------------------------------------------------
-const PageUnits units[] = { ///!!!I am unsure about the appropriate way to include the PPI, DPI_F and INCH constants here...
-      { QT_TRANSLATE_NOOP("unitName", "Millimeters"),  QT_TRANSLATE_NOOP("unitSuffix", "mm"), 1.0,  0.2,   72.0 / 25.4 },
-      { QT_TRANSLATE_NOOP("unitName", "Points"),       QT_TRANSLATE_NOOP("unitSuffix", "pt"), 1.0,  0.2,   1    },
-      { QT_TRANSLATE_NOOP("unitName", "Inches"),       QT_TRANSLATE_NOOP("unitSuffix", "in"), 0.05, 0.005, 72.0 },
-      { QT_TRANSLATE_NOOP("unitName", "Picas"),        QT_TRANSLATE_NOOP("unitSuffix", "p"),  1.0,  0.1,   12.0 },
-      { QT_TRANSLATE_NOOP("unitName", "Didot"),        QT_TRANSLATE_NOOP("unitSuffix", "dd"), 1.0,  0.5,   1.06574601373228      },
-      { QT_TRANSLATE_NOOP("unitName", "Cicero"),       QT_TRANSLATE_NOOP("unitSuffix", "c"),  1.0,  0.1,   1.06574601373228 * 12 },
-      { QT_TRANSLATE_NOOP("unitName", "Staff Spaces"), QT_TRANSLATE_NOOP("unitSuffix", "sp"), 0.1,  0.01,  0       }, // must be set, somehow, if ever used
-      { QT_TRANSLATE_NOOP("unitName", "Pixels"),       QT_TRANSLATE_NOOP("unitSuffix", "px"), 1.0,  1.0,   1 / 5.0 }  // if ever used...
-};
-
 //---------------------------------------------------------
 //   Sid
 //
@@ -93,6 +43,7 @@ enum class Sid {
       pageTwosided,
       pageSize,
       pageUnits,
+      pageOrientation,
       pagePrintableWidth,
       pageEvenLeftMargin,
 
@@ -1095,6 +1046,60 @@ enum class Tid {
       };
 
 //---------------------------------------------------------
+//   PageUnit
+//    Units require a custom structure for text suffixes and
+//    widget steps because Qt does not provide them.
+//---------------------------------------------------------
+struct PageUnit {
+      const char* _name;
+      const char* _suffix;
+      qreal       _step;        // for spin widgets in specific units
+      qreal       _stepSpatium; // ditto
+      qreal       _factor;      // conversion-to-points factor
+
+public:
+      const char*  name()        const { return _name;           }
+      const char*  suffix()      const { return _suffix;         }
+      qreal        step()        const { return _step;           }
+      qreal        stepSpatium() const { return _stepSpatium;    }
+      qreal        factor()      const { return _factor;         }
+};
+
+//---------------------------------------------------------
+//   units
+//---------------------------------------------------------
+const PageUnit pageUnits[] = { ///!!!the PPI, INCH, DPI_F, DIDOT, and CICERO constants are not available here - why???
+      { QT_TRANSLATE_NOOP("unitName", "Millimeters"),  QT_TRANSLATE_NOOP("unitSuffix", "mm"), 1.0,  0.2,   72.0 / 25.4 },
+      { QT_TRANSLATE_NOOP("unitName", "Points"),       QT_TRANSLATE_NOOP("unitSuffix", "pt"), 1.0,  0.2,   1.0         },
+      { QT_TRANSLATE_NOOP("unitName", "Inches"),       QT_TRANSLATE_NOOP("unitSuffix", "in"), 0.05, 0.005, 72.0        },
+      { QT_TRANSLATE_NOOP("unitName", "Picas"),        QT_TRANSLATE_NOOP("unitSuffix", "p"),  1.0,  0.1,   12.0        },
+      { QT_TRANSLATE_NOOP("unitName", "Didot"),        QT_TRANSLATE_NOOP("unitSuffix", "dd"), 1.0,  0.5,   1.06574601373228        },
+      { QT_TRANSLATE_NOOP("unitName", "Cicero"),       QT_TRANSLATE_NOOP("unitSuffix", "c"),  1.0,  0.1,   1.06574601373228 * 12.0 },
+      { QT_TRANSLATE_NOOP("unitName", "Staff Spaces"), QT_TRANSLATE_NOOP("unitSuffix", "sp"), 0.1,  0.01,  0       }, // factor must be set, somehow, if ever used
+      { QT_TRANSLATE_NOOP("unitName", "Pixels"),       QT_TRANSLATE_NOOP("unitSuffix", "px"), 1.0,  1.0,   1.0 / 5 }  // if ever used...
+};
+
+class MPageLayout : public QPageLayout {
+public: ///!!!the DPI_F constant is not available here - why???
+      double paintWidth()         { return paintRect().width() * pageUnits[int(units())].factor() * 5; }
+                                  
+      double widthPoints()        { return fullRect().width()  * pageUnits[int(units())].factor(); }
+      double heightPoints()       { return fullRect().height() * pageUnits[int(units())].factor(); }
+
+      double leftMarginPoints()   { return margins().left()    * pageUnits[int(units())].factor(); }
+      double rightMarginPoints()  { return margins().right()   * pageUnits[int(units())].factor(); }
+      double topMarginPoints()    { return margins().top()     * pageUnits[int(units())].factor(); }
+      double bottomMarginPoints() { return margins().bottom()  * pageUnits[int(units())].factor(); }
+
+      double width()        { return widthPoints()        * 5; }
+      double height()       { return heightPoints()       * 5; }
+      double leftMargin()   { return leftMarginPoints()   * 5; }
+      double rightMargin()  { return rightMarginPoints()  * 5; }
+      double topMargin()    { return topMarginPoints()    * 5; }
+      double bottomMargin() { return bottomMarginPoints() * 5; }
+};
+
+//---------------------------------------------------------
 //   MStyle
 //    the name "Style" gives problems with some microsoft
 //    header files...
@@ -1105,8 +1110,8 @@ class MStyle {
       std::array<qreal, int(Sid::STYLES)> _precomputedValues;
 
       QPageSize*   _pageSize;
-      QPageLayout* _pageOdd;
-      QPageLayout* _pageEven;      
+      MPageLayout* _pageOdd;
+      MPageLayout* _pageEven;      
       bool _isMMInch; ///!!!temporary: for conversion of previous file format!!!
 
       ChordList _chordList;
@@ -1122,12 +1127,12 @@ class MStyle {
       void set(Sid idx, const QVariant& v);
 
       QPageSize*   pageSize() { return _pageSize; }
-      QPageLayout* pageOdd()  { return _pageOdd;  }
-      QPageLayout* pageEven() { return _pageEven; }
+      MPageLayout* pageOdd()  { return _pageOdd;  }
+      MPageLayout* pageEven() { return _pageEven; }
       void setPageSize(QPageSize*   val) { _pageSize = new QPageSize(  *val); }
-      void setPageOdd( QPageLayout* val) { _pageOdd  = new QPageLayout(*val); }
-      void setPageEven(QPageLayout* val) { _pageEven = new QPageLayout(*val); }
-      void setMMInch(bool b)  { _isMMInch = b; } ///!!!temporary!!!
+      void setPageOdd( MPageLayout* val) { _pageOdd  = new MPageLayout(*val); }
+      void setPageEven(MPageLayout* val) { _pageEven = new MPageLayout(*val); }
+      void setMMInch(bool b); ///!!!temporary!!!
       bool isDefault(Sid idx) const;
 
       const ChordDescription* chordDescription(int id) const;

@@ -85,6 +85,8 @@ static constexpr qreal DPI_F     = 5;
 static constexpr qreal DPI       = 72.0 * DPI_F;
 static constexpr qreal SPATIUM20 = 5.0 * (DPI / 72.0);
 static constexpr qreal DPMM      = DPI / INCH;
+static constexpr qreal DIDOT     = 1.06574601373228;
+static constexpr qreal CICERO    = 12.0;
 
 static constexpr int MAX_STAVES  = 4;
 
@@ -333,6 +335,7 @@ class MScore : public QObject {
 
       static bool readDefaultStyle(QString file);
       static void setDefaultStyle(const MStyle& s) { _defaultStyle = s; }
+      static void setDefaultStyleForParts(MStyle* s) { _defaultStyleForParts = s; }
       static void defaultStyleForPartsHasChanged();
 
       static const QString& globalShare()   { return _globalShare; }
@@ -406,6 +409,11 @@ class MScore : public QObject {
       static void setError(MsError e) { _error = e; }
       static const char* errorMessage();
       static const char* errorGroup();
+
+      // used by pagesettings.cpp and read206.cpp to group paper sizes by type
+      static std::set<int> sizesMetric;
+      static std::set<int> sizesImperial;
+      static std::set<int> sizesOther;
       };
 
 //---------------------------------------------------------
