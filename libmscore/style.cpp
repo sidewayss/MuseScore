@@ -25,6 +25,7 @@
 #include "property.h"
 #include "read206.h"
 #include "undo.h"
+#include "mscore/preferences.h"
 
 namespace Ms {
 ////////////////////////////////////////////////////////////////////////////////

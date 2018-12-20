@@ -65,6 +65,7 @@
 #include "tempotext.h"
 #include "measurenumber.h"
 #include "marker.h"
+#include "mscore/preferences.h"
 
 #ifdef OMR
 #include "omr/omr.h"

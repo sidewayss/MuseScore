@@ -3348,7 +3348,6 @@ qreal Score::tempo(int tick) const
 qreal Score::loWidth() const
       {
       return MStyle(style()).pageOdd().width();
-
       }
 
 //---------------------------------------------------------

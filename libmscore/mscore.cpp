@@ -328,7 +328,7 @@ void MScore::init()
                   _defaultStyleForParts->precomputeValues();
                   }
             }
-      unsigned i;
+      unsigned i; 
       sizesMetric.insert(0);       // 3 types of paper sizes:
       sizesMetric.insert(1);       // Metric, Imperial, Other
       for (i =  5; i <= 23; ++i)   // No envelopes included
@@ -370,7 +370,7 @@ void MScore::init()
             ":/fonts/mscore/MScoreText.ttf",
             };
 
-      for (unsigned i = 0; i < sizeof(fonts)/sizeof(*fonts); ++i) {
+      for (i = 0; i < sizeof(fonts)/sizeof(*fonts); ++i) {
             QString str(fonts[i]);
             if (-1 == QFontDatabase::addApplicationFont(str)) {
                   if (!MScore::testMode)
