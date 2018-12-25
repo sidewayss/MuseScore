@@ -223,6 +223,42 @@ int tpc2alterByKey(int tpc, Key key) {
       }
 
 //---------------------------------------------------------
+//   tpc2unicode
+//    return note name with unicode character set for musical symbols
+//---------------------------------------------------------
+
+QString tpc2unicode(int tpc, NoteSpellingType noteSpelling, NoteCaseType noteCase)
+      {
+      QString s;
+      QString acc;
+      tpc2unicode(tpc, noteSpelling, noteCase, s, acc);
+      return s + acc;
+      }
+
+//---------------------------------------------------------
+//   tpc2unicode overload for internal use
+//    calls last tpc2name() for note letter text
+//    then it determines the accidental unicode text
+//---------------------------------------------------------
+
+void tpc2unicode(int tpc, NoteSpellingType noteSpelling, NoteCaseType noteCase, QString& s, QString& acc)
+      {
+      int n;
+      tpc2name(tpc, noteSpelling, noteCase, s, n);
+      switch (n) {
+            case -2: acc = "&#x1D12B;"; break; // double-flat
+            case -1: acc = "&#x0266D;"; break; // flat
+            case  0: acc = "";          break; // &#x0266E;"; break; // natural not used, this is universal-ish text
+            case  1: acc = "&#x0266F;"; break; // sharp
+            case  2: acc = "&#x1D12A;"; break; // double-sharp
+            default:
+                  qDebug("tpc2name(%d): acc %d", tpc, n);
+                  acc = "";
+                  break;
+            }
+}
+
+//---------------------------------------------------------
 //   tpc2name
 //    return note name
 //---------------------------------------------------------
