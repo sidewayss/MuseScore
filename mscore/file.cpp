@@ -3572,12 +3572,9 @@ static bool svgInit(Score*        score,
               const QString&      saveName,
                     SvgGenerator* printer,
                     QPainter*     p,
-                     Page*         page = 0)
+                    Page*         page = 0)
 {
     printer->setFileName(saveName);
-    if (!p->begin(printer))
-        return false;
-
     printer->setTitle(score->metaTag("workTitle"));
     score->setPrinting(true);
     MScore::pdfPrinting = true;
@@ -3604,6 +3601,8 @@ static bool svgInit(Score*        score,
     // scaling inside the SVG file. (preserveAspectRatio="xMinYMin slice")
     printer->setViewBox(QRectF(0, 0, w, h));
     printer->setSize(QSize(w, h));
+    if (!p->begin(printer))
+          return false;
     return true;
 }
 
