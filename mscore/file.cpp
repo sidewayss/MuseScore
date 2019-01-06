@@ -4402,7 +4402,7 @@ static void streamRulers(Score*         score,
     // SVG values and partial values for various attributes
     QString lineID;
     QString textClass;
-    const QString line      = "line\"    ";
+    const QString line1     = "line1\"   ";
     const QString line5     = "line5\"   ";
     const QString line10    = "line10\"  ";
     const QString lineMrks  = "lineMrks\"";
@@ -4523,7 +4523,7 @@ static void streamRulers(Score*         score,
         // The exception is x for rehearsal mark text, which is offset right.
         offX  = 0;
         label = "";
-        lineID = line;
+        lineID = line1;
 
         // Values for this cue
         tick = i.key(); // lines fall on whole number x-coordinates
@@ -4636,7 +4636,7 @@ static void streamRulers(Score*         score,
                     .arg(rectWidth);
 
     // The final end-of-bar lines
-    lineID = (++iBarNo % 5 == 0 ? line5 : line);
+    lineID = (++iBarNo % 5 == 0 ? line5 : line1);
     qtsNoEvt << SVG_4SPACES << SVG_USE << SVG_SPACE
              << formatInt(SVG_CUE_NQ, tick, cueIdDigits, true)
              << formatInt(SVG_X, endX, xDigits, true)
