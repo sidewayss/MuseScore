@@ -5490,7 +5490,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
 
                         int x  = cellX + (cellWidth / 2);
                         int y;
-                        const QString lyric = "lyric";
+                        const QString lyric = "g"; // now it's all done with opacity...
                         const QString chord = "chord";
 
                         tick = startTick - pageOffset;
