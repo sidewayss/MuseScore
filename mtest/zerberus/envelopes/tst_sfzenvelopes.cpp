@@ -19,6 +19,7 @@
 #include "mscore/preferences.h"
 #include "synthesizer/event.h"
 #include <sndfile.h>
+#include "libmscore/mscore.h"
 
 using namespace Ms;
 
