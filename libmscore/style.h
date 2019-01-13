@@ -1123,7 +1123,6 @@ Tid textStyleFromName(const QString&);
 
 const std::vector<Tid>& allTextStyles();
 const std::vector<Tid>& primaryTextStyles();
-const int testy;
 
 #ifndef NDEBUG
 extern void checkStyles();
