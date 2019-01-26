@@ -12,6 +12,7 @@
 
 #include "globals.h"
 #include "pagesettings.h"
+#include "preferences.h"
 #include "libmscore/page.h"
 #include "libmscore/style.h"
 #include "libmscore/score.h"
@@ -21,7 +22,6 @@
 #include "musescore.h"
 
 namespace Ms {
-
 //---------------------------------------------------------
 //   PageSettings
 //---------------------------------------------------------
@@ -41,28 +41,32 @@ PageSettings::PageSettings(QWidget* parent)
 
       static_cast<QVBoxLayout*>(previewGroup->layout())->insertWidget(0, sa);
 
-      mmUnit = true;      // should be made a global configuration item
-
-      if (mmUnit)
-            mmButton->setChecked(true);
-      else
-            inchButton->setChecked(true);
-
       MuseScore::restoreGeometry(this);
 
-      for (int i = 0; i < QPageSize::LastPageSize; ++i)
-            pageGroup->addItem(QPageSize::name(QPageSize::PageSizeId(i)), i);
+      typesList->addItem("Metric");
+      typesList->addItem("Imperial");
+      typesList->addItem("Other");
 
-      connect(mmButton,             SIGNAL(clicked()),            SLOT(mmClicked()));
-      connect(inchButton,           SIGNAL(clicked()),            SLOT(inchClicked()));
-      connect(buttonApply,          SIGNAL(clicked()),            SLOT(apply()));
+	for (int i = 0; i <= QPageSize::Cicero; ++i)
+	      unitsList->addItem(QString("%1 (%2)").arg(pageUnits[i].name())
+                                                 .arg(pageUnits[i].suffix()));
+      
+      ///!!!widget naming is inconsistent across modules in MuseScore.
+      ///!!!I am following a mix of conventions and leaving some names unchanged
+      connect(buttonReset,          SIGNAL(clicked()),            SLOT(resetToDefault()));
       connect(buttonApplyToAllParts,SIGNAL(clicked()),            SLOT(applyToAllParts()));
+      connect(buttonApply,          SIGNAL(clicked()),            SLOT(apply()));
       connect(buttonOk,             SIGNAL(clicked()),            SLOT(ok()));
-      connect(portraitButton,       SIGNAL(clicked()),            SLOT(orientationClicked()));
-      connect(landscapeButton,      SIGNAL(clicked()),            SLOT(orientationClicked()));
+      connect(portraitButton,       SIGNAL(toggled(bool)),        SLOT(orientationToggled(bool)));
+      connect(landscapeButton,      SIGNAL(toggled(bool)),        SLOT(orientationToggled(bool)));
       connect(twosided,             SIGNAL(toggled(bool)),        SLOT(twosidedToggled(bool)));
-      connect(pageHeight,           SIGNAL(valueChanged(double)), SLOT(pageHeightChanged(double)));
-      connect(pageWidth,            SIGNAL(valueChanged(double)), SLOT(pageWidthChanged(double)));
+      ///!!!currentIndexChanged only fires when the index changes, activated always fires
+      connect(typesList,            SIGNAL(currentIndexChanged(int)), SLOT(typeChanged(int)));
+      connect(sizesList,            SIGNAL(currentIndexChanged(int)), SLOT(sizeChanged(int)));
+      connect(unitsList,            SIGNAL(currentIndexChanged(int)), SLOT(unitsChanged()));
+      connect(pageWidth,            SIGNAL(valueChanged(double)), SLOT(widthChanged(double)));
+      connect(pageHeight,           SIGNAL(valueChanged(double)), SLOT(heightChanged(double)));
+      connect(spatiumEntry,         SIGNAL(valueChanged(double)), SLOT(spatiumChanged(double)));
       connect(oddPageTopMargin,     SIGNAL(valueChanged(double)), SLOT(otmChanged(double)));
       connect(oddPageBottomMargin,  SIGNAL(valueChanged(double)), SLOT(obmChanged(double)));
       connect(oddPageLeftMargin,    SIGNAL(valueChanged(double)), SLOT(olmChanged(double)));
@@ -71,8 +75,6 @@ PageSettings::PageSettings(QWidget* parent)
       connect(evenPageBottomMargin, SIGNAL(valueChanged(double)), SLOT(ebmChanged(double)));
       connect(evenPageRightMargin,  SIGNAL(valueChanged(double)), SLOT(ermChanged(double)));
       connect(evenPageLeftMargin,   SIGNAL(valueChanged(double)), SLOT(elmChanged(double)));
-      connect(pageGroup,            SIGNAL(activated(int)),       SLOT(pageFormatSelected(int)));
-      connect(spatiumEntry,         SIGNAL(valueChanged(double)), SLOT(spatiumChanged(double)));
       connect(pageOffsetEntry,      SIGNAL(valueChanged(int)),    SLOT(pageOffsetChanged(int)));
       }
 
@@ -88,7 +90,7 @@ PageSettings::~PageSettings()
 //---------------------------------------------------------
 //   hideEvent
 //---------------------------------------------------------
-
+///!!!what does this function do? when is it called???
 void PageSettings::hideEvent(QHideEvent* ev)
       {
       MuseScore::saveGeometry(this);
@@ -109,158 +111,209 @@ void PageSettings::setScore(Score* s)
       clonedScore->doLayout();
       preview->setScore(clonedScore);
       buttonApplyToAllParts->setEnabled(!cs->isMaster());
-      updateValues();
-      updatePreview(0);
+      updateWidgets();
+      updatePreview();
       }
 
 //---------------------------------------------------------
-//   blockSignals
+//   blockSignals - helper for updateWidgets
 //---------------------------------------------------------
 
 void PageSettings::blockSignals(bool block)
       {
       for (auto w : { oddPageTopMargin, oddPageBottomMargin, oddPageLeftMargin, oddPageRightMargin,
-         evenPageTopMargin, evenPageBottomMargin, evenPageLeftMargin, evenPageRightMargin, spatiumEntry,
-         pageWidth, pageHeight } )
+                     evenPageTopMargin,evenPageBottomMargin,evenPageLeftMargin,evenPageRightMargin,
+                     spatiumEntry } )
             {
             w->blockSignals(block);
             }
+      twosided->blockSignals(block);
+      typesList->blockSignals(block);
+      sizesList->blockSignals(block);
+      unitsList->blockSignals(block);
+      portraitButton->blockSignals(block);
+      landscapeButton->blockSignals(block);
       pageOffsetEntry->blockSignals(block);
-      pageGroup->blockSignals(block);
       }
 
 //---------------------------------------------------------
-//   setMarginsMax
+//   updatePreview
 //---------------------------------------------------------
 
-void PageSettings::setMarginsMax(double pw)
+void PageSettings::updatePreview()
       {
-      oddPageLeftMargin->setMaximum(pw);
-      oddPageRightMargin->setMaximum(pw);
-      evenPageLeftMargin->setMaximum(pw);
-      evenPageRightMargin->setMaximum(pw);
+      preview->score()->doLayout();
+      preview->layoutChanged();
       }
 
 //---------------------------------------------------------
-//   updateValues
-//    set gui values from style
+//   updateWidgets
+//    set widget values from preview->score()
 //---------------------------------------------------------
 
-void PageSettings::updateValues()
+void PageSettings::updateWidgets()
       {
-      Score* score = preview->score();
-      bool mm = mmButton->isChecked();
-
       blockSignals(true);
+      Score*       score    = preview->score();
+      MPageLayout& odd      = score->style().pageOdd();
+      MPageLayout& even     = score->style().pageEven();
+      bool         isGlobal = preferences.getBool(PREF_APP_PAGE_UNITS_GLOBAL);
+      int          idxUnit;
 
-      const char* suffix;
-      double singleStepSize;
-      double singleStepScale;
-      if (mm) {
-            suffix = "mm";
-            singleStepSize = 1.0;
-            singleStepScale = 0.2;
+      if (isGlobal) {
+            idxUnit = preferences.getInt(PREF_APP_PAGE_UNITS_VALUE);
+            odd .setUnits(QPageLayout::Unit(idxUnit)); // handles conversions
+            even.setUnits(QPageLayout::Unit(idxUnit)); // for widget display.
             }
-      else {
-            suffix = "in";
-            singleStepSize = 0.05;
-            singleStepScale = 0.005;
-            }
-      for (auto w : { oddPageTopMargin, oddPageBottomMargin, oddPageLeftMargin, oddPageRightMargin, evenPageTopMargin,
-         evenPageBottomMargin, evenPageLeftMargin, evenPageRightMargin, spatiumEntry, pageWidth, pageHeight } )
+      else 
+            idxUnit = int(odd.units());
+
+      unitsList->setCurrentIndex(idxUnit);
+      unitsGroup->setVisible(!isGlobal);
+
+      PageUnit    unit   = pageUnits[idxUnit];
+      const char* suffix = unit.suffix();
+      double      step   = unit.step();
+
+      for (auto w : { oddPageTopMargin, oddPageBottomMargin, oddPageLeftMargin, oddPageRightMargin,
+                     evenPageTopMargin,evenPageBottomMargin,evenPageLeftMargin,evenPageRightMargin,
+                     pageWidth, pageHeight } )
             {
             w->setSuffix(suffix);
-            w->setSingleStep(singleStepSize);
+            w->setSingleStep(step);
             }
-      spatiumEntry->setSingleStep(singleStepScale);
+      spatiumEntry->setSingleStep(unit.stepSpatium());
+      spatiumEntry->setSuffix(suffix);
+      spatiumEntry->setValue(score->spatium() / unit.paintFactor());
 
-      double f = mm ? INCH : 1.0;
-
-      double w = score->styleD(Sid::pageWidth);
-      double h = score->styleD(Sid::pageHeight);
-      setMarginsMax(w * f);
-
-      double pw = score->styleD(Sid::pagePrintableWidth);
-      pageGroup->setCurrentIndex(int(QPageSize::id(QSizeF(w, h), QPageSize::Inch, QPageSize::FuzzyOrientationMatch)));
-
-      oddPageTopMargin->setValue(score->styleD(Sid::pageOddTopMargin) * f);
-      oddPageBottomMargin->setValue(score->styleD(Sid::pageOddBottomMargin) * f);
-      oddPageLeftMargin->setValue(score->styleD(Sid::pageOddLeftMargin) * f);
-      oddPageRightMargin->setValue((w - pw - score->styleD(Sid::pageOddLeftMargin)) * f);
-
-      evenPageTopMargin->setValue(score->styleD(Sid::pageEvenTopMargin) * f);
-      evenPageBottomMargin->setValue(score->styleD(Sid::pageEvenBottomMargin) * f);
-      evenPageLeftMargin->setValue(score->styleD(Sid::pageEvenLeftMargin) * f);
-      evenPageRightMargin->setValue((w - pw - score->styleD(Sid::pageEvenLeftMargin)) * f);
-      pageHeight->setValue(h * f);
-      pageWidth->setValue(w * f);
-
-      double f1 = mm ? 1.0/DPMM : 1.0/DPI;
-      spatiumEntry->setValue(score->spatium() * f1);
-
-
-      bool _twosided = score->styleB(Sid::pageTwosided);
-      evenPageTopMargin->setEnabled(_twosided);
-      evenPageBottomMargin->setEnabled(_twosided);
-      evenPageLeftMargin->setEnabled(_twosided);
-      evenPageRightMargin->setEnabled(_twosided);
-
-      if (twosided->isChecked()) {
-            evenPageRightMargin->setValue(oddPageLeftMargin->value());
-            evenPageLeftMargin->setValue(oddPageRightMargin->value());
+      QPageSize::PageSizeId psid = score->style().pageSize().id();
+      int id      = int(psid);
+      int idxType = -1;
+      if (psid != QPageSize::Custom) {
+            if (MScore::sizesMetric.find(id)        != MScore::sizesMetric.end())
+                  idxType = PAPER_TYPE_METRIC;
+            else if (MScore::sizesImperial.find(id) != MScore::sizesImperial.end())
+                  idxType = PAPER_TYPE_IMPERIAL;
+            else if (MScore::sizesOther.find(id)    != MScore::sizesOther.end())
+                  idxType = PAPER_TYPE_OTHER;
+            else {
+                  psid = QPageSize::Custom;
+                  id   = int(psid);
+                  }
             }
-      else {
-            evenPageRightMargin->setValue(oddPageRightMargin->value());
-            evenPageLeftMargin->setValue(oddPageLeftMargin->value());
-            }
+      if (idxType < 0)
+            idxType = MStyle::isMetric(odd.units()) ? PAPER_TYPE_METRIC
+                                                    : PAPER_TYPE_IMPERIAL;
 
-      landscapeButton->setChecked(score->styleD(Sid::pageWidth) > score->styleD(Sid::pageHeight));
-      portraitButton->setChecked(score->styleD(Sid::pageWidth) <= score->styleD(Sid::pageHeight));
+      typesList->setCurrentIndex(idxType); // typesList blocks signals - cleaner that way
+      typeChanged(idxType);                // typeChanged() loads sizesList
+      sizesList->setCurrentIndex(sizesList->findData(id));
 
-      twosided->setChecked(_twosided);
+      if (odd.orientation() == QPageLayout::Portrait)
+            portraitButton ->setChecked(true);
+      else
+            landscapeButton->setChecked(true);
+
+      bool is2 = score->styleB(Sid::pageTwosided);
+      twosided->setChecked(is2);
+      for (auto w : { evenPageTopMargin, evenPageBottomMargin, evenPageLeftMargin, evenPageRightMargin })
+            w->setEnabled(is2);
+
+      ///!!!Minimum margins would be nice here, taken from the printer, maybe in main()...
+      QMarginsF marg = odd.margins();
+      oddPageTopMargin    ->setValue(marg.top());
+      oddPageBottomMargin ->setValue(marg.bottom());
+      oddPageLeftMargin   ->setValue(marg.left());
+      oddPageRightMargin  ->setValue(marg.right());
+
+      marg = even.margins();
+      evenPageTopMargin   ->setValue(marg.top());
+      evenPageBottomMargin->setValue(marg.bottom());
+      evenPageLeftMargin  ->setValue(marg.left());
+      evenPageRightMargin ->setValue(marg.right());
 
       pageOffsetEntry->setValue(score->pageNumberOffset() + 1);
-
       blockSignals(false);
+
+      // updateWidthHeight blocks signals for the width and height widgets
+      updateWidthHeight(odd.fullRect());
       }
 
 //---------------------------------------------------------
-//   inchClicked
+//   updateWidthHeight - updates Width and Height widgets
 //---------------------------------------------------------
 
-void PageSettings::inchClicked()
+void PageSettings::updateWidthHeight(const QRectF& rect)
       {
-      mmUnit = false;
-      updateValues();
+      pageWidth ->blockSignals(true);
+      pageHeight->blockSignals(true);
+      pageWidth ->setValue(rect.width());
+      pageHeight->setValue(rect.height());
+      pageWidth ->blockSignals(false);
+      pageHeight->blockSignals(false);
       }
 
 //---------------------------------------------------------
-//   mmClicked
+//   typeChanged - populates sizesList based on typesList
 //---------------------------------------------------------
 
-void PageSettings::mmClicked()
+void PageSettings::typeChanged(int idx)
       {
-      mmUnit = true;
-      updateValues();
+      switch (idx) {
+            case PAPER_TYPE_METRIC:
+                  _sizes = &MScore::sizesMetric;
+                  break;
+            case PAPER_TYPE_IMPERIAL:
+                  _sizes = &MScore::sizesImperial;
+                  break;
+            case PAPER_TYPE_OTHER:
+                  _sizes = &MScore::sizesOther;
+                  break;
+            }
+      sizesList->clear(); ///!!!Custom is back at the top of the list
+      sizesList->addItem(QPageSize::name(QPageSize::Custom), int(QPageSize::Custom));
+      for (std::set<int>::iterator i = _sizes->begin(); i != _sizes->end(); ++i)
+            sizesList->addItem(QPageSize::name(QPageSize::PageSizeId(*i)), *i);
       }
 
 //---------------------------------------------------------
-//   orientationClicked
-//    swap width/height
+//   setPageSize - a helper for page size, width, height changes
 //---------------------------------------------------------
 
-void PageSettings::orientationClicked()
+void PageSettings::setPageSize(QPageSize::PageSizeId psid)
       {
-      qreal w = preview->score()->styleD(Sid::pageWidth);
-      qreal h = preview->score()->styleD(Sid::pageHeight);
+      Score*          score = preview->score();
+      MStyle&         style = score->style();
+      QPageSize::Unit unit  = QPageSize::Unit(style.pageOdd().units());
+      QPageSize       qps;
 
-      preview->score()->style().set(Sid::pageWidth, h);
-      preview->score()->style().set(Sid::pageHeight, w);
+      bool isPreset = (psid != QPageSize::Custom);
+      if (isPreset)
+            qps = QPageSize(psid);
+      else
+            qps = QPageSize(QSizeF(pageWidth->value(), pageHeight->value()),
+                  unit,
+                  QPageSize::name(psid),
+                  QPageSize::ExactMatch);
 
-      double f = mmUnit ? 1.0/INCH : 1.0;
-      preview->score()->style().set(Sid::pagePrintableWidth, h - (oddPageLeftMargin->value() + oddPageRightMargin->value()) * f);
-      updateValues();
-      updatePreview(0);
+      style.setPageSize(qps);
+      style.pageOdd ().setPageSize(qps);
+      style.pageEven().setPageSize(qps);
+
+      if (isPreset) {
+            QRectF rect = qps.rect(unit);
+            updateWidthHeight(rect);
+            updatePreview();
+            }
+      }
+//---------------------------------------------------------
+//   sizeChanged
+//---------------------------------------------------------
+
+void PageSettings::sizeChanged(int idx)
+      {
+      if (idx >= 0) // should never be -1, but just in case...
+            setPageSize(QPageSize::PageSizeId(sizesList->currentData().toInt()));
       }
 
 //---------------------------------------------------------
@@ -270,8 +323,313 @@ void PageSettings::orientationClicked()
 void PageSettings::twosidedToggled(bool flag)
       {
       preview->score()->style().set(Sid::pageTwosided, flag);
-      updateValues();
-      updatePreview(1);
+
+      for (auto w : { evenPageTopMargin, evenPageBottomMargin, evenPageLeftMargin, evenPageRightMargin })
+            w->setEnabled(flag);
+
+      evenPageLeftMargin ->blockSignals(true);
+      evenPageRightMargin->blockSignals(true);
+      if (flag) { 
+            evenPageLeftMargin ->setValue(oddPageRightMargin ->value());
+            evenPageRightMargin->setValue(oddPageLeftMargin->value());
+            }
+      else {
+            evenPageLeftMargin ->setValue(oddPageLeftMargin ->value());
+            evenPageRightMargin->setValue(oddPageRightMargin->value());
+            }
+      evenPageLeftMargin ->blockSignals(false);
+      evenPageRightMargin->blockSignals(false);
+
+      updatePreview();
+      }
+
+//---------------------------------------------------------
+//   widthChanged, heightChanged, and widthHeightChanged
+//    manually changing width/height
+//---------------------------------------------------------
+
+void PageSettings::widthChanged(double val)
+      {
+      widthHeightChanged(val, pageHeight->value());
+      }
+void PageSettings::heightChanged(double val)
+      {
+      widthHeightChanged(pageWidth->value(), val);
+      }
+void PageSettings::widthHeightChanged(double w, double h)
+      {
+      ///!!!Fuzzy match tolerance is +/-3pt. Now that there is a pageSize XML
+      ///!!!tag, there is no need for fuzzy matches except reading older scores.
+      ///!!!Using exact matches here is cleaner for custom sizes. It's a hassle
+      ///!!!to check both orientations for a match, but the results are clean.
+      ///!!!QPageSize rounds inches and millimeters to 2 decimals, and points to
+      ///!!!whole integers. Exact match is only that exact, which is good. For
+      ///!!!example: using inches, entering 8.5 x 10.83 selects Quarto page size.
+      MStyle& style = preview->score()->style();
+      QSizeF  size  = QSizeF(w, h); 
+                                     // Is the new page size custom or preset?
+      QPageSize::Unit       unit = QPageSize::Unit(unitsList->currentIndex());
+      QPageSize::PageSizeId psid = QPageSize::id(size, unit, QPageSize::ExactMatch);
+      if (psid == QPageSize::Custom) {
+            size.transpose();        // exact matches include orientation
+            psid = QPageSize::id(size, unit, QPageSize::ExactMatch);
+            if (psid != QPageSize::Custom) {
+                  if (!landscapeButton->isChecked()) {
+                        landscapeButton->blockSignals(true);
+                        landscapeButton->setChecked(true);
+                        landscapeButton->blockSignals(false);
+                        }
+                  }
+            else
+                  size.transpose();  // revert to original for use below
+            }
+
+      ///!!!Does not change typesList selection on the fly. Custom is in every list as item 0.
+      sizesList->blockSignals(true); // Select the item in sizesList
+      sizesList->setCurrentIndex(qMax(0, sizesList->findData(int(psid))));
+      sizesList->blockSignals(false);
+                                     // Create a new QPageSize instance
+      QPageSize qps = (psid == QPageSize::Custom
+                     ? QPageSize(size, unit, QPageSize::name(psid), QPageSize::ExactMatch)
+                     : QPageSize(psid));
+
+      style.setPageSize(qps);       // update style variables
+      style.pageOdd ().setPageSize(qps);
+      style.pageEven().setPageSize(qps);
+
+      updatePreview();
+      }
+
+//---------------------------------------------------------
+//   orientationToggled
+//    a pair of radio buttons that toggle the page orientation
+//    it swaps width and height values, but not margins.
+//---------------------------------------------------------
+void PageSettings::orientationToggled(bool)
+      {
+      QPageLayout::Orientation orient = portraitButton->isChecked()
+                                      ? QPageLayout::Portrait
+                                      : QPageLayout::Landscape;
+      MStyle& style = preview->score()->style();
+      style.pageOdd ().setOrientation(orient);
+      style.pageEven().setOrientation(orient);
+
+      updateWidthHeight(style.pageOdd().fullRect());
+      updatePreview();
+      }
+
+//// Margins /////////////////////////////////////////////
+///!!!this code could be much more compact if the signals provided a "this",
+///!!!the element, the spin box. There might be a way to do that in Qt with events...
+//---------------------------------------------------------
+//   marginMinMax - helper for all 8 margins' signals - handles out of range error
+//---------------------------------------------------------
+double PageSettings::marginMinMax(double val, double max, QDoubleSpinBox* spinner)
+      {
+      double minMax = val < 0 ? 0 : max;
+      spinner->blockSignals(true);
+      spinner->setValue(minMax);
+      spinner->blockSignals(false);
+      return minMax;
+      }
+//// top and bottom first, they have no odd/even synchronzation
+//---------------------------------------------------------
+//   otmChanged - odd top margin
+//---------------------------------------------------------
+
+void PageSettings::otmChanged(double val)
+      {
+      MPageLayout& layout = preview->score()->style().pageOdd();
+      if (!layout.setTopMargin(val)) // only error is out of range
+            layout.setTopMargin(marginMinMax(val,
+                                             layout.maximumMargins().top(),
+                                             oddPageTopMargin));
+      updatePreview();
+      }
+
+//---------------------------------------------------------
+//   obmChanged - odd bottom margin
+//---------------------------------------------------------
+
+void PageSettings::obmChanged(double val)
+      {
+      MPageLayout& layout = preview->score()->style().pageOdd();
+      if (!layout.setBottomMargin(val)) // only error is out of range
+            layout.setTopMargin(marginMinMax(val,
+                                             layout.maximumMargins().bottom(),
+                                             oddPageBottomMargin));
+      updatePreview();
+}
+
+//---------------------------------------------------------
+//   etmChanged - even top margin
+//---------------------------------------------------------
+
+void PageSettings::etmChanged(double val)
+      {
+      MPageLayout& layout = preview->score()->style().pageEven();
+      if (!layout.setTopMargin(val)) // only error is out of range
+            layout.setTopMargin(marginMinMax(val,
+                                             layout.maximumMargins().top(), 
+                                             evenPageTopMargin));
+      updatePreview();
+      }
+
+//---------------------------------------------------------
+//   ebmChanged - even bottom margin
+//---------------------------------------------------------
+
+void PageSettings::ebmChanged(double val)
+      {
+      MPageLayout& layout = preview->score()->style().pageEven();
+      if (!layout.setBottomMargin(val)) // only error is out of range
+            layout.setTopMargin(marginMinMax(val,
+                                             layout.maximumMargins().bottom(),
+                                             evenPageBottomMargin));
+      updatePreview();
+      }
+
+//// Left and right margins synchronize across odd/even pages
+//---------------------------------------------------------
+//   lrMargins - helper for the left/right margin valueChanged signals
+//---------------------------------------------------------
+void PageSettings::lrMargins(double val, bool isLeft, bool isOdd, QDoubleSpinBox* spinOne)
+      {
+      MStyle&         style = preview->score()->style();
+      MPageLayout&    one   = isOdd ? style.pageOdd()  : style.pageEven();
+      MPageLayout&    other = isOdd ? style.pageEven() : style.pageOdd();
+      QDoubleSpinBox* spinOther;
+
+      bool b = isLeft ? one.setLeftMargin(val) : one.setRightMargin(val);
+      if (!b) {                    // val exceeds the max
+            double marg = isLeft ? one.maximumMargins().left()
+                                 : one.maximumMargins().right();
+            val = marginMinMax(val, marg, spinOne);
+            if (isLeft)
+                  one.setLeftMargin(val);
+            else
+                  one.setRightMargin(val);
+            }
+
+      if (isLeft) {
+            other.setRightMargin(val);
+            if (twosided->isChecked())
+                  spinOther = isOdd ? evenPageRightMargin : oddPageRightMargin;
+            else 
+                  spinOther = evenPageLeftMargin; // even left margin is disabled
+            }
+      else {
+            other.setLeftMargin(val);
+            if (twosided->isChecked())
+                  spinOther = isOdd ? evenPageLeftMargin  : oddPageLeftMargin;
+            else 
+                  spinOther = evenPageRightMargin; // even right margin is disabled
+            }
+      spinOther->blockSignals(true);
+      spinOther->setValue(val);
+      spinOther->blockSignals(false);
+
+      updatePreview();
+      }
+
+//---------------------------------------------------------
+//   olmChanged - odd left margin
+//---------------------------------------------------------
+
+void PageSettings::olmChanged(double val)
+      {
+      lrMargins(val, true, true, oddPageLeftMargin);
+      }
+
+//---------------------------------------------------------
+//   ormChanged - odd right margin
+//---------------------------------------------------------
+
+void PageSettings::ormChanged(double val)
+      {
+      lrMargins(val, false, true, oddPageRightMargin);
+      }
+
+//---------------------------------------------------------
+//   elmChanged - even left margin
+//---------------------------------------------------------
+
+void PageSettings::elmChanged(double val)
+      {
+      lrMargins(val, true, false, evenPageLeftMargin);
+      }
+
+//---------------------------------------------------------
+//   ermChanged - even right margin
+//---------------------------------------------------------
+
+void PageSettings::ermChanged(double val)
+      {
+      lrMargins(val, false, false, evenPageRightMargin);
+      }
+//// end margins ////
+//---------------------------------------------------------
+//   spatiumChanged
+//---------------------------------------------------------
+
+void PageSettings::spatiumChanged(double val)
+      { 
+      Score* score  = preview->score();
+      double oldVal = score->spatium();
+      double newVal;
+
+      QPageLayout::Unit unit = score->style().pageOdd().units();
+      if ((unit == QPageLayout::Millimeter && val == 1.764)
+       || (unit == QPageLayout::Inch       && val == 0.069)
+       || (unit == QPageLayout::Pica       && val == 0.417)
+       || (unit == QPageLayout::Didot      && val == 4.692)
+       || (unit == QPageLayout::Cicero     && val == 0.391))
+            newVal = SPATIUM20; // rounding messes up the default value
+      else
+            newVal = val * pageUnits[int(unit)].paintFactor();
+
+      score->setSpatium(newVal); 
+      score->spatiumChanged(oldVal, newVal);
+      updatePreview();
+      }
+
+//---------------------------------------------------------
+//   pageOffsetChanged
+//---------------------------------------------------------
+
+void PageSettings::pageOffsetChanged(int val)
+      {
+      preview->score()->setPageNumberOffset(val-1);
+      updatePreview();
+      }
+
+//---------------------------------------------------------
+//   unitsChanged
+//---------------------------------------------------------
+
+void PageSettings::unitsChanged()
+      {
+      QPageLayout::Unit u = QPageLayout::Unit(unitsList->currentIndex());
+      MStyle& style = preview->score()->style();
+      style.pageOdd ().setUnits(u);
+      style.pageEven().setUnits(u);
+      updateWidgets();               
+      }
+
+//---------------------------------------------------------
+//   resetToDefault
+//---------------------------------------------------------
+
+void PageSettings::resetToDefault()
+      {
+      MStyle& style = preview->score()->style();
+      MStyle& def   = MScore::defaultStyle();
+      style.setPageOdd( def.pageOdd());
+      style.setPageEven(def.pageEven());
+      style.setPageSize(def.pageSize());
+      style.fromPageLayout(); // syncs the styles
+      updateWidgets();
+      updatePreview();
       }
 
 //---------------------------------------------------------
@@ -288,25 +646,44 @@ void PageSettings::apply()
 //   applyToScore
 //---------------------------------------------------------
 
-void PageSettings::applyToScore(Score* s)
+void PageSettings::applyToScore(Score* score)
       {
-      s->startCmd();
-      double f  = mmUnit ? 1.0/INCH : 1.0;
-      double f1 = mmUnit ? DPMM : DPI;
+      score->startCmd();
 
-      s->undoChangeStyleVal(Sid::pageWidth, pageWidth->value() * f);
-      s->undoChangeStyleVal(Sid::pageHeight, pageHeight->value() * f);
-      s->undoChangeStyleVal(Sid::pagePrintableWidth, (pageWidth->value() - oddPageLeftMargin->value() - oddPageRightMargin->value())  * f);
-      s->undoChangeStyleVal(Sid::pageEvenTopMargin, evenPageTopMargin->value() * f);
-      s->undoChangeStyleVal(Sid::pageEvenBottomMargin, evenPageBottomMargin->value() * f);
-      s->undoChangeStyleVal(Sid::pageEvenLeftMargin, evenPageLeftMargin->value() * f);
-      s->undoChangeStyleVal(Sid::pageOddTopMargin, oddPageTopMargin->value() * f);
-      s->undoChangeStyleVal(Sid::pageOddBottomMargin, oddPageBottomMargin->value() * f);
-      s->undoChangeStyleVal(Sid::pageOddLeftMargin, oddPageLeftMargin->value() * f);
-      s->undoChangeStyleVal(Sid::pageTwosided, twosided->isChecked());
-      s->undoChangeStyleVal(Sid::spatium, spatiumEntry->value() * f1);
+      Score*       prev  = preview->score();
+      QPageSize&   psize = prev->style().pageSize();
+      MPageLayout& odd   = prev->style().pageOdd();
+      MPageLayout& even  = prev->style().pageEven();
 
-      s->endCmd();
+      score->undoChangeStylePtrs(psize, odd, even);
+      score->setPageNumberOffset(prev->pageNumberOffset()); ///!!!why isn't this a style???
+
+      score->undoChangeStyleVal(Sid::spatium,          prev->spatium());
+      score->undoChangeStyleVal(Sid::pageTwosided,     twosided->isChecked());
+      score->undoChangeStyleVal(Sid::pageSize,         int(psize.id()));
+      score->undoChangeStyleVal(Sid::pageUnits,        pageUnits [int(odd.units())].key());
+      score->undoChangeStyleVal(Sid::pageOrientation,  pageOrient[int(odd.orientation())]);
+      score->undoChangeStyleVal(Sid::pageFullWidth,    odd.widthPoints());
+      score->undoChangeStyleVal(Sid::pageFullHeight,   odd.heightPoints());
+      score->undoChangeStyleVal(Sid::marginOddLeft,    odd.leftMarginPoints());
+      score->undoChangeStyleVal(Sid::marginOddRight,   odd.rightMarginPoints());   
+      score->undoChangeStyleVal(Sid::marginOddTop,     odd.topMarginPoints());
+      score->undoChangeStyleVal(Sid::marginOddBottom,  odd.bottomMarginPoints());
+      score->undoChangeStyleVal(Sid::marginEvenTop,    even.topMarginPoints());
+      score->undoChangeStyleVal(Sid::marginEvenBottom, even.bottomMarginPoints());
+
+      ///!!! older 301 styles
+      score->undoChangeStyleVal(Sid::pageWidth,  odd.widthPoints()  / PPI);
+      score->undoChangeStyleVal(Sid::pageHeight, odd.heightPoints() / PPI);
+      score->undoChangeStyleVal(Sid::pagePrintableWidth, (odd.widthPoints() - odd.leftMarginPoints() - odd.rightMarginPoints()) / PPI);
+      score->undoChangeStyleVal(Sid::pageEvenTopMargin,    even.topMarginPoints()    / PPI);
+      score->undoChangeStyleVal(Sid::pageEvenBottomMargin, even.bottomMarginPoints() / PPI);
+      score->undoChangeStyleVal(Sid::pageEvenLeftMargin,   even.leftMarginPoints()   / PPI);
+      score->undoChangeStyleVal(Sid::pageOddTopMargin,     odd .topMarginPoints()    / PPI);
+      score->undoChangeStyleVal(Sid::pageOddBottomMargin,  odd .bottomMarginPoints() / PPI);
+      score->undoChangeStyleVal(Sid::pageOddLeftMargin,    odd .leftMarginPoints()   / PPI);
+
+      score->endCmd();
       }
 
 //---------------------------------------------------------
@@ -337,243 +714,6 @@ void PageSettings::done(int val)
       {
       cs->setLayoutAll();     // HACK
       QDialog::done(val);
-      }
-
-//---------------------------------------------------------
-//   pageFormatSelected
-//---------------------------------------------------------
-
-void PageSettings::pageFormatSelected(int size)
-      {
-      if (size >= 0) {
-            Score* s  = preview->score();
-            int id    = pageGroup->currentData().toInt();
-            QSizeF sz = QPageSize::size(QPageSize::PageSizeId(id), QPageSize::Inch);
-
-            s->style().set(Sid::pageWidth, sz.width());
-            s->style().set(Sid::pageHeight, sz.height());
-
-            double f  = mmUnit ? 1.0/INCH : 1.0;
-            s->style().set(Sid::pagePrintableWidth, sz.width() - (oddPageLeftMargin->value() + oddPageRightMargin->value())  * f);
-            updateValues();
-            updatePreview(0);
-            }
-      }
-
-//---------------------------------------------------------
-//   otmChanged
-//---------------------------------------------------------
-
-void PageSettings::otmChanged(double val)
-      {
-      if (mmUnit)
-            val /= INCH;
-      preview->score()->style().set(Sid::pageOddTopMargin, val);
-      updatePreview(1);
-      }
-
-//---------------------------------------------------------
-//   olmChanged
-//---------------------------------------------------------
-
-void PageSettings::olmChanged(double val)
-      {
-      if (mmUnit)
-            val /= INCH;
-
-      if (twosided->isChecked()) {
-            evenPageRightMargin->blockSignals(true);
-            evenPageRightMargin->setValue(val * (mmUnit ? INCH : 1.0));
-            evenPageRightMargin->blockSignals(false);
-            }
-      else {
-            evenPageLeftMargin->blockSignals(true);
-            evenPageLeftMargin->setValue(val * (mmUnit ? INCH : 1.0));
-            evenPageLeftMargin->blockSignals(false);
-            }
-      Score* s = preview->score();
-      s->style().set(Sid::pageOddLeftMargin, val);
-      s->style().set(Sid::pagePrintableWidth, s->styleD(Sid::pageWidth) - s->styleD(Sid::pageEvenLeftMargin) - val);
-
-      updatePreview(0);
-      }
-
-//---------------------------------------------------------
-//   ormChanged
-//---------------------------------------------------------
-
-void PageSettings::ormChanged(double val)
-      {
-      if (mmUnit)
-            val /= INCH;
-
-      Score* s = preview->score();
-      if (twosided->isChecked()) {
-            evenPageLeftMargin->blockSignals(true);
-            evenPageLeftMargin->setValue(val * (mmUnit ? INCH : 1.0));
-            s->style().set(Sid::pageEvenLeftMargin, val);
-            evenPageLeftMargin->blockSignals(false);
-            }
-      else {
-            evenPageRightMargin->blockSignals(true);
-            evenPageRightMargin->setValue(val * (mmUnit ? INCH : 1.0));
-            evenPageRightMargin->blockSignals(false);
-            }
-      s->style().set(Sid::pagePrintableWidth, s->styleD(Sid::pageWidth) - s->styleD(Sid::pageOddLeftMargin) - val);
-      updatePreview(0);
-      }
-
-//---------------------------------------------------------
-//   obmChanged
-//---------------------------------------------------------
-
-void PageSettings::obmChanged(double val)
-      {
-      if (mmUnit)
-            val /= INCH;
-      preview->score()->style().set(Sid::pageOddBottomMargin, val);
-      updatePreview(1);
-      }
-
-//---------------------------------------------------------
-//   etmChanged
-//---------------------------------------------------------
-
-void PageSettings::etmChanged(double val)
-      {
-      if (mmUnit)
-            val /= INCH;
-      preview->score()->style().set(Sid::pageEvenTopMargin, val);
-      updatePreview(1);
-      }
-
-//---------------------------------------------------------
-//   elmChanged
-//---------------------------------------------------------
-
-void PageSettings::elmChanged(double val)
-      {
-      double f  = mmUnit ? 1.0/INCH : 1.0;
-      val *= f;
-
-      if (twosided->isChecked()) {
-            oddPageRightMargin->blockSignals(true);
-            oddPageRightMargin->setValue(val * (mmUnit ? INCH : 1.0));
-            oddPageRightMargin->blockSignals(false);
-            }
-      Score* s = preview->score();
-      s->style().set(Sid::pageEvenLeftMargin, val);
-      s->style().set(Sid::pagePrintableWidth, s->styleD(Sid::pageWidth) - evenPageRightMargin->value() * f - val);
-      updatePreview(0);
-      }
-
-//---------------------------------------------------------
-//   ermChanged
-//---------------------------------------------------------
-
-void PageSettings::ermChanged(double val)
-      {
-      if (mmUnit)
-            val /= INCH;
-
-      if (twosided->isChecked()) {
-            oddPageLeftMargin->blockSignals(true);
-            oddPageLeftMargin->setValue(val * (mmUnit ? INCH : 1.0));
-            oddPageLeftMargin->blockSignals(false);
-            }
-      Score* s = preview->score();
-      s->style().set(Sid::pagePrintableWidth, s->styleD(Sid::pageWidth) - s->styleD(Sid::pageEvenLeftMargin) - val);
-      s->style().set(Sid::pageOddLeftMargin, val);
-      updatePreview(0);
-      }
-
-//---------------------------------------------------------
-//   ebmChanged
-//---------------------------------------------------------
-
-void PageSettings::ebmChanged(double val)
-      {
-      if (mmUnit)
-            val /= INCH;
-      preview->score()->style().set(Sid::pageEvenBottomMargin, val);
-      updatePreview(1);
-      }
-
-//---------------------------------------------------------
-//   spatiumChanged
-//---------------------------------------------------------
-
-void PageSettings::spatiumChanged(double val)
-      {
-      val *= mmUnit ? DPMM : DPI;
-      double oldVal = preview->score()->spatium();
-      preview->score()->setSpatium(val);
-      preview->score()->spatiumChanged(oldVal, val);
-      updatePreview(0);
-      }
-
-//---------------------------------------------------------
-//   pageOffsetChanged
-//---------------------------------------------------------
-
-void PageSettings::pageOffsetChanged(int val)
-      {
-      preview->score()->setPageNumberOffset(val-1);
-      updatePreview(0);
-      }
-
-//---------------------------------------------------------
-//   pageHeightChanged
-//---------------------------------------------------------
-
-void PageSettings::pageHeightChanged(double val)
-      {
-      double val2 = pageWidth->value();
-      if (mmUnit) {
-            val /= INCH;
-            val2 /= INCH;
-            }
-      pageGroup->setCurrentIndex(0);      // custom
-      preview->score()->style().set(Sid::pageHeight, val);
-      preview->score()->style().set(Sid::pageWidth, val2);
-
-      updatePreview(1);
-      }
-
-//---------------------------------------------------------
-//   pageWidthChanged
-//---------------------------------------------------------
-
-void PageSettings::pageWidthChanged(double val)
-      {
-      setMarginsMax(val);
-
-      double f    = mmUnit ? 1.0/INCH : 1.0;
-      double val2 = pageHeight->value() * f;
-      val        *= f;
-      pageGroup->setCurrentIndex(0);      // custom
-      preview->score()->style().set(Sid::pageWidth, val);
-      preview->score()->style().set(Sid::pageHeight, val2);
-      preview->score()->style().set(Sid::pagePrintableWidth, val - (oddPageLeftMargin->value() + evenPageLeftMargin->value()) * f);
-      updatePreview(0);
-      }
-
-//---------------------------------------------------------
-//   updatePreview
-//---------------------------------------------------------
-
-void PageSettings::updatePreview(int val)
-      {
-      updateValues();
-      switch(val) {
-            case 0:
-                  preview->score()->doLayout();
-                  break;
-            case 1:
-                  preview->score()->doLayout();
-                  break;
-            }
-      preview->layoutChanged();
       }
 }
 
