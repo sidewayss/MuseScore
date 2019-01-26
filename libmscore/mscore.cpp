@@ -123,10 +123,6 @@ std::set<int> MScore::sizesMetric;
 std::set<int> MScore::sizesImperial;
 std::set<int> MScore::sizesOther;
 
-#ifdef SCRIPT_INTERFACE
-QQmlEngine* MScore::_qml = 0;
-#endif
-
 Sequencer* MScore::seq = 0;
 MuseScoreCore* MuseScoreCore::mscoreCore;
 
