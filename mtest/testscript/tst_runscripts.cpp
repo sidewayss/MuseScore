@@ -58,7 +58,7 @@ void TestScripts::runTestScripts()
       cwd.setSorting(QDir::Name);
       QStringList scripts = cwd.entryList();
 
-      QStringList args({ "--run-test-script" });
+      QStringList args({ "--test-mode" , "--run-test-script" });
       args << scripts;
 
       if (!QFileInfo(MSCORE_EXECUTABLE).exists())
