@@ -2558,6 +2558,8 @@ void MStyle::initPageLayout()
       _marginsEven = _pageEven.margins();
 
       cout << "pre : " << value(Sid::pageOddLeftMargin).toDouble() << endl;
+      cout << "testMode: " << MScore::testMode << endl;
+      cout << "units: " << unit << endl;
       fromPageLayout(true); ///!!! sync the styles, but not the older ones
       cout << "post: " << value(Sid::pageOddLeftMargin).toDouble() << endl;
       }
