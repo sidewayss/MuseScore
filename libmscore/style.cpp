@@ -2157,7 +2157,7 @@ void MStyle::precomputeValues()
 bool MStyle::isDefault(Sid idx) const
       {
       if (value(idx) != MScore::baseStyle().value(idx))
-          cout << endl << "isDef: " << value(idx).toInt() << "  " << MScore::baseStyle().value(idx).toInt() << endl;
+          cout << "isDef: " << value(idx).toInt() << "  " << MScore::baseStyle().value(idx).toInt() << "  " << MScore::defaultStyle().value(idx).toInt() << endl;
       return value(idx) == MScore::baseStyle().value(idx);
       }
 
@@ -2557,7 +2557,9 @@ void MStyle::initPageLayout()
       _marginsOdd  = _pageOdd .margins();
       _marginsEven = _pageEven.margins();
 
+      cout << endl << "pre : " << value(Sid::pageOddTopMargin).toInt() << endl;
       fromPageLayout(true); ///!!! sync the styles, but not the older ones
+      cout << endl << "post: " << value(Sid::pageOddTopMargin).toInt() << endl;
       }
 
 //------------------------------------------------------------------------------
@@ -2578,14 +2580,14 @@ void MStyle::fromPageLayout(bool isInit)
             else
                   marg = _pageOdd.margins(QPageLayout::Inch);
 
-            if (abs(value(Sid::pageWidth).toDouble()  - rect.width())  > 0.01)
+            if (abs(value(Sid::pageWidth) .toDouble() - rect.width())  > 0.01)
                   set(Sid::pageWidth,  rect.width());
             if (abs(value(Sid::pageHeight).toDouble() - rect.height()) > 0.01)
                   set(Sid::pageHeight, rect.height());
 
-            if (abs(value(Sid::pageOddLeftMargin).toDouble()   - marg.left())    > 0.01)
+            if (abs(value(Sid::pageOddLeftMargin)  .toDouble() - marg.left())    > 0.01)
                   set(Sid::pageOddLeftMargin,    marg.left());
-            if (abs(value(Sid::pageOddTopMargin).toDouble()    - marg.top())     > 0.01)
+            if (abs(value(Sid::pageOddTopMargin)   .toDouble() - marg.top())     > 0.01)
                   set(Sid::pageOddTopMargin,     marg.top());
             if (abs(value(Sid::pageOddBottomMargin).toDouble() - marg.bottom())  > 0.01)
                   set(Sid::pageOddBottomMargin,  marg.bottom());
@@ -2604,7 +2606,7 @@ void MStyle::fromPageLayout(bool isInit)
             else
                   marg = _pageEven.margins(QPageLayout::Inch);
 
-            if (abs(value(Sid::pageEvenTopMargin).toDouble()    - marg.top())     > 0.01)
+            if (abs(value(Sid::pageEvenTopMargin)   .toDouble() - marg.top())     > 0.01)
                   set(Sid::pageEvenTopMargin,     marg.top());
             if (abs(value(Sid::pageEvenBottomMargin).toDouble() - marg.bottom())  > 0.01)
                   set(Sid::pageEvenBottomMargin,  marg.bottom());
