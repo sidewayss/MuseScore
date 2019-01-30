@@ -2557,9 +2557,9 @@ void MStyle::initPageLayout()
       _marginsOdd  = _pageOdd .margins();
       _marginsEven = _pageEven.margins();
 
-      cout << endl << "pre : " << value(Sid::pageOddTopMargin).toInt() << endl;
+      cout << "pre : " << value(Sid::pageOddLeftMargin).toDouble() << endl;
       fromPageLayout(true); ///!!! sync the styles, but not the older ones
-      cout << endl << "post: " << value(Sid::pageOddTopMargin).toInt() << endl;
+      cout << "post: " << value(Sid::pageOddLeftMargin).toDouble() << endl;
       }
 
 //------------------------------------------------------------------------------
