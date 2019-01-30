@@ -11,7 +11,7 @@
 //=============================================================================
 
 #include "mscore.h"
-#include "style.h"
+//#include "style.h" ///!!!mscore.h already includes style.h
 #include "xml.h"
 #include "score.h"
 #include "articulation.h"
@@ -27,11 +27,14 @@
 #include "undo.h"
 
 namespace Ms {
-
-//  20 points        font design size
-//  72 points/inch   point size
-// 120 dpi           screen resolution
-//  spatium = 20/4 points
+////////////////////////////////////////////////////////////////////////////////
+// PostScript points and QPageSize::Point are at 72dpi
+// MuseScore multiplies that by the constant factor DPI_F
+// Currently DPI_F = 5, so internal resolution is 360dpi
+// At  72dpi MuseScore uses a  20pt music symbol font
+// At 360dpi that scales to a 100pt font
+// The spatium = 5pt at 72dpi, which scales to 25pt at 360dpi
+////////////////////////////////////////////////////////////////////////////////
 
 //---------------------------------------------------------
 //   StyleType
@@ -57,18 +60,34 @@ struct StyleType {
 //---------------------------------------------------------
 
 
-static const StyleType styleTypes[] {
+static const StyleType styleTypes[] { // page sizes and margins in points w/decimals
       { Sid::pageWidth,               "pageWidth",               210.0/INCH },
       { Sid::pageHeight,              "pageHeight",              297.0/INCH }, // A4
       { Sid::pagePrintableWidth,      "pagePrintableWidth",      190.0/INCH },
-      { Sid::pageEvenLeftMargin,      "pageEvenLeftMargin",      10.0/INCH  },
-      { Sid::pageOddLeftMargin,       "pageOddLeftMargin",       10.0/INCH  },
-      { Sid::pageEvenTopMargin,       "pageEvenTopMargin",       10.0/INCH  },
-      { Sid::pageEvenBottomMargin,    "pageEvenBottomMargin",    20.0/INCH  },
-      { Sid::pageOddTopMargin,        "pageOddTopMargin",        10.0/INCH  },
-      { Sid::pageOddBottomMargin,     "pageOddBottomMargin",     20.0/INCH  },
+      { Sid::pageEvenLeftMargin,      "pageEvenLeftMargin",       10.0/INCH },
+      { Sid::pageOddLeftMargin,       "pageOddLeftMargin",        10.0/INCH },
+      { Sid::pageEvenTopMargin,       "pageEvenTopMargin",        10.0/INCH },
+      { Sid::pageEvenBottomMargin,    "pageEvenBottomMargin",     20.0/INCH },
+      { Sid::pageOddTopMargin,        "pageOddTopMargin",         10.0/INCH },
+      { Sid::pageOddBottomMargin,     "pageOddBottomMargin",      20.0/INCH },
       { Sid::pageTwosided,            "pageTwosided",            true       },
 
+      ///!!!width & height defaults are overridden by either QPageSize::A4 or ::Letter
+      ///!!!based on QLocale::measurementUnits(), see MStyle::initPageLayout()
+      ///!!!and MScore::Init() for _baseStyle and _defaultStyle.
+      { Sid::pageSize,                "pageSize",                  0        }, // QPageSize::PageSizeId
+      { Sid::pageUnits,               "pageUnits",               pageUnits [0].key() },
+      { Sid::pageOrientation,         "pageOrientation",         pageOrient[0]       },
+      { Sid::pageFullWidth,           "pageFullWidth",           int(rint(210.0/INCH*PPI*MSCX_F)) },
+      { Sid::pageFullHeight,          "pageFullHeight",          int(rint(297.0/INCH*PPI*MSCX_F)) },
+      { Sid::marginOddLeft,           "marginOddLeft",           int(rint( 10.0/INCH*PPI*MSCX_F)) },
+      { Sid::marginOddRight,          "marginOddRight",          int(rint( 10.0/INCH*PPI*MSCX_F)) },
+      { Sid::marginOddTop,            "marginOddTop",            int(rint( 10.0/INCH*PPI*MSCX_F)) },
+      { Sid::marginOddBottom,         "marginOddBottom",         int(rint( 20.0/INCH*PPI*MSCX_F)) },
+      { Sid::marginEvenTop,           "marginEvenTop",           int(rint( 10.0/INCH*PPI*MSCX_F)) },
+      { Sid::marginEvenBottom,        "marginEvenBottom",        int(rint( 20.0/INCH*PPI*MSCX_F)) },
+
+      // most other numeric values are in staff spaces aka spatium units
       { Sid::staffUpperBorder,        "staffUpperBorder",        Spatium(7.0)  },
       { Sid::staffLowerBorder,        "staffLowerBorder",        Spatium(7.0)  },
       { Sid::staffDistance,           "staffDistance",           Spatium(6.5)  },
@@ -2350,6 +2369,7 @@ bool MStyle::load(QFile* qf)
                   int mscVersion  = sl[0].toInt() * 100 + sl[1].toInt();
                   if (mscVersion != MSCVERSION)
                         return false;
+//                  _isMMInch = mscVersion < 302; ///!!!
                   while (e.readNextStartElement()) {
                         if (e.name() == "Style")
                               load(e);
@@ -2358,10 +2378,20 @@ bool MStyle::load(QFile* qf)
                         }
                   }
             }
+      toPageLayout();
       return true;
       }
 
 extern void readPageFormat(MStyle* style, XmlReader& e);
+
+void MStyle::spatium301(XmlReader& e) {
+      _isMMInch = true;
+      QString txt = e.readElementText();
+      if (txt == "1.76389" || txt == "1.764" || txt == "1.7526" || txt == "1.753")
+            set(Sid::spatium, SPATIUM20); // cleans up rounding errors
+      else 
+            set(Sid::spatium, txt.toDouble() * DPMM);
+}
 
 void MStyle::load(XmlReader& e)
       {
@@ -2378,8 +2408,12 @@ void MStyle::load(XmlReader& e)
                   set(Sid::ottavaHookAbove, y);
                   set(Sid::ottavaHookBelow, -y);
                   }
-            else if (tag == "Spatium")
-                  set(Sid::spatium, e.readDouble() * DPMM);
+            else if (tag == "spatium") { ///!!!3.01+ lowercase
+                  set(Sid::spatium, e.readInt() / MSCX_F * DPI_F);            
+                  _isMMInch = false;     // "spatium" must follow "Spatium" in the file!
+                  }
+            else if (tag == "Spatium")  ///!!!3.01 initial caps
+                  spatium301(e);
             else if (tag == "page-layout") {    // obsolete
                   readPageFormat(this, e);      // from read206.cpp
                   }
@@ -2429,6 +2463,7 @@ void MStyle::load(XmlReader& e)
 
 void MStyle::save(XmlWriter& xml, bool optimize)
       {
+      fromPageLayout();
       xml.stag("Style");
 
       for (const StyleType& st : styleTypes) {
@@ -2471,7 +2506,8 @@ void MStyle::save(XmlWriter& xml, bool optimize)
             _chordList.write(xml);
             xml.etag();
             }
-      xml.tag("Spatium", value(Sid::spatium).toDouble() / DPMM);
+      xml.tag("Spatium", value(Sid::spatium).toDouble() / DPMM); ///!!!3.01
+      xml.tag("spatium", rint(value(Sid::spatium).toDouble() / DPI_F * MSCX_F)); ///!!!3.01+ last one wins at load time
       xml.etag();
       }
 
@@ -2483,6 +2519,212 @@ void MStyle::reset(Score* score)
       {
       for (const StyleType& st : styleTypes)
             score->undo(new ChangeStyleVal(score, st.styleIdx(), MScore::defaultStyle().value(st.styleIdx())));
+      }
+
+//--------------------------------------------------------------------------
+//   initPageLayout - only applied to MScore::_baseStyle and _defaultStyle
+//                    must wait until setMscoreLocale() is called in main()
+//--------------------------------------------------------------------------
+
+void MStyle::initPageLayout()
+      { // by default, units are millimeters or inches, depending on locale
+        // default preferences are initialized prior to default styles in main()
+      QPageLayout::Unit     unit;
+      QPageSize::PageSizeId psid;
+      if (MScore::testMode) {
+            unit = QPageLayout::Millimeter;
+            psid = QPageSize::A4;
+            }
+      else {
+            unit = QPageLayout::Unit(MScore::unitsValue());
+            psid = MStyle::isMetric(unit) ? QPageSize::A4
+                                          : QPageSize::Letter;
+            }
+      _pageSize = QPageSize(psid);           
+      _pageOdd  = MPageLayout();
+      _pageOdd.setPageSize(_pageSize);
+      _pageOdd.setUnits(QPageLayout::Millimeter);
+      _pageOdd.setMargins(QMarginsF(10, 10, 10, 20)); // default margins in millimeters
+      _pageOdd.setUnits(unit);                        // set to user locale units
+      _pageOdd.setOrientation(QPageLayout::Portrait);
+      _pageEven = MPageLayout(_pageOdd);
+
+      set(Sid::pageUnits, int(unit));
+      set(Sid::pageSize,  int(psid));
+
+      fromPageLayout(true); ///!!! sync the styles, but not the older ones
+      }
+
+//------------------------------------------------------------------------------
+//   from & toPageLayout convert between QPageLayout/QPageSize and style values
+//------------------------------------------------------------------------------
+void MStyle::fromPageLayout(bool isInit)
+      {
+      if (!isInit) {
+            // 3.01 styles
+            QRectF    rect = _pageOdd.fullRect(QPageLayout::Inch);
+            QMarginsF marg = _pageOdd.margins( QPageLayout::Inch);
+
+            if (abs(value(Sid::pageWidth).toDouble()  - rect.width())  > 0.01)
+                  set(Sid::pageWidth,  rect.width());
+            if (abs(value(Sid::pageHeight).toDouble() - rect.height()) > 0.01)
+                  set(Sid::pageHeight, rect.height());
+
+            if (abs(value(Sid::pageOddLeftMargin).toDouble()   - marg.left())    > 0.01)
+                  set(Sid::pageOddLeftMargin,    marg.left());
+            if (abs(value(Sid::pageOddTopMargin).toDouble()    - marg.top())     > 0.01)
+                  set(Sid::pageOddTopMargin,     marg.top());
+            if (abs(value(Sid::pageOddBottomMargin).toDouble() - marg.bottom())  > 0.01)
+                  set(Sid::pageOddBottomMargin,  marg.bottom());
+
+            double val = value(Sid::pageTwosided).toBool() ? marg.right() : marg.left();
+            if (abs(value(Sid::pageEvenLeftMargin).toDouble() - val) > 0.01)
+                  set(Sid::pageEvenLeftMargin, val);
+
+            marg = _pageEven.margins(QPageLayout::Inch);
+            if (abs(value(Sid::pageEvenTopMargin).toDouble()    - marg.top())     > 0.01)
+                  set(Sid::pageEvenTopMargin,     marg.top());
+            if (abs(value(Sid::pageEvenBottomMargin).toDouble() - marg.bottom())  > 0.01)
+                  set(Sid::pageEvenBottomMargin,  marg.bottom());
+
+            val = _pageOdd.paintRect(QPageLayout::Inch).width();
+            if (abs(value(Sid::pagePrintableWidth).toDouble() - val) > 0.01)
+                  set(Sid::pagePrintableWidth, val);
+            }
+      // 3.02 styles
+      set(Sid::pageFullWidth,    _pageOdd .widthPoints());
+      set(Sid::pageFullHeight,   _pageOdd .heightPoints());
+      set(Sid::marginOddLeft,    _pageOdd .leftMarginPoints());
+      set(Sid::marginOddRight,   _pageOdd .rightMarginPoints());
+      set(Sid::marginOddTop,     _pageOdd .topMarginPoints());
+      set(Sid::marginOddBottom,  _pageOdd .bottomMarginPoints());
+      set(Sid::marginEvenTop,    _pageEven.topMarginPoints());
+      set(Sid::marginEvenBottom, _pageEven.bottomMarginPoints());
+      set(Sid::pageSize,         int(_pageOdd.pageSize().id()));
+      set(Sid::pageOrientation,  pageOrient[int(_pageOdd.orientation())]);      
+      set(Sid::pageUnits,        pageUnits [int(_pageOdd.units())].key());
+}
+
+void MStyle::toPageLayout()
+      {    // styles are in points * MSCX_F, page layouts are in user units
+      double  factor, w, h, left, right, top, bottom;
+      int     idxUnit, sz;
+      bool    isTwo  = value(Sid::pageTwosided).toBool();
+      QString qs;
+      QPageSize::PageSizeId psid;
+
+      if (_isMMInch) { ///!!!
+            factor = PPI * MSCX_F;
+            set(Sid::pageFullWidth,    rint(value(Sid::pageWidth)           .toDouble() * factor));
+            set(Sid::pageFullHeight,   rint(value(Sid::pageHeight)          .toDouble() * factor));
+            set(Sid::marginOddTop,     rint(value(Sid::pageOddTopMargin)    .toDouble() * factor));
+            set(Sid::marginOddBottom,  rint(value(Sid::pageOddBottomMargin) .toDouble() * factor));
+            set(Sid::marginEvenTop,    rint(value(Sid::pageEvenTopMargin)   .toDouble() * factor));
+            set(Sid::marginEvenBottom, rint(value(Sid::pageEvenBottomMargin).toDouble() * factor));
+            set(Sid::marginOddLeft,    rint(value(Sid::pageOddLeftMargin)   .toDouble() * factor));
+
+            sz = rint(value(Sid::pageEvenLeftMargin).toDouble() * factor);
+            if (isTwo)
+                  set(Sid::marginOddRight, sz);
+            else
+                  set(Sid::marginOddRight, rint(value(Sid::pagePrintableWidth).toDouble() * factor) - sz);
+
+            w = value(Sid::pageWidth) .toDouble();
+            h = value(Sid::pageHeight).toDouble();
+            psid = QPageSize::id(QSizeF(w, h), QPageSize::Inch, QPageSize::FuzzyOrientationMatch);
+            set(Sid::pageSize, int(psid));
+      }
+      else
+            psid = QPageSize::PageSizeId(value(Sid::pageSize).toInt());
+
+      if (MScore::testMode)
+            idxUnit = int(QPageLayout::Millimeter);
+      else
+            idxUnit = MScore::unitsValue();
+
+      qs      = value(Sid::pageUnits).toString();
+      sz      = sizeof(pageUnits) / sizeof(pageUnits[0]);
+      for (int i = 0; i < sz; i++) {  // units stored as string for readability
+            if (pageUnits[i].key() == qs) {
+                  idxUnit = i;
+                  break;
+                  }
+            }
+
+      factor = pageUnits[idxUnit].factor();
+      w = value(Sid::pageFullWidth) .toInt() / factor; // w & h in user units
+      h = value(Sid::pageFullHeight).toInt() / factor;
+
+      if (psid != QPageSize::Custom) 
+            _pageSize = QPageSize(psid);
+      else 
+            _pageSize = QPageSize(QSizeF(w, h),
+                                  QPageSize::Unit(idxUnit),
+                                  QPageSize::name(psid),
+                                  QPageSize::ExactMatch);
+
+      // Odd and even margins' relationship defined by pageTwosided
+      left   = value(Sid::marginOddLeft)  .toInt() / factor;
+      right  = value(Sid::marginOddRight) .toInt() / factor;
+      top    = value(Sid::marginOddTop)   .toInt() / factor;
+      bottom = value(Sid::marginOddBottom).toInt() / factor;
+
+      QMarginsF oddMarg  = QMarginsF(left, top, right, bottom);
+      if (isTwo) {             // for two-sided pages:
+            double tmp = left; // even L/R margins = mirror-image of odd margins
+            left  = right;     // else: they are identical to odd margins
+            right = tmp;
+            }
+      top    = value(Sid::marginEvenTop)   .toInt() / factor;
+      bottom = value(Sid::marginEvenBottom).toInt() / factor;
+      QMarginsF evenMarg = QMarginsF(left, top, right, bottom);
+
+      QPageLayout::Orientation orient;
+      if (_isMMInch) { ///!!!
+            if (psid == QPageSize::Custom)
+                  orient = (h >= w ? QPageLayout::Portrait : QPageLayout::Landscape);
+            else {
+                  QSizeF size = _pageSize.definitionSize();
+                  if ((w > h) == (size.width() > size.height())) 
+                        orient = QPageLayout::Portrait;
+                  else
+                        orient = QPageLayout::Landscape;
+                  }
+            }
+      else
+            orient = value(Sid::pageOrientation).toString() == pageOrient[1]
+                   ? QPageLayout::Landscape
+                   : QPageLayout::Portrait; // defaults to portrait
+
+      _pageOdd  = MPageLayout();
+      _pageOdd.setPageSize(_pageSize);
+      _pageOdd.setUnits(QPageLayout::Unit(idxUnit));
+      _pageOdd.setMargins(oddMarg);
+      _pageOdd.setOrientation(orient);
+
+      _pageEven = MPageLayout(_pageOdd);
+      _pageEven.setMargins(evenMarg);
+
+      if (_isMMInch) { ///!!!
+            fromPageLayout();  ///!!!sync the styles, which are unchanged here
+            _isMMInch = false; ///!!!this gets called when page settings dialog opens because of score.clone()
+            }
+      }
+
+//---------------------------------------------------------
+//   isMetric
+//---------------------------------------------------------
+
+bool MStyle::isMetric(QPageLayout::Unit unit)
+      {
+      switch (unit) {
+            case QPageLayout::Millimeter:
+            case QPageLayout::Didot:
+            case QPageLayout::Cicero:
+                  return true;
+            default:
+                  return false;
+            }
       }
 
 #ifndef NDEBUG

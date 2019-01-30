@@ -7273,10 +7273,19 @@ int main(int argc, char* av[])
             QPrinter p;
             if (p.isValid()) {
 //                  qDebug("set paper size from default printer");
-                  QRectF psf = p.paperRect(QPrinter::Inch);
-                  MScore::defaultStyle().set(Sid::pageWidth,  psf.width());
-                  MScore::defaultStyle().set(Sid::pageHeight, psf.height());
-                  MScore::defaultStyle().set(Sid::pagePrintableWidth, psf.width()-20.0/INCH);
+                  MStyle&      def  = MScore::defaultStyle();
+                  MPageLayout& odd  = def.pageOdd();
+                  MPageLayout& even = def.pageEven();
+                  QPageSize    ps   = p.pageLayout().pageSize();
+
+                  def .setPageSize(ps);
+                  odd .setPageSize(ps);
+                  even.setPageSize(ps);
+///!!!minimum margins is a nice idea, but it implies additional code elsewhere
+///!!!            odd ->setUnits(p.pageLayout().units());
+///!!!            even->setUnits(p.pageLayout().units());
+///!!!            odd ->setMinimumMargins(p.pageLayout().minimumMargins());
+///!!!            even->setMinimumMargins(p.pageLayout().minimumMargins());
                   }
             }
 #endif

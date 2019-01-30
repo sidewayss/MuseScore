@@ -2676,9 +2676,14 @@ static void readStyle(MStyle* style, XmlReader& e)
 //                  style->setTextStyle(s);
                   e.skipCurrentElement();
                   }
-            else if (tag == "Spatium")
-                  style->set(Sid::spatium, e.readDouble() * DPMM);
-            else if (tag == "page-layout") {
+            else if (tag == "Spatium") {  ///!!!Never evaluates to true
+                  QString txt = e.readElementText();
+                  if (txt == "1.76389" || txt == "1.764" || txt == "1.7526" || txt == "1.753")
+                        style->set(Sid::spatium, SPATIUM20); // cleans up rounding errors
+                  else 
+                        style->set(Sid::spatium, txt.toDouble() * DPMM);
+            }
+            else if (tag == "page-layout") {  ///!!!Never evaluates to true
                   PageFormat pf;
                   initPageFormat(style, &pf);
                   pf.read(e);
@@ -2865,7 +2870,7 @@ Score::FileError MasterScore::read114(XmlReader& e)
             else if (tag == "SyntiSettings")
                   _synthesizerState.read(e);
             else if (tag == "Spatium")
-                  setSpatium (e.readDouble() * DPMM);
+                  style().spatium301(e);
             else if (tag == "Division")
                   _fileDivision = e.readInt();
             else if (tag == "showInvisible")
@@ -2914,6 +2919,7 @@ Score::FileError MasterScore::read114(XmlReader& e)
             else if (tag == "page-layout") {
                   PageFormat pf;
                   readPageFormat(&pf, e);
+                  setPageFormat(&style(), pf);
                   }
             else if (tag == "copyright" || tag == "rights") {
                   Text* text = new Text(this);

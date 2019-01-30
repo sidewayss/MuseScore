@@ -3387,6 +3387,15 @@ void Score::undoChangeStyleVal(Sid idx, const QVariant& v)
       }
 
 //---------------------------------------------------------
+//   undoChangeStylePtr
+//---------------------------------------------------------
+
+void Score::undoChangeStylePtrs(QPageSize& ps, MPageLayout& odd, MPageLayout& even)
+{
+      undo(new ChangeStylePtrs(this, ps, odd, even));
+}
+
+//---------------------------------------------------------
 //   undoChangePageNumberOffset
 //---------------------------------------------------------
 

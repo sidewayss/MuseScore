@@ -80,6 +80,7 @@ bool  MScore::saveTemplateMode = false;
 bool  MScore::noGui = false;
 
 MStyle* MScore::_defaultStyleForParts;
+int     MScore::_unitsValue;
 
 QString MScore::_globalShare;
 int     MScore::_vRaster;
@@ -117,6 +118,10 @@ bool    MScore::svgPrinting = false;
 double  MScore::pixelRatio  = 0.8;        // DPI / logicalDPI
 
 MPaintDevice* MScore::_paintDevice;
+
+std::set<int> MScore::sizesMetric;
+std::set<int> MScore::sizesImperial;
+std::set<int> MScore::sizesOther;
 
 Sequencer* MScore::seq = 0;
 MuseScoreCore* MuseScoreCore::mscoreCore;
@@ -299,7 +304,9 @@ void MScore::init()
       //
       //  initialize styles
       //
+      _baseStyle.initPageLayout();
       _baseStyle.precomputeValues();
+      _defaultStyle.initPageLayout();
       QSettings s;
       QString defStyle = s.value("score/style/defaultStyleFile").toString();
       if (!(MScore::testMode || defStyle.isEmpty())) {
@@ -321,6 +328,25 @@ void MScore::init()
                   _defaultStyleForParts->precomputeValues();
                   }
             }
+      unsigned i;
+      sizesMetric.insert(0);       // 3 types of paper sizes:
+      sizesMetric.insert(1);       // Metric, Imperial, Other
+      for (i =  5; i <= 23; ++i)   // No envelopes included
+            sizesMetric.insert(i);
+      for (i = 31; i <= 37; ++i)
+            sizesMetric.insert(i);
+
+      for (i =  2; i <=  4; ++i)
+            sizesImperial.insert(i);
+      for (i = 27; i <= 29; ++i)
+            sizesImperial.insert(i);
+      for (i = 49; i <= 70; ++i)
+            sizesImperial.insert(i);
+
+      for (i = 38; i <= 48; ++i)
+            sizesOther.insert(i);
+      for (i = 71; i <= 84; ++i)
+            sizesOther.insert(i);
 
       //
       //  load internal fonts
