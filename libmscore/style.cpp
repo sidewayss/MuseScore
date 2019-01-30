@@ -2567,7 +2567,7 @@ void MStyle::initPageLayout()
 //------------------------------------------------------------------------------
 void MStyle::fromPageLayout(bool isInit)
       {
-      if (!isInit || !MScore::testMode) { // 3.01 styles
+      if (!isInit && !MScore::testMode) { // 3.01 styles
             QRectF    rect = _pageOdd.fullRect(QPageLayout::Inch);
             QMarginsF marg;
             if (MScore::testMode) { ///!!!Travis workaround
