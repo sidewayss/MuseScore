@@ -2156,6 +2156,8 @@ void MStyle::precomputeValues()
 
 bool MStyle::isDefault(Sid idx) const
       {
+      if (value(idx) != MScore::baseStyle().value(idx))
+          cout << endl << "isDef: " << value(idx).toInt() << "  " << MScore::baseStyle().value(idx).toInt() << endl;
       return value(idx) == MScore::baseStyle().value(idx);
       }
 
