@@ -706,7 +706,7 @@
           </property>
           <layout class="QGridLayout" name="gridLayout_8">
            <property name="verticalSpacing">
-            <number>-1</number>
+            <number>6</number>
            </property>
            <item row="7" column="0" colspan="2">
             <widget class="QCheckBox" name="genClef">
@@ -1340,7 +1340,7 @@
           </property>
           <layout class="QGridLayout" name="gridLayout_27">
            <property name="horizontalSpacing">
-            <number>-1</number>
+            <number>6</number>
            </property>
            <item row="0" column="0">
             <widget class="QLabel" name="label_38">
@@ -2265,7 +2265,7 @@
           </property>
           <layout class="QGridLayout" name="_2">
            <property name="spacing">
-            <number>-1</number>
+            <number>6</number>
            </property>
            <item row="8" column="1">
             <widget class="Ms::OffsetSelect" name="measureNumberOffset" native="true"/>
@@ -2709,7 +2709,7 @@
                 </property>
                 <layout class="QHBoxLayout" name="horizontalLayout_13">
                  <property name="spacing">
-                  <number>-1</number>
+                  <number>6</number>
                  </property>
                  <item>
                   <widget class="QLabel" name="label_7">
@@ -2895,7 +2895,7 @@
              </property>
              <layout class="QGridLayout" name="_3">
               <property name="horizontalSpacing">
-               <number>-1</number>
+               <number>6</number>
               </property>
               <property name="verticalSpacing">
                <number>0</number>
@@ -3048,7 +3048,7 @@
              </property>
              <layout class="QGridLayout" name="_4">
               <property name="horizontalSpacing">
-               <number>-1</number>
+               <number>6</number>
               </property>
               <property name="verticalSpacing">
                <number>0</number>
@@ -6262,7 +6262,7 @@
           </property>
           <layout class="QGridLayout" name="gridLayout_7">
            <property name="verticalSpacing">
-            <number>-1</number>
+            <number>6</number>
            </property>
            <item row="5" column="0">
             <widget class="QLabel" name="label_9">
@@ -6596,7 +6596,7 @@
           </property>
           <layout class="QGridLayout" name="gridLayout0">
            <property name="verticalSpacing">
-            <number>-1</number>
+            <number>6</number>
            </property>
            <item row="3" column="2">
             <widget class="QToolButton" name="resetVoltaLineWidth">
@@ -6826,7 +6826,7 @@
           </property>
           <layout class="QGridLayout" name="gridLayout_12">
            <property name="verticalSpacing">
-            <number>-1</number>
+            <number>6</number>
            </property>
            <item row="3" column="2">
             <widget class="QToolButton" name="resetOttavaPosBelow">
@@ -8749,7 +8749,7 @@
           </property>
           <layout class="QGridLayout" name="gridLayout_24">
            <property name="spacing">
-            <number>-1</number>
+            <number>6</number>
            </property>
            <item row="3" column="0">
             <widget class="QLabel" name="label_189">
@@ -9143,7 +9143,7 @@
           </property>
           <layout class="QGridLayout" name="gridLayout_23">
            <property name="spacing">
-            <number>-1</number>
+            <number>6</number>
            </property>
            <item row="0" column="0">
             <widget class="QLabel" name="label_71">
@@ -10461,7 +10461,7 @@
           </property>
           <layout class="QGridLayout" name="gridLayout_131">
            <property name="verticalSpacing">
-            <number>-1</number>
+            <number>6</number>
            </property>
            <item row="2" column="0">
             <widget class="QLabel" name="label_601">
@@ -10644,7 +10644,7 @@
           </property>
           <layout class="QGridLayout" name="_12">
            <property name="spacing">
-            <number>-1</number>
+            <number>6</number>
            </property>
            <item row="0" column="0">
             <widget class="QLabel" name="labelStyleName">
@@ -11110,6 +11110,43 @@
        </property>
        <property name="flat">
         <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="resetToBase">
+       <property name="text">
+        <string>Reset to MuseScore Defaults</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="horizontalSpacer_18">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeType">
+        <enum>QSizePolicy::Fixed</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="saveAsDefault">
+       <property name="text">
+        <string>Save as Default</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="saveAsDefParts">
+       <property name="text">
+        <string>Save as Default for Parts</string>
        </property>
       </widget>
      </item>
