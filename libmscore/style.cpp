@@ -2563,7 +2563,7 @@ void MStyle::initPageLayout()
 //------------------------------------------------------------------------------
 void MStyle::fromPageLayout(bool isInit)
       {
-      if (!isInit) { // 3.01 styles
+      if (!isInit && !MScore::testMode) { // 3.01 styles
             QRectF    rect = _pageOdd.fullRect(QPageLayout::Inch);
             QMarginsF marg;
             if (MScore::testMode) { ///!!!Travis workaround
@@ -2615,13 +2615,13 @@ void MStyle::fromPageLayout(bool isInit)
       set(Sid::pageFullWidth,  _pageOdd.widthPoints());
       set(Sid::pageFullHeight, _pageOdd.heightPoints());
       if (MScore::testMode) { ///!!!Travis workaround
-            double factor = pageUnits[MScore::unitsValue()].factor();
-            set(Sid::marginOddLeft,    _marginsOdd .left()   * factor);
-            set(Sid::marginOddRight,   _marginsOdd .right()  * factor);
-            set(Sid::marginOddTop,     _marginsOdd .top()    * factor);
-            set(Sid::marginOddBottom,  _marginsOdd .bottom() * factor);
-            set(Sid::marginEvenTop,    _marginsEven.top()    * factor);
-            set(Sid::marginEvenBottom, _marginsEven.bottom() * factor);
+//            double factor = pageUnits[MScore::unitsValue()].factor();
+//            set(Sid::marginOddLeft,    _marginsOdd .left()   * factor);
+//            set(Sid::marginOddRight,   _marginsOdd .right()  * factor);
+//            set(Sid::marginOddTop,     _marginsOdd .top()    * factor);
+//            set(Sid::marginOddBottom,  _marginsOdd .bottom() * factor);
+//            set(Sid::marginEvenTop,    _marginsEven.top()    * factor);
+//            set(Sid::marginEvenBottom, _marginsEven.bottom() * factor);
       }
       else {
             set(Sid::marginOddLeft,    _pageOdd .leftMarginPoints());
