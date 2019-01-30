@@ -77,6 +77,7 @@ std::unique_ptr<ScriptEntry> ScoreTestScriptEntry::fromContext(const ScriptConte
 
 bool ScoreTestScriptEntry::execute(ScriptContext& ctx) const
       {
+      MScore::testMode = true;
       MasterScore* curScore = ctx.mscore()->currentScore()->masterScore();
       if (!curScore) {
             ctx.execLog() << "ScoreTestScriptEntry: no current score" << endl;
