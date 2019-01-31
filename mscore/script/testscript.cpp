@@ -89,8 +89,7 @@ bool ScoreTestScriptEntry::execute(ScriptContext& ctx) const
             ctx.execLog() << "reference score loaded with errors: " << refFilePath << endl;
             return false;
             }
-ctx.execLog() << endl << "refFilePath: " << QString("%1").arg(refFilePath) << endl;
-ctx.execLog() << "testMode: " << MScore::testMode << endl;
+
       ScoreDiff diff(curScore, refScore.get(), /* textDiffOnly */ true);
       if (!diff.equal()) {
             ctx.execLog() << "ScoreTestScriptEntry: fail\n" << diff.rawDiff() << endl;
