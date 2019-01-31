@@ -5,7 +5,7 @@
     <currentLayer>0</currentLayer>
     <Division>480</Division>
     <Style>
-      <pagePrintableWidth>0.79</pagePrintableWidth>
+      <pagePrintableWidth>7.48032</pagePrintableWidth>
       <pageEvenLeftMargin>0.393701</pageEvenLeftMargin>
       <pageOddLeftMargin>0.393701</pageOddLeftMargin>
       <pageEvenTopMargin>0.393701</pageEvenTopMargin>
@@ -14,7 +14,7 @@
       <pageOddBottomMargin>0.787403</pageOddBottomMargin>
       <pageTwosided>0</pageTwosided>
       <marginOddLeft>283464</marginOddLeft>
-      <marginOddRight>5102363</marginOddRight>
+      <marginOddRight>5.10236e+06</marginOddRight>
       <marginOddTop>283464</marginOddTop>
       <marginOddBottom>566930</marginOddBottom>
       <marginEvenTop>283464</marginEvenTop>

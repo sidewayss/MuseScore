@@ -49,7 +49,7 @@ const char* tests[] = {
       "libmscore/tools/tst_tools",                    // some tests disabled
 //      "libmscore/plugins/tst_plugins", //WIP
 //      "libmscore/album/tst_album",     //WIP
-      "scripting/tst_scripting"
+      "scripting/tst_scripting",
       "guitarpro/tst_guitarpro",
       "biab/tst_biab",
       "capella/io/tst_capella_io",
