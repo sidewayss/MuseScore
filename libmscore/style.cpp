@@ -2156,12 +2156,27 @@ void MStyle::precomputeValues()
 
 bool MStyle::isDefault(Sid idx) const
       {
-      if (idx > Sid::pageFullWidth && idx < Sid::staffUpperBorder && value(idx) != MScore::baseStyle().value(idx)) {
-          if (value(idx).toInt() != MScore::baseStyle().value(idx).toInt())
-              cout << "wtf?" << endl;
-          cout << "isDef: " << styleTypes[int(idx)].valueType() << value(idx).toInt() << "  " << MScore::baseStyle().value(idx).toInt() << "  " << MScore::defaultStyle().value(idx).toInt() << endl;
-      }
-      return value(idx) == MScore::baseStyle().value(idx);
+      const char* type = styleTypes[int(idx)].valueType();
+      if (!strcmp("bool", type))
+            return value(idx).toBool() == MScore::baseStyle().value(idx).toBool();
+      else if (!strcmp("int", type)|| !strcmp("Ms::Direction", type))
+            return value(idx).toInt() == MScore::baseStyle().value(idx).toInt();
+      else if (!strcmp("double", type))
+            return value(idx).toDouble() == MScore::baseStyle().value(idx).toDouble();
+      else if (!strcmp("QString", type))
+            return value(idx).toString() == MScore::baseStyle().value(idx).toString();
+      else if (!strcmp("QPointF", type))
+            return value(idx).toPointF() == MScore::baseStyle().value(idx).toPointF();
+      else if (!strcmp("QSizeF", type))
+            return value(idx).toSizeF() == MScore::baseStyle().value(idx).toSizeF();
+      else if (!strcmp("QColor", type))
+            return value(idx).value<QColor>() == MScore::baseStyle().value(idx).value<QColor>();
+      else if (!strcmp("Ms::Align", type))
+            return Align(value(idx).toInt()) == Align(MScore::baseStyle().value(idx).toInt());
+      else if (!strcmp("Ms::Spatium", type))
+            return value(idx).value<Spatium>().val() == MScore::baseStyle().value(idx).value<Spatium>().val();
+      else ///!!!should never happen because MStyle::read() has rejected already as fatal.
+            return value(idx) == MScore::baseStyle().value(idx);
       }
 
 //---------------------------------------------------------
@@ -2484,9 +2499,9 @@ void MStyle::save(XmlWriter& xml, bool optimize)
                   xml.tag(st.name(), value(idx).toInt());
             else if (!strcmp("Ms::Align", type)) {
                   Align a = Align(value(idx).toInt());
-                  // Don't write if it's the default value
-                  if (a == Align(st.defaultValue().toInt()))
-                        continue;
+///!!!obsolete: new isDefault()                  // Don't write if it's the default value
+///!!!obsolete: new isDefault()                  if (a == Align(st.defaultValue().toInt()))
+///!!!obsolete: new isDefault()                        continue;
                   QString horizontal = "left";
                   QString vertical = "top";
                   if (a & Align::HCENTER)
