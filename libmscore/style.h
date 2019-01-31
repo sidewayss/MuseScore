@@ -1191,8 +1191,6 @@ class MStyle {
       MPageLayout _pageOdd;
       MPageLayout _pageEven;
       bool _isMMInch;       ///!!!for 3.01 to 3.01+ conversion
-      QMarginsF _marginsOdd; ///!!!Travis workaround
-      QMarginsF _marginsEven;
 
       ChordList _chordList;
       bool _customChordList;        // if true, chordlist will be saved as part of score

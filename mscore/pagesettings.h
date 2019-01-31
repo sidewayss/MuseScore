@@ -38,10 +38,6 @@ class PageSettings : public AbstractDialog, private Ui::PageSettingsBase {
       Navigator* preview;
       std::set<int>* _sizes;
 
-      ///!!!these next two should probably be in style.h, maybe as #define
-      const double picaCicero = 12;
-      const double didotToPt  =  1.06574601373228;
-
 //      std::unique_ptr<Score> clonedScoreForNavigator;
 
       virtual void hideEvent(QHideEvent*);
