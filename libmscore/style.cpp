@@ -2156,7 +2156,7 @@ void MStyle::precomputeValues()
 
 bool MStyle::isDefault(Sid idx) const
       {
-      if (value(idx) != MScore::baseStyle().value(idx))
+      if (idx < Sid::staffUpperBorder && value(idx) != MScore::baseStyle().value(idx))
           cout << "isDef: " << value(idx).toInt() << "  " << MScore::baseStyle().value(idx).toInt() << "  " << MScore::defaultStyle().value(idx).toInt() << endl;
       return value(idx) == MScore::baseStyle().value(idx);
       }
@@ -2468,6 +2468,7 @@ void MStyle::save(XmlWriter& xml, bool optimize)
       fromPageLayout();
       xml.stag("Style");
 
+      cout << "optimize: " << optimize << endl;
       for (const StyleType& st : styleTypes) {
             Sid idx = st.styleIdx();
             if (idx == Sid::spatium)       // special handling for spatium
