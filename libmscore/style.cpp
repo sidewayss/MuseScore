@@ -2600,15 +2600,7 @@ void MStyle::fromPageLayout(bool isInit)
             if (abs(value(Sid::pageEvenLeftMargin).toDouble() - val) > 0.01)
                   set(Sid::pageEvenLeftMargin, val);
 
-            if (MScore::testMode) { ///!!!Travis workaround
-                  double factor = pageUnits[MScore::unitsValue()].factor();
-                  marg = QMarginsF(_marginsEven.left()   * factor,
-                                   _marginsEven.top()    * factor,
-                                   _marginsEven.right()  * factor,
-                                   _marginsEven.bottom() * factor);
-                  }
-            else
-                  marg = _pageEven.margins(QPageLayout::Inch);
+            marg = _pageEven.margins(QPageLayout::Inch);
 
             if (abs(value(Sid::pageEvenTopMargin)   .toDouble() - marg.top())     > 0.01)
                   set(Sid::pageEvenTopMargin,     marg.top());
