@@ -1141,7 +1141,7 @@ public:
 //---------------------------------------------------------
 //   pageUnits - an array of PageUnit instances
 //---------------------------------------------------------
-const PageUnit pageUnits[] = { 
+const PageUnit pageUnits[] = {
       { "Millimeters",  QT_TRANSLATE_NOOP("unitName", "Millimeters"),  QT_TRANSLATE_NOOP("unitSuffix", "mm"), 1.0,  0.2,   PPI / INCH     },
       { "Points",       QT_TRANSLATE_NOOP("unitName", "Points"),       QT_TRANSLATE_NOOP("unitSuffix", "pt"), 1.0,  0.2,   1.0            },
       { "Inches",       QT_TRANSLATE_NOOP("unitName", "Inches"),       QT_TRANSLATE_NOOP("unitSuffix", "in"), 0.05, 0.005, PPI            },
@@ -1176,74 +1176,6 @@ class MPageLayout : public QPageLayout {
       int topMarginPoints()    { return lrint(margins().top()     * factor()); }
       int bottomMarginPoints() { return lrint(margins().bottom()  * factor()); }
       };
-///!!!moved here from mscore.h because mscore.h includes this file (style.h)
-///!!!I need some of these constants here in PageUnit and pageUnits[]
-static constexpr qreal INCH      = 25.4;
-static constexpr qreal PPI       = 72.0;           // printer points per inch
-static constexpr qreal DPI_F     = 5;              ///!!!this is the only integer in the group
-static constexpr qreal DPI       = DPI_F * PPI;
-static constexpr qreal SPATIUM20 = DPI_F * (DPI / PPI);
-static constexpr qreal DPMM      = DPI / INCH;
-static constexpr qreal DIDOT     = 1.06574601373228;
-static constexpr qreal CICERO    = 12.0;
-
-//---------------------------------------------------------
-//   PageUnit
-//    Units require a custom structure for text suffixes and
-//    widget steps because Qt does not provide them.
-//---------------------------------------------------------
-struct PageUnit {
-      const char* _name;
-      const char* _suffix;
-      qreal       _step;        // for spin widgets in specific units
-      qreal       _stepSpatium; // ditto
-      qreal       _factor;      // conversion-to-points factor
-
-public:
-      const char*  name()        const { return _name;           }
-      const char*  suffix()      const { return _suffix;         }
-      qreal        step()        const { return _step;           }
-      qreal        stepSpatium() const { return _stepSpatium;    }
-      qreal        factor()      const { return _factor;         }
-      qreal        paintFactor() const { return _factor * DPI_F; }
-      };
-
-//---------------------------------------------------------
-//   pageUnits - an array of PageUnit instances
-//---------------------------------------------------------
-const PageUnit pageUnits[] = { 
-      { QT_TRANSLATE_NOOP("unitName", "Millimeters"),  QT_TRANSLATE_NOOP("unitSuffix", "mm"), 1.0,  0.2,   PPI / INCH     },
-      { QT_TRANSLATE_NOOP("unitName", "Points"),       QT_TRANSLATE_NOOP("unitSuffix", "pt"), 1.0,  0.2,   1.0            },
-      { QT_TRANSLATE_NOOP("unitName", "Inches"),       QT_TRANSLATE_NOOP("unitSuffix", "in"), 0.05, 0.005, PPI            },
-      { QT_TRANSLATE_NOOP("unitName", "Picas"),        QT_TRANSLATE_NOOP("unitSuffix", "p"),  1.0,  0.1,   CICERO         },
-      { QT_TRANSLATE_NOOP("unitName", "Didot"),        QT_TRANSLATE_NOOP("unitSuffix", "dd"), 1.0,  0.5,   DIDOT          },
-      { QT_TRANSLATE_NOOP("unitName", "Cicero"),       QT_TRANSLATE_NOOP("unitSuffix", "c"),  1.0,  0.1,   DIDOT * CICERO },
-      { QT_TRANSLATE_NOOP("unitName", "Staff Spaces"), QT_TRANSLATE_NOOP("unitSuffix", "sp"), 0.1,  0.01,  0              }, ///!!! factor must be set, somehow, if ever used
-      { QT_TRANSLATE_NOOP("unitName", "Pixels"),       QT_TRANSLATE_NOOP("unitSuffix", "px"), 1.0,  1.0,   1.0 / DPI_F    }  ///!!! if ever used...
-      };
-
-class MPageLayout : public QPageLayout {
-   private:
-      double factor()      { return pageUnits[int(units())].factor();      }
-      double paintFactor() { return pageUnits[int(units())].paintFactor(); }
-   public:
-      double widthPoints()        { return fullRect().width()  * factor(); }
-      double heightPoints()       { return fullRect().height() * factor(); }
-
-      double leftMarginPoints()   { return margins().left()    * factor(); }
-      double rightMarginPoints()  { return margins().right()   * factor(); }
-      double topMarginPoints()    { return margins().top()     * factor(); }
-      double bottomMarginPoints() { return margins().bottom()  * factor(); }
-
-      double width()         { return fullRect().width()  * paintFactor(); }
-      double height()        { return fullRect().height() * paintFactor(); }
-      double paintWidth()    { return paintRect().width() * paintFactor(); }
-
-      double leftMargin()    { return margins().left()    * paintFactor(); }
-      double rightMargin()   { return margins().right()   * paintFactor(); }
-      double topMargin()     { return margins().top()     * paintFactor(); }
-      double bottomMargin()  { return margins().bottom()  * paintFactor(); }
-      };
 
 //---------------------------------------------------------
 //   MStyle
@@ -1258,7 +1190,7 @@ class MStyle {
       QPageSize   _pageSize;
       MPageLayout _pageOdd;
       MPageLayout _pageEven;
-      bool _isMMInch;       ///!!!for 3.01 to 3.01+ conversion
+      bool _isMMInch; ///!!!for 3.01 to 3.01+ conversion
 
       ChordList _chordList;
       bool _customChordList;        // if true, chordlist will be saved as part of score
@@ -1278,6 +1210,7 @@ class MStyle {
       void setPageSize(QPageSize&   val) { _pageSize = val; }
       void setPageOdd( MPageLayout& val) { _pageOdd  = val; };
       void setPageEven(MPageLayout& val) { _pageEven = val; }
+//      void setMMInch(bool b)             { _isMMInch = b; }; ///!!!
       bool isDefault(Sid idx) const;
 
       const ChordDescription* chordDescription(int id) const;

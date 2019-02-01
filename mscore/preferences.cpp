@@ -201,9 +201,6 @@ void Preferences::init(bool storeInMemoryOnly)
             {PREF_UI_PIANOROLL_LIGHT_BG_TEXT_COLOR,                new ColorPreference(QColor("#111111"))},
       });
 
-      QLocale* local = new QLocale();
-      set(PREF_APP_PAGE_UNITS_VALUE, local->measurementSystem() == QLocale::MetricSystem 
-                                   ? int(QPageSize::Millimeter) :  int(QPageSize::Inch));
       _initialized = true;
 
       updateLocalPreferences();

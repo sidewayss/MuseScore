@@ -954,8 +954,6 @@ Score::FileError MasterScore::read1(XmlReader& e, bool ignoreVersionError)
                         if (mscVersion() == 300)
                               return FileError::FILE_OLD_300_FORMAT;
                         }
-                  if (mscVersion() == 301) ///!!!temporary!!!
-                        style().setMMInch(true);
                   Score::FileError error;
                   if (mscVersion() <= 114)
                         error = read114(e);
@@ -1378,4 +1376,3 @@ Tuplet* Score::searchTuplet(XmlReader& /*e*/, int /*id*/)
       }
 
 }
-

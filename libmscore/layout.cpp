@@ -3571,12 +3571,9 @@ void Score::layoutSystemElements(System* system, LayoutContext& lc)
                   if (!e || !e->isChordRest() || !score()->staff(e->staffIdx())->show())
                         continue;
                   ChordRest* cr = toChordRest(e);
-
-                  // layout beam
                   if (isTopBeam(cr)) {
                         cr->beam()->layout();
                         cr->beam()->addSkyline(system->staff(cr->beam()->staffIdx())->skyline());
-                        }
 
                   // layout chord-based fingerings
                   if (e->isChord()) {
@@ -3634,8 +3631,7 @@ void Score::layoutSystemElements(System* system, LayoutContext& lc)
                   while (de->tuplet() && de->tuplet()->elements().front() == de) {
                         Tuplet* t = de->tuplet();
                         t->layout();
-                        if (t->autoplace() && t->visible())
-                              system->staff(t->staffIdx())->skyline().add(t->shape().translated(t->pos() + t->measure()->pos()));
+                        system->staff(t->staffIdx())->skyline().add(t->shape().translated(t->pos() + t->measure()->pos()));
                         de = t;
                         }
                   }

@@ -47,8 +47,8 @@ PageSettings::PageSettings(QWidget* parent)
       typesList->addItem("Imperial");
       typesList->addItem("Other");
 
-    for (int i = 0; i <= QPageSize::Cicero; ++i)
-          unitsList->addItem(QString("%1 (%2)").arg(pageUnits[i].name())
+      for (int i = 0; i <= QPageSize::Cicero; ++i)
+            unitsList->addItem(QString("%1 (%2)").arg(pageUnits[i].name())
                                                  .arg(pageUnits[i].suffix()));
 
       ///!!!widget naming is inconsistent across modules in MuseScore.
@@ -656,7 +656,7 @@ void PageSettings::applyToScore(Score* score)
       MPageLayout& even  = prev->style().pageEven();
 
       score->undoChangeStylePtrs(psize, odd, even);
-      s->undoChangePageNumberOffset(pageOffsetEntry->value() - 1); ///!!!why isn't this a style???
+      score->undoChangePageNumberOffset(pageOffsetEntry->value() - 1); ///!!!why isn't this a style???
 
       score->undoChangeStyleVal(Sid::spatium,          prev->spatium());
       score->undoChangeStyleVal(Sid::pageTwosided,     twosided->isChecked());
