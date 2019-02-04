@@ -1190,7 +1190,7 @@ class MStyle {
       QPageSize   _pageSize;
       MPageLayout _pageOdd;
       MPageLayout _pageEven;
-      bool _isMMInch; ///!!!for 3.01 to 3.01+ conversion
+      bool _isMMInch;       ///!!!for 3.01 to 3.01+ conversion
 
       ChordList _chordList;
       bool _customChordList;        // if true, chordlist will be saved as part of score
@@ -1210,7 +1210,6 @@ class MStyle {
       void setPageSize(QPageSize&   val) { _pageSize = val; }
       void setPageOdd( MPageLayout& val) { _pageOdd  = val; };
       void setPageEven(MPageLayout& val) { _pageEven = val; }
-//      void setMMInch(bool b)             { _isMMInch = b; }; ///!!!
       bool isDefault(Sid idx) const;
 
       const ChordDescription* chordDescription(int id) const;
