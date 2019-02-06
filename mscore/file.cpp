@@ -7023,11 +7023,12 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
     if (!isPrevRest) {
         lyricsVTT += VTT_CLASS_END;
         mapVTT.insert(getCueID(startTick, score->lastSegment()->tick()), lyricsVTT);
-        if (!lyricsHTML.isEmpty())
+        if (!lyricsHTML.isEmpty()) {
             if (isItalic)
                 lyricsHTML += endItalics;
             mapHTML.insert(startTick, lyricsHTML);
             setVTT.insert(startTick);
+        }
     }
 
     // It's file time
