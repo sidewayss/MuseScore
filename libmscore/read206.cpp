@@ -374,7 +374,7 @@ void setPageFormat(MStyle* style, const PageFormat& pf)
       style->set(Sid::pageOddBottomMargin,  pf.oddBottomMargin());
       style->set(Sid::pageTwosided,         pf.twosided());
 
-      // 3.02 styles
+      // 3.01+ styles
       double width  = PPI * MSCX_F * pf.size().width();
       double height = PPI * MSCX_F * pf.size().height();
       double left   = PPI * MSCX_F * pf.oddLeftMargin();

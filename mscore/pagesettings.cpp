@@ -47,10 +47,10 @@ PageSettings::PageSettings(QWidget* parent)
       typesList->addItem("Imperial");
       typesList->addItem("Other");
 
-      for (int i = 0; i <= QPageSize::Cicero; ++i)
-            unitsList->addItem(QString("%1 (%2)").arg(pageUnits[i].name())
+	for (int i = 0; i <= QPageSize::Cicero; ++i)
+	      unitsList->addItem(QString("%1 (%2)").arg(pageUnits[i].name())
                                                  .arg(pageUnits[i].suffix()));
-
+      
       ///!!!widget naming is inconsistent across modules in MuseScore.
       ///!!!I am following a mix of conventions and leaving some names unchanged
       connect(buttonReset,          SIGNAL(clicked()),            SLOT(resetToDefault()));
@@ -165,7 +165,7 @@ void PageSettings::updateWidgets()
             odd .setUnits(QPageLayout::Unit(idxUnit)); // handles conversions
             even.setUnits(QPageLayout::Unit(idxUnit)); // for widget display.
             }
-      else
+      else 
             idxUnit = int(odd.units());
 
       unitsList->setCurrentIndex(idxUnit);
@@ -329,7 +329,7 @@ void PageSettings::twosidedToggled(bool flag)
 
       evenPageLeftMargin ->blockSignals(true);
       evenPageRightMargin->blockSignals(true);
-      if (flag) {
+      if (flag) { 
             evenPageLeftMargin ->setValue(oddPageRightMargin ->value());
             evenPageRightMargin->setValue(oddPageLeftMargin->value());
             }
@@ -366,7 +366,7 @@ void PageSettings::widthHeightChanged(double w, double h)
       ///!!!whole integers. Exact match is only that exact, which is good. For
       ///!!!example: using inches, entering 8.5 x 10.83 selects Quarto page size.
       MStyle& style = preview->score()->style();
-      QSizeF  size  = QSizeF(w, h);
+      QSizeF  size  = QSizeF(w, h); 
                                      // Is the new page size custom or preset?
       QPageSize::Unit       unit = QPageSize::Unit(unitsList->currentIndex());
       QPageSize::PageSizeId psid = QPageSize::id(size, unit, QPageSize::ExactMatch);
@@ -470,7 +470,7 @@ void PageSettings::etmChanged(double val)
       MPageLayout& layout = preview->score()->style().pageEven();
       if (!layout.setTopMargin(val)) // only error is out of range
             layout.setTopMargin(marginMinMax(val,
-                                             layout.maximumMargins().top(),
+                                             layout.maximumMargins().top(), 
                                              evenPageTopMargin));
       updatePreview();
       }
@@ -515,14 +515,14 @@ void PageSettings::lrMargins(double val, bool isLeft, bool isOdd, QDoubleSpinBox
             other.setRightMargin(val);
             if (twosided->isChecked())
                   spinOther = isOdd ? evenPageRightMargin : oddPageRightMargin;
-            else
+            else 
                   spinOther = evenPageLeftMargin; // even left margin is disabled
             }
       else {
             other.setLeftMargin(val);
             if (twosided->isChecked())
                   spinOther = isOdd ? evenPageLeftMargin  : oddPageLeftMargin;
-            else
+            else 
                   spinOther = evenPageRightMargin; // even right margin is disabled
             }
       spinOther->blockSignals(true);
@@ -573,7 +573,7 @@ void PageSettings::ermChanged(double val)
 //---------------------------------------------------------
 
 void PageSettings::spatiumChanged(double val)
-      {
+      { 
       Score* score  = preview->score();
       double oldVal = score->spatium();
       double newVal;
@@ -588,7 +588,7 @@ void PageSettings::spatiumChanged(double val)
       else
             newVal = val * pageUnits[int(unit)].paintFactor();
 
-      score->setSpatium(newVal);
+      score->setSpatium(newVal); 
       score->spatiumChanged(oldVal, newVal);
       updatePreview();
       }
@@ -613,7 +613,7 @@ void PageSettings::unitsChanged()
       MStyle& style = preview->score()->style();
       style.pageOdd ().setUnits(u);
       style.pageEven().setUnits(u);
-      updateWidgets();
+      updateWidgets();               
       }
 
 //---------------------------------------------------------
@@ -643,47 +643,13 @@ void PageSettings::apply()
       }
 
 //---------------------------------------------------------
-//   applyToScore
+//   ok
 //---------------------------------------------------------
 
-void PageSettings::applyToScore(Score* score)
+void PageSettings::ok()
       {
-      score->startCmd();
-
-      Score*       prev  = preview->score();
-      QPageSize&   psize = prev->style().pageSize();
-      MPageLayout& odd   = prev->style().pageOdd();
-      MPageLayout& even  = prev->style().pageEven();
-
-      score->undoChangeStylePtrs(psize, odd, even);
-      score->undoChangePageNumberOffset(pageOffsetEntry->value() - 1); ///!!!why isn't this a style???
-
-      score->undoChangeStyleVal(Sid::spatium,          prev->spatium());
-      score->undoChangeStyleVal(Sid::pageTwosided,     twosided->isChecked());
-      score->undoChangeStyleVal(Sid::pageSize,         int(psize.id()));
-      score->undoChangeStyleVal(Sid::pageUnits,        pageUnits [int(odd.units())].key());
-      score->undoChangeStyleVal(Sid::pageOrientation,  pageOrient[int(odd.orientation())]);
-      score->undoChangeStyleVal(Sid::pageFullWidth,    odd.widthPoints());
-      score->undoChangeStyleVal(Sid::pageFullHeight,   odd.heightPoints());
-      score->undoChangeStyleVal(Sid::marginOddLeft,    odd.leftMarginPoints());
-      score->undoChangeStyleVal(Sid::marginOddRight,   odd.rightMarginPoints());
-      score->undoChangeStyleVal(Sid::marginOddTop,     odd.topMarginPoints());
-      score->undoChangeStyleVal(Sid::marginOddBottom,  odd.bottomMarginPoints());
-      score->undoChangeStyleVal(Sid::marginEvenTop,    even.topMarginPoints());
-      score->undoChangeStyleVal(Sid::marginEvenBottom, even.bottomMarginPoints());
-
-      ///!!! older 301 styles
-      score->undoChangeStyleVal(Sid::pageWidth,  odd.widthPoints()  / PPI);
-      score->undoChangeStyleVal(Sid::pageHeight, odd.heightPoints() / PPI);
-      score->undoChangeStyleVal(Sid::pagePrintableWidth, (odd.widthPoints() - odd.leftMarginPoints() - odd.rightMarginPoints()) / PPI);
-      score->undoChangeStyleVal(Sid::pageEvenTopMargin,    even.topMarginPoints()    / PPI);
-      score->undoChangeStyleVal(Sid::pageEvenBottomMargin, even.bottomMarginPoints() / PPI);
-      score->undoChangeStyleVal(Sid::pageEvenLeftMargin,   even.leftMarginPoints()   / PPI);
-      score->undoChangeStyleVal(Sid::pageOddTopMargin,     odd .topMarginPoints()    / PPI);
-      score->undoChangeStyleVal(Sid::pageOddBottomMargin,  odd .bottomMarginPoints() / PPI);
-      score->undoChangeStyleVal(Sid::pageOddLeftMargin,    odd .leftMarginPoints()   / PPI);
-
-      score->endCmd();
+      apply();
+      done(0);
       }
 
 //---------------------------------------------------------
@@ -693,17 +659,38 @@ void PageSettings::applyToScore(Score* score)
 void PageSettings::applyToAllParts()
       {
       for (Excerpt* e : cs->excerpts())
-            applyToScore(e->partScore());
+            applyToScore(e->partScore()); ///!!!This = 1 undo action per part
+      mscore->endCmd();
       }
 
 //---------------------------------------------------------
-//   ok
+//   applyToScore
 //---------------------------------------------------------
 
-void PageSettings::ok()
+void PageSettings::applyToScore(Score* score)
       {
-      apply();
-      done(0);
+      Score*       prev    = preview->score();
+      QPageSize&   psize   = prev->style().pageSize();
+      MPageLayout& odd     = prev->style().pageOdd();
+      MPageLayout& even    = prev->style().pageEven();
+      double       spatium = prev->spatium();
+      bool         twoSide = twosided->isChecked();
+      int          offset  = pageOffsetEntry->value() - 1;
+
+      // Avoid pushing "no-changes" onto the undo stack.
+      if (odd     == score->style().pageOdd()  // includes strict QPageSize comparison
+       && even    == score->style().pageEven()
+       && spatium == score->spatium()
+       && twoSide == score->style().value(Sid::pageTwosided).toBool()
+       && offset  == score->pageNumberOffset())
+            return;
+
+      score->startCmd();
+      score->undoChangeStylePtrs(psize, odd, even);
+      score->undoChangeStyleVal (Sid::spatium,      spatium);
+      score->undoChangeStyleVal (Sid::pageTwosided, twoSide);
+      score->undoChangePageNumberOffset(offset); ///!!!why isn't this a style???
+      score->endCmd();
       }
 
 //---------------------------------------------------------
@@ -716,3 +703,4 @@ void PageSettings::done(int val)
       QDialog::done(val);
       }
 }
+

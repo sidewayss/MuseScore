@@ -2409,7 +2409,7 @@ void MStyle::spatium301(XmlReader& e) {
       QString txt = e.readElementText();
       if (txt == "1.76389" || txt == "1.764" || txt == "1.7526" || txt == "1.753")
             set(Sid::spatium, SPATIUM20); // cleans up rounding errors
-      else
+      else 
             set(Sid::spatium, txt.toDouble() * DPMM);
 }
 
@@ -2429,7 +2429,7 @@ void MStyle::load(XmlReader& e)
                   set(Sid::ottavaHookBelow, -y);
                   }
             else if (tag == "spatium") { ///!!!3.01+ lowercase
-                  set(Sid::spatium, e.readInt() / MSCX_F * DPI_F);
+                  set(Sid::spatium, e.readInt() / MSCX_F * DPI_F);            
                   _isMMInch = false;     // "spatium" must follow "Spatium" in the file!
                   }
             else if (tag == "Spatium")  ///!!!3.01 initial caps
@@ -2551,7 +2551,7 @@ void MStyle::initPageLayout()
         // default preferences are initialized prior to default styles in main()
       QPageLayout::Unit     unit;
       QPageSize::PageSizeId psid;
-      if (MScore::testMode) {
+      if (MScore::testMode) { // testMode needs a consistent, default user
             unit = QPageLayout::Millimeter;
             psid = QPageSize::A4;
             }
@@ -2560,7 +2560,7 @@ void MStyle::initPageLayout()
             psid = MStyle::isMetric(unit) ? QPageSize::A4
                                           : QPageSize::Letter;
             }
-      _pageSize = QPageSize(psid);
+      _pageSize = QPageSize(psid);           
       _pageOdd  = MPageLayout();
       _pageOdd.setPageSize(_pageSize);
       _pageOdd.setUnits(QPageLayout::Millimeter);
@@ -2580,7 +2580,7 @@ void MStyle::initPageLayout()
 //------------------------------------------------------------------------------
 void MStyle::fromPageLayout(bool isInit)
       {
-      if (!isInit && !MScore::testMode) { // 3.01 styles
+      if (!isInit && !MScore::testMode) { // 3.01 styles + ///!!! Travis workaround
             QRectF    rect = _pageOdd.fullRect(QPageLayout::Inch);
             QMarginsF marg = _pageOdd.margins (QPageLayout::Inch);
 
@@ -2623,7 +2623,7 @@ void MStyle::fromPageLayout(bool isInit)
             set(Sid::marginEvenBottom, _pageEven.bottomMarginPoints());
       }
       set(Sid::pageSize,         int(_pageOdd.pageSize().id()));
-      set(Sid::pageOrientation,  pageOrient[int(_pageOdd.orientation())]);
+      set(Sid::pageOrientation,  pageOrient[int(_pageOdd.orientation())]);      
       set(Sid::pageUnits,        pageUnits [int(_pageOdd.units())].key());
 }
 
@@ -2659,7 +2659,7 @@ void MStyle::toPageLayout()
       else
             psid = QPageSize::PageSizeId(value(Sid::pageSize).toInt());
 
-      if (MScore::testMode)
+      if (MScore::testMode) // testMode needs a consistent, default user
             idxUnit = int(QPageLayout::Millimeter);
       else
             idxUnit = MScore::unitsValue();
@@ -2677,9 +2677,9 @@ void MStyle::toPageLayout()
       w = value(Sid::pageFullWidth) .toInt() / factor; // w & h in user units
       h = value(Sid::pageFullHeight).toInt() / factor;
 
-      if (psid != QPageSize::Custom)
+      if (psid != QPageSize::Custom) 
             _pageSize = QPageSize(psid);
-      else
+      else 
             _pageSize = QPageSize(QSizeF(w, h),
                                   QPageSize::Unit(idxUnit),
                                   QPageSize::name(psid),
@@ -2707,7 +2707,7 @@ void MStyle::toPageLayout()
                   orient = (h >= w ? QPageLayout::Portrait : QPageLayout::Landscape);
             else {
                   QSizeF size = _pageSize.definitionSize();
-                  if ((w > h) == (size.width() > size.height()))
+                  if ((w > h) == (size.width() > size.height())) 
                         orient = QPageLayout::Portrait;
                   else
                         orient = QPageLayout::Landscape;

@@ -33,18 +33,19 @@ class Score;
 enum class Sid {
       NOSTYLE = -1,
 
-      pageWidth,
+      pageWidth,           ///!!!3.01 old ids
       pageHeight,
-      pagePrintableWidth,  ///!!!3.02 obsolete
+      pagePrintableWidth,
       pageEvenLeftMargin,
       pageOddLeftMargin,
       pageEvenTopMargin,
       pageEvenBottomMargin,
       pageOddTopMargin,
-      pageOddBottomMargin, ///!!!end 3.02 obsolete
+      pageOddBottomMargin, ///!!!end 3.01
+
       pageTwosided,
 
-      pageSize,            ///!!!3.02 new ids
+      pageSize,            ///!!!3.01+ new ids
       pageUnits,
       pageOrientation,
       pageFullWidth,
@@ -54,7 +55,7 @@ enum class Sid {
       marginOddTop,
       marginOddBottom,
       marginEvenTop,
-      marginEvenBottom,    ///!!!end 3.02 new ids
+      marginEvenBottom,    ///!!!end 3.01+
 
       staffUpperBorder,
       staffLowerBorder,
@@ -482,7 +483,7 @@ enum class Sid {
 
       minVerticalDistance,
       ornamentStyle,
-      spatium,             ///!!!3.02 named staffSpace
+      spatium,
 
       autoplaceHairpinDynamicsDistance,
 
@@ -1141,7 +1142,7 @@ public:
 //---------------------------------------------------------
 //   pageUnits - an array of PageUnit instances
 //---------------------------------------------------------
-const PageUnit pageUnits[] = {
+const PageUnit pageUnits[] = { 
       { "Millimeters",  QT_TRANSLATE_NOOP("unitName", "Millimeters"),  QT_TRANSLATE_NOOP("unitSuffix", "mm"), 1.0,  0.2,   PPI / INCH     },
       { "Points",       QT_TRANSLATE_NOOP("unitName", "Points"),       QT_TRANSLATE_NOOP("unitSuffix", "pt"), 1.0,  0.2,   1.0            },
       { "Inches",       QT_TRANSLATE_NOOP("unitName", "Inches"),       QT_TRANSLATE_NOOP("unitSuffix", "in"), 0.05, 0.005, PPI            },

@@ -657,10 +657,10 @@ class ChangeStyleVal : public UndoCommand {
 //---------------------------------------------------------
 
 class ChangeStylePtrs : public UndoCommand {
-      Score*       score;
-      QPageSize&   ps;
-      MPageLayout& odd;
-      MPageLayout& even;      
+      Score*      score;
+      QPageSize   ps;
+      MPageLayout odd;
+      MPageLayout even;
 
       void flip(EditData*) override;
 

@@ -1523,9 +1523,9 @@ void ChangeStylePtrs::flip(EditData*)
       style.setPageOdd (odd);
       style.setPageEven(even);
 
-      ps = ps1;
-      odd = odd1;
-      even = even1;
+      ps   = QPageSize(ps1);
+      odd  = MPageLayout(odd1);
+      even = MPageLayout(even1);
 
       score->styleChanged();
 }
