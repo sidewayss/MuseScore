@@ -2156,27 +2156,29 @@ void MStyle::precomputeValues()
 
 bool MStyle::isDefault(Sid idx) const
       {
+      QVariant val  = value(idx);
+      QVariant base = MScore::baseStyle().value(idx);
       const char* type = styleTypes[int(idx)].valueType();
-      if (!strcmp("bool", type))
-            return value(idx).toBool() == MScore::baseStyle().value(idx).toBool();
-      else if (!strcmp("int", type)|| !strcmp("Ms::Direction", type))
-            return value(idx).toInt() == MScore::baseStyle().value(idx).toInt();
-      else if (!strcmp("double", type))
-            return value(idx).toDouble() == MScore::baseStyle().value(idx).toDouble();
-      else if (!strcmp("QString", type))
-            return value(idx).toString() == MScore::baseStyle().value(idx).toString();
-      else if (!strcmp("QPointF", type))
-            return value(idx).toPointF() == MScore::baseStyle().value(idx).toPointF();
-      else if (!strcmp("QSizeF", type))
-            return value(idx).toSizeF() == MScore::baseStyle().value(idx).toSizeF();
-      else if (!strcmp("QColor", type))
-            return value(idx).value<QColor>() == MScore::baseStyle().value(idx).value<QColor>();
-      else if (!strcmp("Ms::Align", type))
-            return Align(value(idx).toInt()) == Align(MScore::baseStyle().value(idx).toInt());
-      else if (!strcmp("Ms::Spatium", type))
-            return value(idx).value<Spatium>().val() == MScore::baseStyle().value(idx).value<Spatium>().val();
-      else ///!!!should never happen because MStyle::read() has rejected already as fatal.
-            return value(idx) == MScore::baseStyle().value(idx);
+      if      (!strcmp(type, "bool"))
+            return val.toBool()   == base.toBool();
+      else if (!strcmp(type, "int") || !strcmp(type, "Ms::Direction"))
+            return val.toInt()    == base.toInt();
+      else if (!strcmp(type, "double"))
+            return val.toDouble() == base.toDouble();
+      else if (!strcmp(type, "QString"))
+            return val.toString() == base.toString();
+      else if (!strcmp(type, "QPointF"))
+            return val.toPointF() == base.toPointF();
+      else if (!strcmp(type, "QSizeF"))
+            return val.toSizeF()  == base.toSizeF();
+      else if (!strcmp(type, "Ms::Align"))
+            return Align(val.toInt()) == Align(base.toInt());
+      else if (!strcmp(type, "QColor"))
+            return val.value<QColor>()        == base.value<QColor>();
+      else if (!strcmp(type, "Ms::Spatium"))
+            return val.value<Spatium>().val() == base.value<Spatium>().val();
+      else
+            return val == base; ///!!!never happens: rejected by MStyle::read()
       }
 
 //---------------------------------------------------------
@@ -2580,20 +2582,20 @@ void MStyle::initPageLayout()
 //------------------------------------------------------------------------------
 void MStyle::fromPageLayout(bool isInit)
       {
-      if (!isInit && !MScore::testMode) { // 3.01 styles
+      if (!MScore::testMode) { // 3.01 styles + ///!!!Travis workaround
             QRectF    rect = _pageOdd.fullRect(QPageLayout::Inch);
             QMarginsF marg = _pageOdd.margins (QPageLayout::Inch);
 
-            if (abs(value(Sid::pageWidth) .toDouble() - rect.width())  > 0.01)
+            if (abs(value(Sid::pageWidth) .toDouble() - rect.width())  >= 0.01)
                   set(Sid::pageWidth,  rect.width());
-            if (abs(value(Sid::pageHeight).toDouble() - rect.height()) > 0.01)
+            if (abs(value(Sid::pageHeight).toDouble() - rect.height()) >= 0.01)
                   set(Sid::pageHeight, rect.height());
 
-            if (abs(value(Sid::pageOddLeftMargin)  .toDouble() - marg.left())    > 0.01)
+            if (abs(value(Sid::pageOddLeftMargin)  .toDouble() - marg.left())    >= 0.01)
                   set(Sid::pageOddLeftMargin,    marg.left());
-            if (abs(value(Sid::pageOddTopMargin)   .toDouble() - marg.top())     > 0.01)
+            if (abs(value(Sid::pageOddTopMargin)   .toDouble() - marg.top())     >= 0.01)
                   set(Sid::pageOddTopMargin,     marg.top());
-            if (abs(value(Sid::pageOddBottomMargin).toDouble() - marg.bottom())  > 0.01)
+            if (abs(value(Sid::pageOddBottomMargin).toDouble() - marg.bottom())  >= 0.01)
                   set(Sid::pageOddBottomMargin,  marg.bottom());
 
             double val = value(Sid::pageTwosided).toBool() ? marg.right() : marg.left();
@@ -2602,9 +2604,9 @@ void MStyle::fromPageLayout(bool isInit)
 
             marg = _pageEven.margins(QPageLayout::Inch);
 
-            if (abs(value(Sid::pageEvenTopMargin)   .toDouble() - marg.top())     > 0.01)
+            if (abs(value(Sid::pageEvenTopMargin)   .toDouble() - marg.top())     >= 0.01)
                   set(Sid::pageEvenTopMargin,     marg.top());
-            if (abs(value(Sid::pageEvenBottomMargin).toDouble() - marg.bottom())  > 0.01)
+            if (abs(value(Sid::pageEvenBottomMargin).toDouble() - marg.bottom())  >= 0.01)
                   set(Sid::pageEvenBottomMargin,  marg.bottom());
 
             val = _pageOdd.paintRect(QPageLayout::Inch).width();
