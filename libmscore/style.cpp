@@ -2662,7 +2662,7 @@ void MStyle::toPageLayout()
       if (MScore::testMode) // testMode needs a consistent, default user
             idxUnit = int(QPageLayout::Millimeter);
       else
-            idxUnit = MScore::unitsValue();
+            idxUnit = MScore::unitsValue(); // global user default value
 
       qs      = value(Sid::pageUnits).toString();
       sz      = sizeof(pageUnits) / sizeof(pageUnits[0]);

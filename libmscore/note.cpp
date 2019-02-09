@@ -1111,10 +1111,12 @@ void Note::draw(QPainter* painter) const
       if (tablature) {
             const Staff* st = staff();
             const StaffType* tab = st->staffType(tick());
+            qreal  d  = 0;
+            QRectF bb;
             // draw background, if required (to hide a segment of string line or to show a fretting conflict)
             if (!tab->linesThrough() || fretConflict()) {
-                  qreal d  = spatium() * .1;
-                  QRectF bb = QRectF(bbox().x()-d, tab->fretMaskY() * magS(), bbox().width() + 2 * d, tab->fretMaskH()*magS());
+                  d  = spatium() * .1;
+                  bb = QRectF(bbox().x()-d, tab->fretMaskY() * magS(), bbox().width() + 2 * d, tab->fretMaskH()*magS());
                   // we do not know which viewer did this draw() call
                   // so update all:
                   if (!score()->getViewer().empty()) {
@@ -1136,7 +1138,16 @@ void Note::draw(QPainter* painter) const
             f.setPointSizeF(f.pointSizeF() * magS() * MScore::pixelRatio);
             painter->setFont(f);
             painter->setPen(c);
-            painter->drawText(QPointF(bbox().x(), tab->fretFontYOffset()), _fretString);
+            if (d == 0) {
+                  cout << _fretString.constData();
+                  cout << " l:" << bbox().left() << " r:" << bbox().right() << " t:" << bbox().top() << " b:" << bbox().bottom() << endl;
+                  painter->drawText(bbox(), _fretString, QTextOption(Qt::AlignCenter));
+                  }
+            else {
+                  cout << _fretString.constData();
+                  cout << " l:" << bb.left() << " r:" << bb.right() << " t:" << bb.top() << " b:" << bb.bottom() << " d:" << d << endl;
+                  painter->drawText(bb, _fretString, QTextOption(Qt::AlignCenter));
+                  }
             }
 
       // NOT tablature
