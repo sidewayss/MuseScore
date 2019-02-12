@@ -3353,7 +3353,7 @@ static void paintStaffLines(Score*        score,
             const int stdHeight  = 45;                //!!! see below
             const int idxVisible = (*pVisibleStaves)[idxStaff];
 
-            System* s = page->systems().value(0);
+            System* s = page->systems().value(page->systems().size() > 1 ? 1 : 0);
             top = s->staff(idxStaff)->y();
 
             if (s->firstMeasure()->vspacerUp(idxStaff) != 0) {
