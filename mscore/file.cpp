@@ -1055,8 +1055,10 @@ QString MuseScore::getSaveScoreName(const QString& title, QString& name,
                SLOT(saveScoreDialogFilterSelected(const QString&)));
             }
       QString s;
-      if (saveScoreDialog->exec())
+      if (saveScoreDialog->exec()) {
+            *selectedFilter = saveScoreDialog->selectedNameFilter();
             s = saveScoreDialog->selectedFiles().front();
+            }
       return s;
       }
 
@@ -4269,7 +4271,8 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
             if (isMulti) { // add to lyrics staff, but no cue
                 mapLyrics.insert("", e);
                 continue;
-            } // fall-through is by design, no break here
+            }
+//!!C++17            [[fallthrough]]; // fall-through is by design, no break here
         default:                        /// Un-animated (inanimate?) elements
             cue_id = "";
             break;
@@ -4346,6 +4349,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
     // Finish sheet music export and clean up
     score->setPrinting(false);
     MScore::pdfPrinting = false;
+    MScore::svgPrinting = false;
     p.end(); // Writes MuseScore (and Frozen) SVG file(s) to disk, finally
 
     // If there is tablature and isMulti, export fretboards too

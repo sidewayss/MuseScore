@@ -1146,7 +1146,7 @@ void Note::draw(QPainter* painter) const
 //                  cout << "draw: " << " l:" << bb.left() << " r:" << bb.right() << " t:" << bb.top() << " b:" << bb.bottom();
 //                  cout << " L:" << bbox().left() << " R:" << bbox().right() << " T:" << bbox().top() << " B:" << bbox().bottom() << endl;
                   cout << "x :" << x() << " pPx:" << pagePos().x() << " px:" << ipos().x() << " ox:" << offset().x() << " w:" << bb.width() << endl;
-                  painter->drawText(bb, _fretString, QTextOption(Qt::AlignCenter));
+                  painter->drawText(bb, MScore::svgPrinting ? Qt::AlignLeft : Qt::AlignCenter, _fretString);
                   }
             }
 

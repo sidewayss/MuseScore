@@ -83,6 +83,7 @@ using IntListVectVect = QVector<IntListVect*>;
 using Int2StrMap      = QMap<int, QString>;
 using Int2BoolMap     = std::map<int, bool>;
 using Int2IntMap      = std::map<int, int>;
+using Int2DblMap      = std::map<int, double>;
 using Int2RealMap     = QMap<int, qreal>;
 using IntSet          = std::set<int>;
 using IntPair         = std::pair<int, int>;

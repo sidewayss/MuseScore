@@ -152,6 +152,8 @@ private:
 //            tick       x      y
     map<int, RealPair> _offsets;
 
+    Int2DblMap _stemX;
+
 ////////////////////
 // for Frozen Pane:
 //
@@ -1001,9 +1003,9 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     // fill-rule is here because UpdateState() doesn't have a QPainterPath arg
     // Majority of <path>s use the default value: fill-rule="nonzero"
     switch (_et) {
+    case EType::NOTE         : // Tablature has rects behind numbers
     case EType::BEAM         :
     case EType::BRACKET      :
-    case EType::NOTE         : // Tablature has rects behind numbers
     case EType::SLUR_SEGMENT :
     case EType::TREMOLO      :
         if (_et == EType::BEAM)
@@ -1026,14 +1028,9 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
         }
         switch (ppe.type) {
         case QPainterPath::MoveToElement:
-            qts << SVG_M;
         case QPainterPath::LineToElement:
-            if (ppe.type != QPainterPath::MoveToElement)
-                qts << SVG_L;
-            if (isBeam)
-                qts << qRound(x) << SVG_COMMA << qRound(y);
-            else
-                qts << x << SVG_COMMA << y;
+            qts << (ppe.type == QPainterPath::MoveToElement ? SVG_M : SVG_L);
+            qts << x << SVG_COMMA << y;
             break;
         case QPainterPath::CurveToElement:
             qts << SVG_C << x << SVG_COMMA << y;
@@ -1111,6 +1108,8 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
                 z = pt.x() + _dx;
                 x = qFloor(z) + 0.5;
                 qts << x << SVG_COMMA << qRound(pt.y() + _dy + yOff);
+                if (_e->staff()->isTabStaff(0))
+                    _stemX[_e->tick()] = x;
                 x -= z;
             }
             else if (isLedger) {
@@ -1244,14 +1243,19 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     // Begin the <text>
     qts << SVG_TEXT_BEGIN << classState;
 
+    tick = _e->tick();
     switch (_et) {
     case EType::NOTE              :
         pitch = static_cast<const Ms::Note*>(_e)->pitch();
+        if (_e->staff()->isTabStaff(0) && _stemX.find(tick) != _stemX.end()) {
+            x = _stemX[tick];
+            break;
+        }
+//!!C++17        [[fallthrough]];
     case EType::ACCIDENTAL        :
     case EType::ARTICULATION      :
     case EType::HOOK              :
     case EType::NOTEDOT           :
-        tick = _e->tick();
         if (_offsets.find(tick) != _offsets.end()) {
             RealPair& xy = _offsets[tick];
             x += xy.first;
@@ -1540,6 +1544,7 @@ QString SvgPaintEngine::getClass()
             eName= QString("%1%2").arg(SVG_PREFIX_TAB).arg(_e->name(_et));
             break;
         } // else fall-through to default for these element types
+//!!C++17        [[fallthrough]];
     default:
         // For most cases it's simply the element type name
         eName = _e->name(_et);
