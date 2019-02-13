@@ -148,15 +148,16 @@ private:
 // For centering text in frames. The frame is drawn first, before the text.
     QRectF _textFrame;
 
+////////////////////
+// SMAWS
 // For notes and other elements to get the offsets from stems and ledger lines
 //            tick       x      y
     map<int, RealPair> _offsets;
 
-    Int2DblMap _stemX;
+// class="tabNote" position
+    Int2DblMap _stemX; // by tick
 
-////////////////////
-// for Frozen Pane:
-//
+// Frozen Pane
     using FDef  = QMap<QString, StrPtrList*>;       // Key    = idxStaff-EType
     using FDefs = QMap<QString, FDef*>; //by cue_id // Values = <text> elements
 
@@ -192,7 +193,7 @@ protected:
           EType        _et; // That element's ::Type - it's used everywhere
 
 ////////////////////
-// SMAWS only:
+// SMAWS
     QString _cue_id;           // The current VTT cue ID
     bool    _isSMAWS;          // In order to use SMAWS code only when necessary
     bool    _isScrollVertical; // Only 2 axes: x = false, y = true.
@@ -204,8 +205,9 @@ protected:
     qreal   _sysLeft;          // Left and right edges of staff lines on the
     qreal   _sysRight;         // page for part title and credits formatting
     int     _nLines;           // Number of staff lines for a part
+    IntVect _staffLinesY;      // by staff line for the current _idxStaff
 ////////////////////
-// for Frozen Pane:
+// Frozen Pane
 //
     bool _isFrozen; // Is _e part of a frozen pane?
     int  _nStaves;  // Number of staves in the current score
@@ -719,8 +721,7 @@ void SvgPaintEngine::updateState(const QPaintEngineState &s)
         qts << QString("%1%2").arg(_classValue).arg(SVG_QUOTE);
         qts.setFieldWidth(0);
         // Then stream the Cue ID
-        if (!_cue_id.isEmpty() && _et != EType::STAFF_LINES
-         && !(_classValue == "tabNote" && !(s.state() & QPaintEngine::DirtyFont)))
+        if (!_cue_id.isEmpty() && _et != EType::STAFF_LINES)
             qts << SVG_CUE << _cue_id << SVG_QUOTE;
     }
 
@@ -1101,12 +1102,15 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
         for (int i = 0; i < pointCount; ++i) {
             const QPointF &pt = points[i];
 
-            if (is24)
-                qts << qRound(pt.x() + _dx)               << SVG_COMMA
-                    << qRound(pt.y() + _dy + yOff);
+            if (is24) {
+                y = qRound(pt.y() + _dy + yOff);
+                qts << qRound(pt.x() + _dx) << SVG_COMMA << y;
+                if (isStaffLines && _e->staff()->isTabStaff(0))
+                    _staffLinesY.push_back(y);
+            }
             else if (isStem) {
                 z = pt.x() + _dx;
-                x = qFloor(z) + 0.5;
+                x = trunc(z) + 0.5;
                 qts << x << SVG_COMMA << qRound(pt.y() + _dy + yOff);
                 if (_e->staff()->isTabStaff(0))
                     _stemX[_e->tick()] = x;
@@ -1114,7 +1118,7 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
             }
             else if (isLedger) {
                 z = pt.y() + _dy + yOff;
-                y = qFloor(z) + 0.5;
+                y = trunc(z) + 0.5;
                 qts << qRound(pt.x() + _dx) << SVG_COMMA << y;
                 y -= z;
             }
@@ -1198,14 +1202,24 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 
 void SvgPaintEngine::drawRects(const QRectF *rects, int rectCount)
 {
-    for (int i = 0; i < rectCount; i++)
-        stream() << SVG_4SPACES << SVG_RECT << classState
-                 << formatXY(rects[i].x() + _dx + _offsets[_e->tick()].first,
-                             rects[i].y() + _dy,
-                             false)
-                 << SVG_WIDTH  << rects[i].width()  << SVG_QUOTE
-                 << SVG_HEIGHT << rects[i].height() << SVG_QUOTE
-                 << SVG_ELEMENT_END << endl;
+    for (int i = 0; i < rectCount; i++) {
+        if (_classValue == "tabNote") {
+            int w = rint(rects[i].width());
+            int h = max(4, int(rint(rects[i].height())) - 6); // 4 = line height * 2
+            if (!(w % 2)) // stems are 3px stroke width
+                w++;
+            if (h % 2)    // staff lines are 2px stroke-width
+                h--;      // opaque: height only needs to block staff line
+            int x = trunc(_stemX[_e->tick()] - (w / 2));
+            int y = _staffLinesY[static_cast<const Ms::Note*>(_e)->string()]
+                  - (h / 2);
+            stream() << SVG_4SPACES << SVG_RECT << classState
+                     << formatXY(x, y, false)
+                     << SVG_WIDTH  << w << SVG_QUOTE
+                     << SVG_HEIGHT << h << SVG_QUOTE
+                     << SVG_ELEMENT_END << endl;
+        }
+    }
 }
 
 void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
@@ -1214,7 +1228,6 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     if (_e == NULL)
         return;
 
-    int tick;
     qreal x, y;
 
     // Variables, constants, initial setup
@@ -1240,8 +1253,6 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         x = p.x() + _dx; // The de-translated coordinates
     y = p.y() + _dy + (_isFullMatrix ? 0 : _yOffset);
 
-    int pitch = -1;
-
     const QFont   font       = textItem.font();
     const QString fontFamily = font.family();
     const QString fontSize   = QString::number(font.pixelSize() != -1
@@ -1255,14 +1266,18 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     // Begin the <text>
     qts << SVG_TEXT_BEGIN << classState;
 
-    tick = _e->tick();
+    const Ms::Note* note;
+    int pitch = -1;
+    int tick  = _e->tick();
     switch (_et) {
     case EType::NOTE              :
-        pitch = static_cast<const Ms::Note*>(_e)->pitch();
+        note  = static_cast<const Ms::Note*>(_e);
+        pitch = note->pitch();
         if (_e->staff()->isTabStaff(0) && _stemX.find(tick) != _stemX.end()) {
             x = _stemX[tick];
-            break;
-        }
+            y = _staffLinesY[note->string()] + 1; //??stroke-width:2; 1 = 2 / 2?
+            break;                                //??numbers = no-sub-baseline?
+        } // fallthru
 //!!C++17        [[fallthrough]];
     case EType::ACCIDENTAL        :
     case EType::ARTICULATION      :
@@ -1556,7 +1571,7 @@ QString SvgPaintEngine::getClass()
         if (_e->staff()->isTabStaff(0)) {
             eName= QString("%1%2").arg(SVG_PREFIX_TAB).arg(_e->name(_et));
             break;
-        } // else fall-through to default for these element types
+        } // fallthru - else fall-through to default for these element types
 //!!C++17        [[fallthrough]];
     default:
         // For most cases it's simply the element type name
@@ -2213,7 +2228,9 @@ void SvgGenerator::setNStaves(int n) {
     Called by paintStaffLines() in mscore/file.cpp.
 */
 void SvgGenerator::setStaffLines(int n) {
-    static_cast<SvgPaintEngine*>(paintEngine())->_nLines = n;
+    SvgPaintEngine* pe = static_cast<SvgPaintEngine*>(paintEngine());
+    pe->_nLines = n;
+    pe->_staffLinesY.clear();
 }
 
 /*!
@@ -2319,6 +2336,7 @@ void SvgGenerator::beginMultiGroup(QStringList* pINames,
     QString fullName = (pFullNames  == 0 ? 0 : pFullNames->last());
     pe->_isMulti = true;
     pe->_prevDef = 0;
+    pe->_staffLinesY.clear();
     if (pINames != 0) {
         pe->_iNames    = pINames;
         pe->_fullNames = pFullNames;
