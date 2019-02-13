@@ -336,12 +336,12 @@ public:
     const QString qpenToSvg(const QPen &spen);
     const QString qbrushToSvg(const QBrush &sbrush);
 
+    void drawPath    (const QPainterPath &path);
+    void drawPolygon (const QPointF *points, int pointCount, PolygonDrawMode mode);
+    void drawRects   (const QRectF  *rects,  int rectCount);
     void drawTextItem(const QPointF &p, const QTextItem &textItem);
-    void drawPath(const QPainterPath &path);
-    void drawPolygon(const QPointF *points, int pointCount, PolygonDrawMode mode);
-
-    void drawPixmap(const QRectF &r, const QPixmap &pm, const QRectF &sr);
-    void drawImage(const QRectF &r, const QImage &pm, const QRectF &sr, Qt::ImageConversionFlag = Qt::AutoColor);
+    void drawPixmap  (const QRectF  &r, const QPixmap &pm, const QRectF &sr);
+    void drawImage   (const QRectF  &r, const QImage  &pm, const QRectF &sr, Qt::ImageConversionFlag = Qt::AutoColor);
 
     QPaintEngine::Type type() const { return QPaintEngine::SVG; }
 
@@ -1196,6 +1196,18 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
     }
 }
 
+void SvgPaintEngine::drawRects(const QRectF *rects, int rectCount)
+{
+    for (int i = 0; i < rectCount; i++)
+        stream() << SVG_4SPACES << SVG_RECT << classState
+                 << formatXY(rects[i].x() + _dx + _offsets[_e->tick()].first,
+                             rects[i].y() + _dy,
+                             false)
+                 << SVG_WIDTH  << rects[i].width()  << SVG_QUOTE
+                 << SVG_HEIGHT << rects[i].height() << SVG_QUOTE
+                 << SVG_ELEMENT_END << endl;
+}
+
 void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
 {
     // Just in case, this avoids crashes
@@ -1260,6 +1272,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
             RealPair& xy = _offsets[tick];
             x += xy.first;
             y += xy.second;
+            cout << "first:" << xy.first << endl;
         }
     case EType::BRACKET           :
     case EType::CLEF              :
