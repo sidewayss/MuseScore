@@ -1113,7 +1113,6 @@ void Note::draw(QPainter* painter) const
             const StaffType* tab = st->staffType(tick());
             qreal  d  = 0;
             QRectF bb;
-cout << "tY: " << tab->fretMaskY() << " mag:" << magS() << endl;
             // draw background, if required (to hide a segment of string line or to show a fretting conflict)
             if (!tab->linesThrough() || fretConflict()) {
                   d  = spatium() * .1;
@@ -1139,17 +1138,10 @@ cout << "tY: " << tab->fretMaskY() << " mag:" << magS() << endl;
             f.setPointSizeF(f.pointSizeF() * magS() * MScore::pixelRatio);
             painter->setFont(f);
             painter->setPen(c);
-            if (d == 0) {
-                  cout << " l:" << bbox().left() << " r:" << bbox().right() << " t:" << bbox().top() << " b:" << bbox().bottom() << endl;
+            if (d == 0)
                   painter->drawText(bbox(), _fretString, QTextOption(Qt::AlignCenter));
-                  }
-            else {
-//                  cout << "draw: " << " l:" << bb.left() << " r:" << bb.right() << " t:" << bb.top() << " b:" << bb.bottom();
-//                  cout << " L:" << bbox().left() << " R:" << bbox().right() << " T:" << bbox().top() << " B:" << bbox().bottom() << endl;
-                  cout << "x :" << bbox().x() << " y:" << bbox().y() << " w:" << bbox().width() << " h:" << bbox().height() << endl;
-                  cout << "X :" << bb.x()     << " Y:" << bb.y()     << " W:" << bb.width()     << " H:" << bb.height()     << endl;
+            else
                   painter->drawText(bb, MScore::svgPrinting ? Qt::AlignLeft : Qt::AlignCenter, _fretString);
-                  }
             }
 
       // NOT tablature
@@ -1177,7 +1169,6 @@ cout << "tY: " << tab->fretMaskY() << " mag:" << magS() << endl;
                   painter->restore();
                   }
             drawSymbol(_cachedNoteheadSym, painter);
-            cout << "xN:" << x() << " pPx:" << pagePos().x() << " px:" << ipos().x() << " ox:" << offset().x() << " w:" << bbox().width() << endl;
             }
       }
 
@@ -2002,9 +1993,6 @@ void Note::layout()
                   _fretString = QString("(%1)").arg(_fretString);
             qreal w = tabHeadWidth(tab); // !! use _fretString
             bbox().setRect(0.0, tab->fretBoxY() * mags, w, tab->fretBoxH() * mags);
-            cout << "tab : " << " X:" << pagePos().x() << " Y:" << pagePos().y();
-            cout << " x:" << canvasPos().x() << " y:" << canvasPos().y();
-            cout << " w:" << w << endl;
             }
       else {
             SymId nh = noteHead();
@@ -2020,9 +2008,6 @@ void Note::layout()
             else
                   _cachedSymNull = SymId::noSym;
             setbbox(symBbox(nh));
-            cout << "note: " << " X:" << pagePos().x() << " Y:" << pagePos().y();
-            cout << " x:" << canvasPos().x() << " y:" << canvasPos().y();
-            cout << " w:" << bbox().width() << endl;
             }
       }
 

@@ -110,8 +110,6 @@ void Stem::layout()
                   y1      += (up() ? n->stemUpSE().y() : n->stemDownNW().y());
                   rypos() = n->rypos();
                   }
-            cout << "stem"<< " X:" << pagePos().x() << " Y:" << pagePos().y();
-            cout << " x:" << canvasPos().x() << " y:" << canvasPos().y() << endl;
             }
 
       qreal lw5 = _lineWidth * .5 * mag();
@@ -159,7 +157,6 @@ void Stem::draw(QPainter* painter) const
 
       painter->setPen(QPen(curColor(), _lineWidth * mag(), Qt::SolidLine, Qt::RoundCap));
       painter->drawLine(line);
-      cout << "x1:" << line.x1() << " pPx:" << pagePos().x() << "px:" << ipos().x() << " ox:" << offset().x() << endl;
 
       if (!(useTab && chord()))
             return;

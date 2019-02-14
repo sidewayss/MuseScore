@@ -73,7 +73,6 @@ void TieSegment::draw(QPainter* painter) const
             }
       painter->setPen(pen);
       painter->drawPath(path);
-      cout << "tie x:" << bbox().x() << " y:" << bbox().y() << " w:" << bbox().width() << " h:" << bbox().height() << endl;
       }
 
 //---------------------------------------------------------
@@ -293,7 +292,6 @@ void TieSegment::computeBezier(QPointF p6o)
       if (staff()->isTabStaff(tick))
           pp1.setY(staff()->staffType(tick)->fretMaskY() * magS());
       t.translate(pp1.x(), pp1.y());
-cout << "Tie X: " << pp1.x() << " Y:" << pp1.y() << endl;
       t.rotateRadians(sinb);
       path                  = t.map(path);
       shapePath             = t.map(shapePath);

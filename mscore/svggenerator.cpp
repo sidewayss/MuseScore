@@ -736,8 +736,8 @@ void SvgPaintEngine::updateState(const QPaintEngineState &s)
     // These 2 have floating point flotsam, for example: 1.000000629
     // Both values should be integer 1, because no scaling is intended.
     // This rounds to three decimal places, as MuseScore does elsewhere.
-    const qreal m11 = qRound(t.m11() * 1000) / 1000.0;
-    const qreal m22 = qRound(t.m22() * 1000) / 1000.0;
+    const qreal m11 = rint(t.m11() * 1000) / 1000.0;
+    const qreal m22 = rint(t.m22() * 1000) / 1000.0;
 
     if ((m11 == 1 && m22 == 1 && t.m12() == t.m21()) // No scaling, no rotation
     || _classValue == CLASS_CLEF_COURTESY) {         // All courtesy clefs
@@ -1023,15 +1023,19 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
         const QPainterPath::Element &ppe = p.elementAt(i);
         qreal x = ppe.x + _dx;
         qreal y = ppe.y + _dy + yOff;
+        int xB, yB;
         if (isBeam) {
-            x = qRound(x); // a path with no fill and no curves renders best
-            y = qRound(y); // when all the points are integers.
+            xB = rint(x); // a path with no fill and no curves renders best
+            yB = rint(y); // when all the points are integers.
         }
         switch (ppe.type) {
         case QPainterPath::MoveToElement:
         case QPainterPath::LineToElement:
             qts << (ppe.type == QPainterPath::MoveToElement ? SVG_M : SVG_L);
-            qts << x << SVG_COMMA << y;
+            if (isBeam)
+                qts << xB << SVG_COMMA << yB; // always whole int values
+            else
+                qts << x  << SVG_COMMA << y;
             break;
         case QPainterPath::CurveToElement:
             qts << SVG_C << x << SVG_COMMA << y;
@@ -1078,8 +1082,8 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
         bool  isBarLine    = (_et == EType::BAR_LINE);    // stroke-width="4", vertical
         bool  isLedger     = (_et == EType::LEDGER_LINE); // stroke-width="3", horizontal
         bool  isStem       = (_et == EType::STEM);        // stroke-width="3", vertical
-        bool  is24   = isBarLine || isStaffLines;
-        bool  is3    = isLedger  || isStem;
+        bool  is24   = isBarLine || isStaffLines; // vertical || horizontal lines
+        bool  is3    = isStem    || isLedger;     // ditto
         int   height = _e->bbox().height();
         qreal yOff   = _isFullMatrix ? 0 : _yOffset;
         qreal x, y, z;
@@ -1103,10 +1107,8 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
             const QPointF &pt = points[i];
 
             if (is24) {
-                y = qRound(pt.y() + _dy + yOff);
-                qts << qRound(pt.x() + _dx) << SVG_COMMA << y;
-                if (isStaffLines && _e->staff()->isTabStaff(0))
-                    _staffLinesY.push_back(y);
+                y = rint(pt.y() + _dy + yOff);
+                qts << qRound(pt.x() + _dx) << SVG_COMMA << int(y);
             }
             else if (isStem) {
                 z = pt.x() + _dx;
@@ -1130,6 +1132,8 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 
         }
         qts << SVG_QUOTE;
+        if (isStaffLines && _e->staff()->isTabStaff(_e->tick()))
+            _staffLinesY.push_back(y);
 
         if (is3) {
             qts.setRealNumberPrecision(SVG_PRECISION); // revert
@@ -1164,8 +1168,8 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 
         // For Frozen Pane (horizontal scrolling only), staff lines only
         if (_isFrozen) {
-            const int x1 = qRound(points[0].x() + _dx);
-            const int y  = qRound(points[0].y() + _dy + yOff); // y1 == y2
+            const int x1 = rint(points[0].x() + _dx);
+            const int y  = rint(points[0].y() + _dy + yOff); // y1 == y2
 
             if (frozenLines[_idxStaff] == 0) {
                 frozenLines[_idxStaff] = new QString;
@@ -1727,7 +1731,7 @@ void SvgPaintEngine::freezeDef(int idxStaff)
     // The width of the entire frozen pane for this _cue_id
     // if (_isMulti) this runs more than once, so we use the widest value.
     // If MuseScore ever allows different keysigs by staff, this code is ready. :-)
-    w = qRound(timeX + (13 * Ms::DPI_F));                             //!!!13 = timesig width plus 3 for margin/rounding
+    w = rint(timeX + (13 * Ms::DPI_F));                               //!!!13 = timesig width plus 3 for margin/rounding
     if (!frozenWidths.contains(_cue_id) || frozenWidths[_cue_id] < w) //!!!what about 12/8 timesig???
         frozenWidths.insert(_cue_id, w);
 
@@ -2129,9 +2133,9 @@ int SvgGenerator::metric(QPaintDevice::PaintDeviceMetric metric) const
     case QPaintDevice::PdmDpiY:
         return d->engine->resolution();
     case QPaintDevice::PdmHeightMM:
-        return qRound(d->engine->size().height() / Ms::DPMM);
+        return rint(d->engine->size().height() / Ms::DPMM);
     case QPaintDevice::PdmWidthMM:
-        return qRound(d->engine->size().width() / Ms::DPMM);
+        return rint(d->engine->size().width() / Ms::DPMM);
     case QPaintDevice::PdmNumColors:
         return 0xffffffff;
     case QPaintDevice::PdmPhysicalDpiX:
