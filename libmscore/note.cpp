@@ -1113,6 +1113,7 @@ void Note::draw(QPainter* painter) const
             const StaffType* tab = st->staffType(tick());
             qreal  d  = 0;
             QRectF bb;
+cout << "tY: " << tab->fretMaskY() << " mag:" << magS() << endl;
             // draw background, if required (to hide a segment of string line or to show a fretting conflict)
             if (!tab->linesThrough() || fretConflict()) {
                   d  = spatium() * .1;
@@ -1145,7 +1146,8 @@ void Note::draw(QPainter* painter) const
             else {
 //                  cout << "draw: " << " l:" << bb.left() << " r:" << bb.right() << " t:" << bb.top() << " b:" << bb.bottom();
 //                  cout << " L:" << bbox().left() << " R:" << bbox().right() << " T:" << bbox().top() << " B:" << bbox().bottom() << endl;
-                  cout << "x :" << x() << " pPx:" << pagePos().x() << " px:" << ipos().x() << " ox:" << offset().x() << " w:" << bb.width() << endl;
+                  cout << "x :" << bbox().x() << " y:" << bbox().y() << " w:" << bbox().width() << " h:" << bbox().height() << endl;
+                  cout << "X :" << bb.x()     << " Y:" << bb.y()     << " W:" << bb.width()     << " H:" << bb.height()     << endl;
                   painter->drawText(bb, MScore::svgPrinting ? Qt::AlignLeft : Qt::AlignCenter, _fretString);
                   }
             }
