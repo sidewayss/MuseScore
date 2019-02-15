@@ -643,13 +643,47 @@ void PageSettings::apply()
       }
 
 //---------------------------------------------------------
-//   ok
+//   applyToScore
 //---------------------------------------------------------
 
-void PageSettings::ok()
+void PageSettings::applyToScore(Score* score)
       {
-      apply();
-      done(0);
+      score->startCmd();
+
+      Score*       prev  = preview->score();
+      QPageSize&   psize = prev->style().pageSize();
+      MPageLayout& odd   = prev->style().pageOdd();
+      MPageLayout& even  = prev->style().pageEven();
+
+      score->undoChangeStylePtrs(psize, odd, even);
+      score->undoChangePageNumberOffset(pageOffsetEntry->value() - 1); ///!!!why isn't this a style???
+
+      score->undoChangeStyleVal(Sid::spatium,          prev->spatium());
+      score->undoChangeStyleVal(Sid::pageTwosided,     twosided->isChecked());
+      score->undoChangeStyleVal(Sid::pageSize,         int(psize.id()));
+      score->undoChangeStyleVal(Sid::pageUnits,        pageUnits [int(odd.units())].key());
+      score->undoChangeStyleVal(Sid::pageOrientation,  pageOrient[int(odd.orientation())]);
+      score->undoChangeStyleVal(Sid::pageFullWidth,    odd.widthPoints());
+      score->undoChangeStyleVal(Sid::pageFullHeight,   odd.heightPoints());
+      score->undoChangeStyleVal(Sid::marginOddLeft,    odd.leftMarginPoints());
+      score->undoChangeStyleVal(Sid::marginOddRight,   odd.rightMarginPoints());   
+      score->undoChangeStyleVal(Sid::marginOddTop,     odd.topMarginPoints());
+      score->undoChangeStyleVal(Sid::marginOddBottom,  odd.bottomMarginPoints());
+      score->undoChangeStyleVal(Sid::marginEvenTop,    even.topMarginPoints());
+      score->undoChangeStyleVal(Sid::marginEvenBottom, even.bottomMarginPoints());
+
+      ///!!! older 301 styles
+      score->undoChangeStyleVal(Sid::pageWidth,  odd.widthPoints()  / PPI);
+      score->undoChangeStyleVal(Sid::pageHeight, odd.heightPoints() / PPI);
+      score->undoChangeStyleVal(Sid::pagePrintableWidth, (odd.widthPoints() - odd.leftMarginPoints() - odd.rightMarginPoints()) / PPI);
+      score->undoChangeStyleVal(Sid::pageEvenTopMargin,    even.topMarginPoints()    / PPI);
+      score->undoChangeStyleVal(Sid::pageEvenBottomMargin, even.bottomMarginPoints() / PPI);
+      score->undoChangeStyleVal(Sid::pageEvenLeftMargin,   even.leftMarginPoints()   / PPI);
+      score->undoChangeStyleVal(Sid::pageOddTopMargin,     odd .topMarginPoints()    / PPI);
+      score->undoChangeStyleVal(Sid::pageOddBottomMargin,  odd .bottomMarginPoints() / PPI);
+      score->undoChangeStyleVal(Sid::pageOddLeftMargin,    odd .leftMarginPoints()   / PPI);
+
+      score->endCmd();
       }
 
 //---------------------------------------------------------
@@ -659,38 +693,17 @@ void PageSettings::ok()
 void PageSettings::applyToAllParts()
       {
       for (Excerpt* e : cs->excerpts())
-            applyToScore(e->partScore()); ///!!!This = 1 undo action per part
-      mscore->endCmd();
+            applyToScore(e->partScore());
       }
 
 //---------------------------------------------------------
-//   applyToScore
+//   ok
 //---------------------------------------------------------
 
-void PageSettings::applyToScore(Score* score)
+void PageSettings::ok()
       {
-      Score*       prev    = preview->score();
-      QPageSize&   psize   = prev->style().pageSize();
-      MPageLayout& odd     = prev->style().pageOdd();
-      MPageLayout& even    = prev->style().pageEven();
-      double       spatium = prev->spatium();
-      bool         twoSide = twosided->isChecked();
-      int          offset  = pageOffsetEntry->value() - 1;
-
-      // Avoid pushing "no-changes" onto the undo stack.
-      if (odd     == score->style().pageOdd()  // includes strict QPageSize comparison
-       && even    == score->style().pageEven()
-       && spatium == score->spatium()
-       && twoSide == score->style().value(Sid::pageTwosided).toBool()
-       && offset  == score->pageNumberOffset())
-            return;
-
-      score->startCmd();
-      score->undoChangeStylePtrs(psize, odd, even);
-      score->undoChangeStyleVal (Sid::spatium,      spatium);
-      score->undoChangeStyleVal (Sid::pageTwosided, twoSide);
-      score->undoChangePageNumberOffset(offset); ///!!!why isn't this a style???
-      score->endCmd();
+      apply();
+      done(0);
       }
 
 //---------------------------------------------------------

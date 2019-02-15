@@ -33,19 +33,18 @@ class Score;
 enum class Sid {
       NOSTYLE = -1,
 
-      pageWidth,           ///!!!3.01 old ids
+      pageWidth,
       pageHeight,
-      pagePrintableWidth,
+      pagePrintableWidth,  ///!!!3.02 obsolete
       pageEvenLeftMargin,
       pageOddLeftMargin,
       pageEvenTopMargin,
       pageEvenBottomMargin,
       pageOddTopMargin,
-      pageOddBottomMargin, ///!!!end 3.01
-
+      pageOddBottomMargin, ///!!!end 3.02 obsolete
       pageTwosided,
 
-      pageSize,            ///!!!3.01+ new ids
+      pageSize,            ///!!!3.02 new ids
       pageUnits,
       pageOrientation,
       pageFullWidth,
@@ -55,7 +54,7 @@ enum class Sid {
       marginOddTop,
       marginOddBottom,
       marginEvenTop,
-      marginEvenBottom,    ///!!!end 3.01+
+      marginEvenBottom,    ///!!!end 3.02 new ids   
 
       staffUpperBorder,
       staffLowerBorder,
@@ -483,7 +482,7 @@ enum class Sid {
 
       minVerticalDistance,
       ornamentStyle,
-      spatium,
+      spatium,             ///!!!3.02 named staffSpace
 
       autoplaceHairpinDynamicsDistance,
 
