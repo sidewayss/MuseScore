@@ -2574,13 +2574,13 @@ void MStyle::initPageLayout()
       set(Sid::pageUnits, int(unit));
       set(Sid::pageSize,  int(psid));
 
-      fromPageLayout(true); ///!!! sync the styles, but not the older ones
+      fromPageLayout(); ///!!! sync the styles
       }
 
 //------------------------------------------------------------------------------
 //   from & toPageLayout convert between QPageLayout/QPageSize and style values
 //------------------------------------------------------------------------------
-void MStyle::fromPageLayout(bool isInit)
+void MStyle::fromPageLayout()
       {
       if (!MScore::testMode) { // 3.01 styles + ///!!!Travis workaround
             QRectF    rect = _pageOdd.fullRect(QPageLayout::Inch);

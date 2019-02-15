@@ -1226,7 +1226,7 @@ class MStyle {
 
       void reset(Score*);
 
-      void fromPageLayout(bool isInit = false);
+      void fromPageLayout();
       void   toPageLayout();
       void spatium301(XmlReader& e);
 
