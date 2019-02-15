@@ -76,7 +76,7 @@ extern QString tpc2name(int tpc, NoteSpellingType spelling, NoteCaseType noteCas
 extern void tpc2name(int tpc, NoteSpellingType noteSpelling, NoteCaseType noteCase, QString& s, QString& acc, bool explicitAccidental = false);
 extern void tpc2name(int tpc, NoteSpellingType noteSpelling, NoteCaseType noteCase, QString& s, int& acc);
 extern QString tpc2unicode(int tpc, NoteSpellingType spelling, NoteCaseType noteCase);
-extern void tpc2unicode(int tpc, NoteSpellingType noteSpelling, NoteCaseType noteCase, QString& s, QString& acc);
+extern void    tpc2unicode(int tpc, NoteSpellingType spelling, NoteCaseType noteCase, QString& s, QString& acc);
 extern int step2tpc(const QString& stepName, AccidentalVal alter);
 extern int step2tpc(int step);
 extern int step2tpc(int step, AccidentalVal alter);

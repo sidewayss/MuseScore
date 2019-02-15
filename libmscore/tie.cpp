@@ -287,11 +287,12 @@ void TieSegment::computeBezier(QPointF p6o)
       shapePath.cubicTo(p4 +p4o + th, p3 + p3o + th, QPointF());
 
       // translate back
-      t.reset();
       int tick = slurTie()->tick();
-      if (staff()->isTabStaff(tick))
-          pp1.setY(staff()->staffType(tick)->fretMaskY() * magS());
-      t.translate(pp1.x(), pp1.y());
+      double y = staff()->isTabStaff(tick)
+               ? (staff()->staffType(tick)->fretMaskY() * magS()) - (0.2 * _spatium)
+               : pp1.y();
+      t.reset();
+      t.translate(pp1.x(), y);
       t.rotateRadians(sinb);
       path                  = t.map(path);
       shapePath             = t.map(shapePath);
