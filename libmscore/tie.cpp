@@ -288,9 +288,9 @@ void TieSegment::computeBezier(QPointF p6o)
 
       // translate back
       int tick = slurTie()->tick();
-      double y = staff()->isTabStaff(tick)
-            ? (staff()->staffType(tick)->fretMaskY() * magS()) - (0.2 * _spatium)
-            : pp1.y();
+      double y = pp1.y();
+      if (staff()->isTabStaff(tick))
+            y += (_spatium * (slurTie()->up() ? -0.2 : 0.2));
       t.reset();
       t.translate(pp1.x(), y);
       t.rotateRadians(sinb);
