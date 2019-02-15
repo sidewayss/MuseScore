@@ -18,8 +18,8 @@
 
 namespace Ms {
 
-#define MSC_VERSION     "3.02" ///!!!temporary changes to enable conversions
-static constexpr int MSCVERSION = 302;
+#define MSC_VERSION     "3.01"
+static constexpr int MSCVERSION = 301;
 
 // History:
 //    1.3   added staff->_barLineSpan
