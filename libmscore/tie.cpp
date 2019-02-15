@@ -442,7 +442,7 @@ void Tie::slurPos(SlurPos* sp)
       // Inside:  Tab: 1/2 of Outside offset
       //          Std: use a fixed pecentage of note width
       qreal yOffOutside = useTablature
-            ? (_up ? stt->fretBoxY() : stt->fretBoxY() + stt->fretBoxH()) * magS()
+            ? (_up ? stt->fretMaskY() : stt->fretMaskY() + stt->fretMaskH()) * magS()
             : 0.75 * _spatium * __up;
       qreal yOffInside  = useTablature ? yOffOutside * 0.5 : hw * .3 * __up;
 

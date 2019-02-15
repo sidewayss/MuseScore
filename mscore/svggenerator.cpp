@@ -784,6 +784,7 @@ void SvgPaintEngine::updateState(const QPaintEngineState &s)
     case EType::STEM               :
     case EType::SYSTEM             :
     case EType::TEXT               :
+    case EType::TIE_SEGMENT        :
     case EType::TIMESIG            :
     case EType::TREMOLO            :
     case EType::TUPLET             :
