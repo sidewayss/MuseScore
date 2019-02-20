@@ -1054,16 +1054,16 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
                     qts << cmd;
                 if (cmd == SVG_M || cmd == SVG_L) {
                     // if/else if = M only, H or V lines = Mx,y Hx|Vy = never L
-                    tick = _e->tick();
+                    tick = _e->tick().ticks();
                     if (is24 || isBeam) {
                         qts << ix << SVG_COMMA << iy;
-                        if (isStaffLines && _e->staff()->isTabStaff(tick))
+                        if (isStaffLines && _e->staff()->isTabStaff(_e->tick()))
                             _staffLinesY.push_back(iy);
                     }
                     else if (isStem) {
                         z = trunc(x) + 0.5;
                         qts << z << SVG_COMMA << iy;
-                        if (_e->staff()->isTabStaff(0))
+                        if (_e->staff()->isTabStaff(_e->tick()))
                             _stemX[tick] = z;
                         _offsets[tick] = RealPair(z - x, 0); // stems first
                     }
@@ -1199,7 +1199,7 @@ void SvgPaintEngine::drawRects(const QRectF *rects, int rectCount)
                 w++;
             if (h % 2)    // staff lines are 2px stroke-width
                 h--;      // opaque: height only needs to block staff line
-            int x = trunc(_stemX[_e->tick()] - (w / 2));
+            int x = trunc(_stemX[_e->tick().ticks()] - (w / 2));
             int y = _staffLinesY[static_cast<const Ms::Note*>(_e)->string()]
                   - (h / 2);
             stream() << SVG_4SPACES << SVG_PATH  << SVG_D 
@@ -1258,13 +1258,13 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
 
     const Ms::Note* note;
     int pitch  = -1;
-    int tick   = _e->tick();
+    int tick   = _e->tick().ticks();
     bool isTab = false;
     switch (_et) {
     case EType::NOTE              :
         note  = static_cast<const Ms::Note*>(_e);
         pitch = note->pitch();
-        if (_e->staff()->isTabStaff(tick)) {
+        if (_e->staff()->isTabStaff(_e->tick())) {
             if (_stemX.find(tick) != _stemX.end())
                 x = _stemX[tick];
             y = _staffLinesY[note->string()] + 1; //??stroke-width:2; 1 = 2 / 2?
@@ -1413,7 +1413,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
                 yOffsetKeySig[_idxStaff] = 0;
 
                 // The x-offset for the ensuing time signature is determined by the number of accidentals
-                if (!xOffsetTimeSig.contains(_cue_id) && _e->staff()->isPitchedStaff(0))
+                if (!xOffsetTimeSig.contains(_cue_id) && _e->staff()->isPitchedStaff(Ms::Fraction()))
                     xOffsetTimeSig.insert(_cue_id,
                                           qAbs((int)(static_cast<const Ms::KeySig*>(_e)->keySigEvent().key()))
                                             * 5 * Ms::DPI_F); //!!! literal keysig-accidental-width
@@ -1453,7 +1453,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
                     // The solo (link off) version of instrument names, one for each
                     // staff. Linked staves' first staff's iname gets two elements.
                     if (frozenINameY.contains(_idxStaff))
-                        qts << getFrozenElement(textContent, _e->staff()->isTabStaff(0)
+                        qts << getFrozenElement(textContent, _e->staff()->isTabStaff(Ms::Fraction())
                                                 ? CLASS_INAME_TABS : CLASS_INAME_NOTE,
                                                 _et,
                                                 x,
@@ -1546,7 +1546,7 @@ QString SvgPaintEngine::getClass()
     case EType::BEAM :
     case EType::HOOK :
         // Tablature staves get prefixed class names for these element types
-        if (_e->staff()->isTabStaff(0)) {
+        if (_e->staff()->isTabStaff(Ms::Fraction())) {
             eName= QString("%1%2").arg(SVG_PREFIX_TAB).arg(_e->name(_et));
             break;
         } // fallthru - else fall-through to default for these element types
@@ -1675,7 +1675,7 @@ void SvgPaintEngine::freezeDef(int idxStaff)
                     qs->replace(fixedFormat(SVG_Y, frozenINameY[id1], d_func()->yDigits, true),
                                 fixedFormat(SVG_Y, frozenINameY[idx], d_func()->yDigits, true));
 
-                    if (_e->staff()->isTabStaff(0))
+                    if (_e->staff()->isTabStaff(Ms::Fraction()))
                         qs->replace(CLASS_INAME_NOTE, CLASS_INAME_TABS);
                     else
                         qs->replace(CLASS_INAME_TABS, CLASS_INAME_NOTE);

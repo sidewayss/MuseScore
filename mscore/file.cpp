@@ -3141,18 +3141,18 @@ static QString getCueID(int startTick, int endTick = -1)
 static QString getAnnCueID(Score* score, const Element* e, EType eType)
 {
     Segment* segStart = static_cast<Segment*>(e->parent());
-    int     startTick = segStart->tick();
+    int     startTick = segStart->tick().ticks();
 
     for (Segment* seg = segStart->next1MM(SegmentType::ChordRest);
                   seg; seg = seg->next1MM(SegmentType::ChordRest)) {
         for (Element* eAnn : seg->annotations()) {
             if (eAnn->type() == eType)
-                return getCueID(startTick, seg->tick());
+                return getCueID(startTick, seg->tick().ticks());
         }
     }
 
     // If there's no "next" annotation, this is the last one in the score
-    return getCueID(startTick, score->lastSegment()->tick());
+    return getCueID(startTick, score->lastSegment()->tick().ticks());
 }
 // getScrollCueID()
 // Gets the cue ID for zero-duration (scrolling) cues + rehearsal marks:
@@ -3180,14 +3180,14 @@ static QString getScrollCueID(Score* score, const Element* e)
         case EType::SYSTEM  :
             // System BarLines only used for scrolling = zero duration
             // System::firstMeasure() has the tick we need
-            cue_id = getCueID(static_cast<System*>(p)->firstMeasure()->tick());
+            cue_id = getCueID(static_cast<System*>(p)->firstMeasure()->tick().ticks());
             break;
         case EType::SEGMENT :
             // Measure BarLines are also zero duration, used for scrolling
             // and the rulers' playback position cursors.
             // RehearsalMarks only animate in the ruler, not in the score,
             // and they have full-duration cues, marker-to-marker.
-            cue_id = getCueID(static_cast<Measure*>(p->parent())->tick());
+            cue_id = getCueID(static_cast<Measure*>(p->parent())->tick().ticks());
             break;
         default:
             break; // Should never happen
@@ -3200,14 +3200,14 @@ static QString getScrollCueID(Score* score, const Element* e)
     case EType::CLEF       :
     case EType::KEYSIG     :
     case EType::TIMESIG    :
-        cue_id = getCueID(static_cast<Segment*>(p)->tick());
+        cue_id = getCueID(static_cast<Segment*>(p)->tick().ticks());
         break;
     case EType::INSTRUMENT_NAME :
     case EType::BRACKET :
         cue_id = CUE_ID_ZERO;
         break;
     case EType::INSTRUMENT_CHANGE :
-        cue_id = getCueID(static_cast<const InstrumentChange*>(e)->segment()->tick());
+        cue_id = getCueID(static_cast<const InstrumentChange*>(e)->segment()->tick().ticks());
         break;
     default: // Non-scrolling element types return an empty cue_id
         break;
@@ -3238,7 +3238,7 @@ static QString getScrollCueID(Score* score, const Element* e)
 //        if (m->isMeasureRest(idxStaff)) {
 //            if (!isPrevRest) {         // Start of gray-out cue
 //                isPrevRest = true;
-//                startTick  = m->tick();
+//                startTick  = m->tick().ticks();
 //            }
 //
 //            if (!m->nextMeasureMM()) { // Final measure is empty
@@ -3249,7 +3249,7 @@ static QString getScrollCueID(Score* score, const Element* e)
 //                    hasCues = true;
 //                }
 //
-//                cue_id = getCueID(startTick, m->tick() + m->ticks());
+//                cue_id = getCueID(startTick, m->tick().ticks() + m->ticks().ticks());
 //                qts << cue_id;
 //                pVTT->append(cue_id);
 //            }
@@ -3263,7 +3263,7 @@ static QString getScrollCueID(Score* score, const Element* e)
 //                    hasCues = true;
 //                }
 //
-//                cue_id = getCueID(startTick, m->tick());
+//                cue_id = getCueID(startTick, m->tick().ticks());
 //                qts << cue_id;
 //                pVTT->append(cue_id);
 //            }
@@ -3354,7 +3354,7 @@ static void paintStaffLines(Score*        score,
         // Multi-staff "parts" that are not linked (e.g. piano)
         isStaff = (isLink || isSingle || (*staves)[0]->idx() == idxStaff);
         if (isStaff) {
-            bool isTab = staff->isTabStaff(0);
+            bool isTab = staff->isTabStaff(Fraction());
 
             const int gridHeight = 30;
             const int tabHeight  = 53;
@@ -3369,7 +3369,7 @@ static void paintStaffLines(Score*        score,
                 // Get the previous visible staff - top staff can't have a vertical spacer up
                 for (int i = idxStaff - 1; i >= 0; i--) {
                     if ((*pVisibleStaves)[i] > 0) {
-                        vSpacerUp = top - (s->staff(i)->y() + (score->staff(i)->isTabStaff(0) ? tabHeight : stdHeight));
+                        vSpacerUp = top - (s->staff(i)->y() + (score->staff(i)->isTabStaff(Fraction()) ? tabHeight : stdHeight));
                         break;
                     }
                 }
@@ -3412,7 +3412,7 @@ static void paintStaffLines(Score*        score,
             QString qs = staff->part()->longName();
             const QString shortName = (isTab && isLink
                                      ? stringToUTF8(stripNonCSS(staff->part()->longName()))
-                                     : stringToUTF8(staff->part()->shortName(0), true));
+                                     : stringToUTF8(staff->part()->shortName(Fraction()), true));
             const bool    isGrid    = (shortName == STAFF_GRID);
             const int     height    = (isGrid ? gridHeight : bot - top);
             const QString className = (isGrid ? CLASS_GRID
@@ -3429,7 +3429,7 @@ static void paintStaffLines(Score*        score,
 
     bool isVertical = printer->isScrollVertical();
     if (isVertical) { // at this point it's the same as !_isMulti...
-        printer->setStaffLines(score->staves()[0]->lines(0));
+        printer->setStaffLines(score->staves()[0]->lines(Fraction()));
         printer->beginGroup();
     }
 
@@ -3530,7 +3530,7 @@ static void paintStaffLines(Score*        score,
                          && static_cast<Measure*>(mb)->visible(i))
                         {
                               if (isVertical && i == 0)
-                                  cue_id = getCueID(s->firstMeasure()->tick());
+                                  cue_id = getCueID(s->firstMeasure()->tick().ticks());
                               else
                                   cue_id = "";
                               printer->setCueID(cue_id);
@@ -3553,7 +3553,7 @@ static void paintStaffLines(Score*        score,
                 lines[l].setP2(QPointF(lastX, lines[l].p2().y()));
 
                 if (isVertical && i == 0)
-                    cue_id = getCueID(s->firstMeasure()->tick());
+                    cue_id = getCueID(s->firstMeasure()->tick().ticks());
                 else
                     cue_id = "";
 
@@ -3970,7 +3970,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
                                                .arg(score->metaTag(tagWorkNo))
                                                .arg(SMAWS_)
                                                .arg(isMulti ? SMAWS_SCORE
-                                                            : score->staff(0)->part()->longName(0));
+                                                            : score->staff(0)->part()->longName(Fraction()));
     // Initialize MuseScore SVG Export variables
     SvgGenerator printer;
     QPainter p;
@@ -4064,9 +4064,9 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
             ++nVisible;
 
         // Non-standard staves
-        if (staff->isDrumStaff(0) || staff->isTabStaff(0)) {
+        if (staff->isDrumStaff(Fraction()) || staff->isTabStaff(Fraction())) {
             nonStdStaves.push_back(i);
-            if (isMulti && staff->isTabStaff(0))
+            if (isMulti && staff->isTabStaff(Fraction()))
                 hasTabs = true; // for auto-export of fretboards later
         }
 
@@ -4096,7 +4096,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
     int tick;
     st = SegmentType::Clef; // for keysig/timesig x offset
     for (seg = score->firstMeasureMM()->first(st); seg; seg = seg->next1MM(st)) {
-        tick = seg->tick();
+        tick = seg->tick().ticks();
         printer.frozenClefs(tick, false);
         for (i = 0; i < n; i++) {
             if (visibleStaves[i] == -1)
@@ -4174,7 +4174,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
             case EType::LYRICS :
             case EType::NOTE   :
                 cr = static_cast<const ChordRest*>(e->parent());
-                maxNote = qMax(maxNote, cr->actualTicks());
+                maxNote = qMax(maxNote, cr->actualTicks().ticks());
                 break;
             case EType::NOTEDOT    :
 				if (e->parent()->isRest()) {
@@ -4191,7 +4191,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
                 break; // should never happen
             }
             if (cr != 0) // exclude special cases
-                cue_id = getCueID(cr->tick(), cr->tick() + cr->actualTicks());
+                cue_id = getCueID(cr->tick().ticks(), cr->tick().ticks() + cr->actualTicks().ticks());
 
             setVTT.append(cue_id);
             if (isMulti && eType == EType::HARMONY) 
@@ -4339,7 +4339,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
     }
 
     // The end of audio is a cue that equals the end of the last bar.
-    setVTT.append(getCueID(score->lastSegment()->tick()));
+    setVTT.append(getCueID(score->lastSegment()->tick().ticks()));
 
     // Write the VTT file
     if (!saveVTT(score, fnRoot, setVTT))
@@ -4457,13 +4457,13 @@ static void streamRulers(Score*         score,
     QMultiMap<int, Element*>::iterator i;
 
     // Score::duration() returns # of seconds as an int, I need more accuracy
-    const qreal duration = score->tempomap()->tick2time(score->lastMeasure()->tick()
-                                                      + score->lastMeasure()->ticks());
+    const qreal duration = score->tempomap()->tick2time(score->lastMeasure()->tick().ticks()
+                                                      + score->lastMeasure()->ticks().ticks());
     // Pixels of width per millisecond, left + right margins, right border
     const qreal pxPerMSec = (width - (margin * 2) - border) / (duration * 1000);
 
     // End of music tick is required in VTT for endRect and loopEnd
-    tick = score->lastSegment()->tick();
+    tick = score->lastSegment()->tick().ticks();
     setVTT->insert(tick);
 
     // For fancy formatting
@@ -4482,7 +4482,7 @@ static void streamRulers(Score*         score,
                 switch(eAnn->type()) {
                 case EType::REHEARSAL_MARK :
                 case EType::TEMPO_TEXT     :
-                    tick = s->tick();
+                    tick = s->tick().ticks();
                     mapSVG.insert(tick, eAnn);
                     setVTT->insert(tick);
                     c++;   // only one marker and/or one tempo per segment
@@ -4496,7 +4496,7 @@ static void streamRulers(Score*         score,
         }
         // Bars ruler by Measure - QMultiMap is last in first out, bars last
         // here, first in file, for better cue_id sorting.
-        tick = m->tick();
+        tick = m->tick().ticks();
         mapSVG.insert(tick, static_cast<Element*>(m));
         setVTT->insert(tick);
     }
@@ -4633,7 +4633,7 @@ static void streamRulers(Score*         score,
     // Invisible <rect> for final end-of-bar line
     rectX    += rectWidth;
     rectWidth = width - rectX - 1;
-    tick      = score->lastSegment()->tick();
+    tick      = score->lastSegment()->tick().ticks();
     qtsBars << rectB.arg(formatInt(SVG_CUE_NQ, tick, cueIdDigits, true))
                     .arg(formatReal(SVG_X, rectX, 1, xDigits, true))
                     .arg(rectWidth);
@@ -4795,7 +4795,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
     bool    is2 = false;    // presumes only 1 voice
 
     for (idxStaff = 0; idxStaff < nStaves; idxStaff++) {
-        if (score->staff(idxStaff)->small(0)) {
+        if (score->staff(idxStaff)->small(Fraction())) {
             if (score->staff(idxStaff)->partName() == STAFF_GRID)
                 idxGrid = idxStaff;
             else if (score->staff(idxStaff)->partName() == idChords)
@@ -4985,10 +4985,10 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
         // startOffset = start-of-repeat or pickup bar == start of table
         // Every repeat and every pickup effectively start at tick zero
         if (m->repeatStart())
-            startOffset = m->tick();
+            startOffset = m->tick().ticks();
 
-        mStartTick = m->tick() - startOffset;
-        mTicks     = m->ticks();
+        mStartTick = m->tick().ticks() - startOffset;
+        mTicks     = m->ticks().ticks();
 
         // For bars ruler, every start-of-bar is a cue
         tableCues.append(getCueID(mStartTick));
@@ -5004,7 +5004,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
             }
             else {
                 isGridCol = false;
-                startTick = s->tick() - startOffset;
+                startTick = s->tick().ticks() - startOffset;
             }
 
             if (isGridCol) {                                                   /// GRID CHORD ///
@@ -5023,7 +5023,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             tableTitle = QString("%1%2").arg(idStub).arg(++nTables);
 
                         // The initial bpm
-                        prevTempo     = tempoMap->tempo(m->tick());
+                        prevTempo     = tempoMap->tempo(m->tick().ticks());
                         initialBPM    = prevTempo * 60;
                         prevTempoPage = 0;
 
@@ -5056,7 +5056,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
 
                             // This page's last measure and endTick
                             mPageEnd = mp;
-                            pageTick = mp->tick() + mp->ticks() - startOffset;
+                            pageTick = mp->tick().ticks() + mp->ticks().ticks() - startOffset;
 
                             pageOffset = mStartTick;
 
@@ -5120,8 +5120,8 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 else if (is2)
                     spv2 = grid2[idxCol];
 
-                gridTick  = crGrid->tick();
-                gridTicks = crGrid->actualTicks();
+                gridTick  = crGrid->tick().ticks();
+                gridTicks = crGrid->actualTicks().ticks();
                 startTick = gridTick - startOffset;
                 cellX    += (cellX == 0 ? iNameWidth : cellWidth);
             } // if (isGridCol)
@@ -5246,7 +5246,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         // Grid <line> for whole beats e,g, 1/4 note in 4/4 time
                         const int x     = cellX * (isPages && idxPage > 0 ? -1 : 1);
                         const int denom = mTicks
-                                        / score->staff(r)->timeSig(startTick)->sig().denominator();
+                                        / score->staff(r)->timeSig(Fraction().fromTicks(startTick))->sig().denominator();
 
                         tick  = startTick - mStartTick;
                         if (tick && !(tick % denom)) {
@@ -5323,7 +5323,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                     }
 
                     // Small staves are Grid, Chords, or Lyrics (all have text)
-                    isLED = !score->staff(r)->small(0);
+                    isLED = !score->staff(r)->small(Fraction());
 
                     // Lyrics can have two voices in one staff, rest == empty
                     const bool has2 = twoVoices.indexOf(r) >= 0; // does this staff have 2 voices?
@@ -5374,7 +5374,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                     if (isChord)
                         dataTicks = note->playTicks(); // handles tied notes, secondary tied notes excluded above
                     else if (!has2)
-                        dataTicks = crData->actualTicks();
+                        dataTicks = crData->actualTicks().ticks();
                     else
                         dataTicks = gridTicks; // makes things simpler in code below
 
@@ -5672,7 +5672,8 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                             << HTML_TD_BEGIN << SVG_CLASS;
                                 if (r != idxGrid)
                                     tableStream << CLASS_INSTRUMENT << SVG_QUOTE << SVG_GT
-                                                << stringToUTF8(score->staff(r)->part()->shortName(startOffset), true);
+                                                << stringToUTF8(score->staff(r)->part()->shortName(
+                                                       Fraction().fromTicks(startOffset)), true);
                                 else
                                     tableStream << CLASS_TITLE      << SVG_QUOTE << SVG_GT
                                                 << tableTitle;
@@ -5983,7 +5984,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             id    = stringToUTF8(stripNonCSS(name)); // id value cannot contain spaces
                             name  = stringToUTF8(name, true);
                         }
-                        isLED = !score->staff(r)->small(0);
+                        isLED = !score->staff(r)->small(Fraction());
 
                         // Each staff (row) is wrapped in a group
                         tableStream << SVG_SPACE << SVG_GROUP_BEGIN
@@ -6291,7 +6292,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 tableFile.close();
 
                 // The pseudo-empty cue that is the end-of-audio has this Cue ID:
-                tableCues.append(getCueID(m->last()->tick()));
+                tableCues.append(getCueID(m->last()->tick().ticks()));
 
                 // Write the VTT file for this table
                 if (!saveVTT(score, fnTable, tableCues))
@@ -6495,8 +6496,8 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
         if (staff->invisible())
             continue;
 
-        if (staff->isTabStaff(0)) {
-            nStrings = staff->staffType(0)->lines();
+        if (staff->isTabStaff(Fraction())) {
+            nStrings = staff->staffType(Fraction())->lines();
             spv = new StrPtrVect(nStrings);
             for (str = 0; str < nStrings; str++)
                 (*spv)[str] = new QString();
@@ -6513,7 +6514,7 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
             if (le) {
                 for(j = 0; j < le->size(); ++j) {
                     ls = static_cast<Staff*>(le->at(j));
-                    if (!ls->isTabStaff(0)) {
+                    if (!ls->isTabStaff(Fraction())) {
                         stavesTPC.append(ls->idx());
                         break;
                     }
@@ -6534,7 +6535,7 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
                 qts.setString((*spv)[str]);
                 qts << SVG_SPACE << pitch << SVG_SPACE
                     << tpc2unicode(pitch2tpc(pitch,
-                                             score->staves()[stavesTPC[x]]->key(0),
+                                             score->staves()[stavesTPC[x]]->key(Fraction()),
                                              Prefer::NEAREST),
                                    NoteSpellingType::STANDARD,
                                    NoteCaseType::UPPER)
@@ -6561,7 +6562,7 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
                 if (cr == 0)
                     continue;
 
-                tick = cr->tick();
+                tick = cr->tick().ticks();
 
                 if (cr->type() == EType::CHORD) {
                     unsigned int n;
@@ -6591,7 +6592,7 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
                                 << SVG_FRET_NO << SVG_SPACE << PICK_NO;
                         }
 
-                        (*pil)[str] = tick + cr->actualTicks();
+                        (*pil)[str] = tick + cr->actualTicks().ticks();
 
                         setVTT.insert(tick);
                         qts << (pqs->isEmpty() ? SVG_CUE : QString(SVG_COMMA))
@@ -6608,7 +6609,7 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
     }
 
     // Terminate the values
-    lastTick = score->lastSegment()->tick();
+    lastTick = score->lastSegment()->tick().ticks();
     for (i = 0; i < values.size(); i++) {
         spv = values[i];
         pil = lastTicks[i];
@@ -6734,7 +6735,7 @@ bool MuseScore::saveSMAWS_Tree(Score* score, QFileInfo* qfi)
         const int idx = t / VOICES;
 
         // These are smaller in SVG too
-        const bool isPulse = score->staff(idx)->small(0);
+        const bool isPulse = score->staff(idx)->small(Fraction());
 
         // 1 Intrument Name = comma-separated list of MixTree node names
         QString iName = stringToUTF8(score->staves()[idx]->part()->longName());
@@ -6767,23 +6768,23 @@ bool MuseScore::saveSMAWS_Tree(Score* score, QFileInfo* qfi)
                 // --Duplicates code from below, see: "Case: EType::Rest".--
                 if (!isPulse && !isPrevRest) {
                     isPrevRest = true;
-                    mapMix.insert(getCueID(startTick, m->tick()), iName);
+                    mapMix.insert(getCueID(startTick, m->tick().ticks()), iName);
                 }
 
                 // Empty measure following a non-empty measure. Start of
                 // a possibly multi-measure rest.
                 if (pm != 0 && !pm->isMeasureRest(idx))
-                    startTick = m->tick();
+                    startTick = m->tick().ticks();
 
                 // Final measure is empty
                 if (!m->nextMeasureMM())
-                    mapMix.insert(getCueID(startTick, m->tick() + m->ticks()), notName);
+                    mapMix.insert(getCueID(startTick, m->tick().ticks() + m->ticks().ticks()), notName);
             }
             // Non-empty measures have highlight and pulse cues
             else {
                 // Complete any pending gray-out cue
                 if (pm != 0 && pm->isMeasureRest(idx))
-                    mapMix.insert(getCueID(startTick, m->tick()), notName);
+                    mapMix.insert(getCueID(startTick, m->tick().ticks()), notName);
 
                 // Highlight and Pulse cues
                 for (Segment* s = m->first(SegmentType::ChordRest);
@@ -6797,21 +6798,21 @@ bool MuseScore::saveSMAWS_Tree(Score* score, QFileInfo* qfi)
                     case EType::CHORD :
                         if (isPulse || isPrevRest) {
                             isPrevRest = false;
-                            startTick = cr->tick();
+                            startTick = cr->tick().ticks();
                         }
                         if (isPulse) {
                             note = static_cast<Chord*>(cr)->notes()[0];
                             while (note->tieFor() && note != note->tieFor()->endNote())
                                 note = note->tieFor()->endNote();
                             cr = static_cast<ChordRest*>(note->parent());
-                            mapMix.insert(getCueID(startTick, cr->tick() + cr->actualTicks()), iName);
+                            mapMix.insert(getCueID(startTick, cr->tick().ticks() + cr->actualTicks().ticks()), iName);
                             s = cr->segment(); // ¡Updates the pointer used in the inner for loop!
                         }
                         break;
                     case EType::REST :
                         if (!isPulse && !isPrevRest) {
                             isPrevRest = true;
-                            mapMix.insert(getCueID(startTick, cr->tick()), iName);
+                            mapMix.insert(getCueID(startTick, cr->tick().ticks()), iName);
                         }
                         break;
                     default:
@@ -6823,7 +6824,7 @@ bool MuseScore::saveSMAWS_Tree(Score* score, QFileInfo* qfi)
         }
         // If the chord lasts until the end of the score
         if (!isPulse && !isPrevRest)
-            mapMix.insert(getCueID(startTick, score->lastSegment()->tick()), iName);
+            mapMix.insert(getCueID(startTick, score->lastSegment()->tick().ticks()), iName);
     }
 
 
@@ -6931,7 +6932,7 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
                 if (cr == 0)
                     continue;
 
-                tick   = cr->tick();
+                tick   = cr->tick().ticks();
                 isChord = cr->isChord();
                 if (isChord) {
                     // Chords with downbows are treated like rests
@@ -7025,7 +7026,7 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
     // If the chord lasts until the end of the score
     if (!isPrevRest) {
         lyricsVTT += VTT_CLASS_END;
-        mapVTT.insert(getCueID(startTick, score->lastSegment()->tick()), lyricsVTT);
+        mapVTT.insert(getCueID(startTick, score->lastSegment()->tick().ticks()), lyricsVTT);
         if (!lyricsHTML.isEmpty()) {
             if (isItalic)
                 lyricsHTML += endItalics;
@@ -7155,14 +7156,14 @@ bool MuseScore::saveSMAWS_Tour(Score* score, QFileInfo* qfi)
                     qts << cr->lyrics()[0]->plainText();
                 if (hasDesc)
                     qts << endl << description;
-                mapVTT.insert(cr->tick(), qs);
+                mapVTT.insert(cr->tick().ticks(), qs);
             }
         }
     }
 
     // The End
     m = score->lastMeasureMM();
-    mapVTT.insert(m->tick() + m->ticks(), "end");
+    mapVTT.insert(m->tick().ticks() + m->ticks().ticks(), "end");
 
     return saveStartVTT(score,
                         QString("%1/%2%3%4").arg(qfi->path())
