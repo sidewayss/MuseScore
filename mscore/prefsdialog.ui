@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>834</width>
-    <height>569</height>
+    <width>879</width>
+    <height>572</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -768,32 +768,32 @@
             <property name="geometry">
              <rect>
               <x>9</x>
-              <y>30</y>
+              <y>32</y>
               <width>111</width>
               <height>17</height>
              </rect>
             </property>
             <property name="text">
-             <string>Set units globally:</string>
+             <string>Global:</string>
             </property>
            </widget>
            <widget class="QRadioButton" name="unitsByScore">
             <property name="geometry">
              <rect>
               <x>9</x>
-              <y>50</y>
+              <y>54</y>
               <width>111</width>
               <height>17</height>
              </rect>
             </property>
             <property name="text">
-             <string>Set units by score</string>
+             <string>by Score</string>
             </property>
            </widget>
            <widget class="QComboBox" name="unitsList">
             <property name="geometry">
              <rect>
-              <x>118</x>
+              <x>90</x>
               <y>28</y>
               <width>69</width>
               <height>20</height>
@@ -4357,6 +4357,7 @@ Adjusting latency can help synchronize your MIDI hardware with MuseScore's inter
   <tabstop>advancedSearch</tabstop>
  </tabstops>
  <resources>
+  <include location="musescore.qrc"/>
   <include location="musescore.qrc"/>
  </resources>
  <connections/>

@@ -287,9 +287,8 @@ void TieSegment::computeBezier(QPointF p6o)
       shapePath.cubicTo(p4 +p4o + th, p3 + p3o + th, QPointF());
 
       // translate back
-      int tick = slurTie()->tick();
       double y = pp1.y();
-      if (staff()->isTabStaff(tick))
+      if (staff()->isTabStaff(slurTie()->tick()))
             y += (_spatium * (slurTie()->up() ? -0.2 : 0.2));
       t.reset();
       t.translate(pp1.x(), y);
