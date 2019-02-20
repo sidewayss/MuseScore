@@ -3203,6 +3203,7 @@ static QString getScrollCueID(Score* score, const Element* e)
         cue_id = getCueID(static_cast<Segment*>(p)->tick());
         break;
     case EType::INSTRUMENT_NAME :
+    case EType::BRACKET :
         cue_id = CUE_ID_ZERO;
         break;
     case EType::INSTRUMENT_CHANGE :
@@ -3680,14 +3681,13 @@ static void paintStaffSMAWS(Score*        score,
                             SvgGenerator* printer,
                             CueMap*       barLines,
                             CueMulti*     mapFrozen,
-                            CueMulti*     mapSVG,
+                            Type2Cue*     mapSVG,
                             CueMulti*     mapLyrics,
                             QVector<int>* pVisibleStaves =  0,
                             QList<qreal>* pStaffTops     =  0,
                             int           idxStaff = -1,
                             int           lyricsHeight = -1)
 {
-    QString cue_id;
     bool isMouse = false;
     bool isMulti = (idxStaff != -1);
     int  idx = (isMulti ? pVisibleStaves->value(idxStaff) : idxStaff);
@@ -3695,7 +3695,6 @@ static void paintStaffSMAWS(Score*        score,
     // 2nd pass: Elements with cue_ids, sorted in their QMaps
     // BarLines first, but only for the first staff
     if (barLines != 0 && idx < 1) {
-        printer->beginGroup(2);
         for (CueMap::iterator c = barLines->begin(); c != barLines->end(); ++c) {
             printer->setCueID(c.key());
             const Element* e = c.value();
@@ -3704,7 +3703,6 @@ static void paintStaffSMAWS(Score*        score,
             printer->setElement(e);
             paintElement(*p, e);
         }
-        printer->endGroup(2); // barLines group inside staff group
     }
 
     // Frozen pane elements, if there are any
@@ -3712,7 +3710,7 @@ static void paintStaffSMAWS(Score*        score,
         // Iterate by key, then by value in reverse order. This recreates the
         // MuseScore draw order within the key/cue_id. This is required for
         // the frozen pane to generate properly.
-        printer->beginGroup(2);
+        printer->beginGroup(2, true);
         QStringList keys = mapFrozen->uniqueKeys();
         for (QStringList::iterator c = keys.begin(); c != keys.end(); ++c) {
             printer->setCueID(*c);
@@ -3728,17 +3726,19 @@ static void paintStaffSMAWS(Score*        score,
             //                               else      by staff, by cue_id
             printer->freezeIt(idx);
         }
-        printer->endGroup(2); // mapFrozen group inside staff group
+        printer->endGroup(2, true); // mapFrozen group inside staff group
     }
 
     // mapSVG (in reverse draw order, not a problem for these element types)
     printer->beginMouseGroup(); // animated elements are clickable
-    CueMulti::iterator i;
+    Type2Cue::iterator i;
+    CueMulti::iterator j;
     for (i = mapSVG->begin(); i != mapSVG->end(); ++i) {
-        cue_id = i.key();
-        printer->setCueID(cue_id);
-        printer->setElement(i.value());
-        paintElement(*p, i.value());
+        for ( j = i->begin(); j != i->end(); ++j) {
+            printer->setCueID(j.key());
+            printer->setElement(j.value());
+            paintElement(*p, j.value());
+        }
     }
     printer->endGroup(isMulti ? 2 : 0);     // mouse group inside staff group
 
@@ -3754,16 +3754,14 @@ static void paintStaffSMAWS(Score*        score,
         // Lyrics are a separate <g> element pseudo staff
         if (mapLyrics->size() > 0) {
             printer->beginMultiGroup(0, 0, CLASS_LYRICS, lyricsHeight, pStaffTops->last());
-            for (i = mapLyrics->begin(); i != mapLyrics->end(); ++i) {
-                cue_id = i.key();
-                if (!isMouse && !cue_id.isEmpty()) {
+            for (j = mapLyrics->begin(); j != mapLyrics->end(); ++j) {
+                if (!isMouse && !j.key().isEmpty()) {
                     isMouse = true;
                     printer->beginMouseGroup();
                 }
-                printer->setCueID(cue_id);
-///!!!OBSOLETE!!!                printer->setStartMSecs(startMSecsFromCueID(score, cue_id));
-                printer->setElement(i.value());
-                paintElement(*p, i.value());
+                printer->setCueID  (j.key());
+                printer->setElement(j.value());
+                paintElement(*p, j.value());
             }
             printer->endGroup(2); // mouse group
             printer->endGroup(1); // staff group
@@ -3993,7 +3991,8 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
     // mapFrozen   - ditto, value = SCORE frozen pane elements
     // mapSysStaff - ditto, value = SCORE "system" staff: tempos, chords, markers (should be measure numbers!!!)
     // mapLyrics   - ditto, value = SCORE lyrics as a separate group
-    CueMulti mapSVG;
+    Type2Cue mapSVG;
+    CueMulti cues;
     CueMulti mapFrozen;
     CueMulti mapSysStaff;
     CueMulti mapLyrics;
@@ -4082,8 +4081,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
         st   = SegmentType::HeaderClef; // for keysig/timesig x offset
         clef = score->firstMeasureMM()->first(st)->element(track);
         if (clef)
-            printer.frozenClefs(0,
-                                toClef(clef)->clefType() > ClefType::G_1);
+            printer.frozenClefs(0, toClef(clef)->clefType() > ClefType::G_1);
 
 // PARTIAL SOLUTION:
 //        ClefList& clefList = staff->clefList();
@@ -4168,9 +4166,6 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
         case EType::NOTE       : //        .parent = ChordRest
         case EType::NOTEDOT    : // .parent.parent = ChordRest subclass Chord
         case EType::ACCIDENTAL : // .parent.parent = ChordRest subclass Chord
-//        case EType::STEM       : //         .chord = ChordRest subclass Chord
-//        case EType::HOOK       : //         .chord = ChordRest subclass Chord
-//        case EType::BEAM       : //      .elements = ChordRest vector
         case EType::HARMONY    : //     annotation = handled by getAnnCueId()
             switch (eType) {
             case EType::REST :
@@ -4189,19 +4184,6 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
 			case EType::ACCIDENTAL :
                 cr = static_cast<const ChordRest*>(e->parent()->parent());
                 break;
-//            case EType::STEM :
-//                cr = static_cast<const ChordRest*>(static_cast<const Stem*>(e)->chord());
-//                break;
-//            case EType::HOOK :
-//                cr = static_cast<const ChordRest*>(static_cast<const Hook*>(e)->chord());
-//                break;
-//            case EType::BEAM : // special case: end tick is last note beamed
-//                //This is because a const Beam* cannot call ->elements()!!!
-//                b = static_cast<const Beam*>(e)->clone();
-//                // Beam cue runs from first element to last
-//                cue_id = getCueID(b->elements()[0]->tick(),
-//                                  b->elements()[b->elements().size() - 1]->tick());
-//                break;
             case EType::HARMONY : // special case: end tick is next HARMONY
                 cue_id = getAnnCueID(score, e, eType);
                 break;
@@ -4212,16 +4194,19 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
                 cue_id = getCueID(cr->tick(), cr->tick() + cr->actualTicks());
 
             setVTT.append(cue_id);
-            if (isMulti) {
-                if(eType == EType::HARMONY)
-                    mapSysStaff.insert(cue_id, e);  // "system" staff
-                else if(eType == EType::LYRICS)
-                    mapLyrics.insert(cue_id, e); // lyrics get their own pseudo-staff
-                else
-                    mapSVG.insert(cue_id, e);
-            }
-            else
-                mapSVG.insert(cue_id, e);
+            if (isMulti && eType == EType::HARMONY) 
+                mapSysStaff.insert(cue_id, e);  // "system" staff
+            else if (isMulti && eType == EType::LYRICS) 
+                mapLyrics.insert(cue_id, e); // lyrics get their own pseudo-staff
+            else {
+                if (mapSVG.find(eType) != mapSVG.end())
+                    mapSVG[eType].insert(cue_id, e);
+                else {
+                    cues = CueMap();
+                    cues.insert(cue_id, e);
+                    mapSVG.insert(eType, cues);
+                }
+            } // end interior switch (eType)
             continue;
 
         case EType::BAR_LINE       :    /// Ruler/Scrolling elements
@@ -4231,6 +4216,10 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
                 cue_id = getScrollCueID(score, e);
                 setVTT.append(cue_id);
                 barLines.insert(cue_id, e);
+                continue;
+            }
+            if (!isScrollVertical && e->parent()->type() == EType::SYSTEM) {
+                mapFrozen.insert(cue_id, e);
                 continue;
             }
             cue_id = "";
@@ -4249,6 +4238,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
         case EType::CLEF    :
         case EType::KEYSIG  :
         case EType::TIMESIG :
+        case EType::BRACKET :
             if (!isScrollVertical) {
                 cue_id = getScrollCueID(score, e); // Zero-duration cue
                 setVTT.append(cue_id);

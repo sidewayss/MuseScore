@@ -57,6 +57,7 @@ using BLType = Ms::BarLineType; // for convenience, and consistency w/EType
 
 using CueMap   = QMap<QString, const Ms::Element*>;
 using CueMulti = QMultiMap<QString, const Ms::Element*>;
+using Type2Cue = QMap<EType, CueMulti>;
 
 using StrPtrList      = QList<QString*>;
 using StrPtrVect      = QVector<QString*>;
@@ -114,6 +115,7 @@ using IntPairSet      = std::set<IntPair>;
 
 // Strings
 #define SVG_2SPACES      "  "
+#define SVG_3SPACES      "   "
 #define SVG_4SPACES      "    "
 #define SVG_8SPACES      "        "
 #define SVG_ELEMENT_END  "/>"
@@ -195,6 +197,9 @@ using IntPairSet      = std::set<IntPair>;
 #define SVG_M      'M' // Move
 #define SVG_L      'L' // Line
 #define SVG_C      'C' // Curve
+#define SVG_H      'H' // Horizontal line
+#define SVG_V      'V' // Vertical line
+#define SVG_Z      'Z' // Close path
 
 #define SVG_MATRIX    " transform=\"matrix("
 #define SVG_TRANSFORM " transform=\""
@@ -402,8 +407,8 @@ public:
     void streamBody();
     void beginMultiGroup(QStringList* pINames, QStringList *pFullNames, const QString& className, int height, int top);
     void beginMouseGroup();
-    void beginGroup(int indent = 0);
-    void endGroup(int indent = 0);
+    void beginGroup(int indent = 0, bool isFrozen = false);
+    void endGroup  (int indent = 0, bool isFrozen = false);
     void setYOffset(qreal y);
     void createMultiUse(qreal y);
     void setLeftRight(qreal left, qreal right);
