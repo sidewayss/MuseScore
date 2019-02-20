@@ -1373,18 +1373,14 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         switch (_et) {
         case EType::INSTRUMENT_NAME   :
         case EType::INSTRUMENT_CHANGE :
-            _et = EType::INSTRUMENT_NAME; // No frozen class="InstrumentChange"
-            x   = 1;                      // That's as far left as it goes
-
-            // Linked staves only have iName in first staff
-            if (frozenINameY.contains(_idxStaff))
+            _et = EType::INSTRUMENT_NAME;         // no frozen class="InstrumentChange"
+            if (frozenINameY.contains(_idxStaff)) // linked staves iName only in 1st staff
                 defClass = "iNameLink";
             else
                 defClass = _e->name(_et);
-            break;
-
+            // FALLTHROUGH
         case EType::TEMPO_TEXT :
-            x = _xLeft;     // Left-aligns with System barline
+            x   = 1;                      // That's as far left as it goes
             break;
 
         case EType::CLEF :

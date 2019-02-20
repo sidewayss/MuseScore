@@ -4307,17 +4307,21 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
         printer.setYOffset(0);
         printer.beginMultiGroup(&iNames, 0, system, 35, 0); ///!!! 35 is standard top staff line y-coord, I'm being lazy here by hardcoding it
         bool isMouse = false;
+        const Element* elm;
         for (CueMulti::iterator i = mapSysStaff.begin(); i != mapSysStaff.end(); ++i) {
             cue_id = i.key();
-            if (!isMouse && !cue_id.isEmpty()) {
+            elm    = i.value();
+            if (!isMouse && !cue_id.isEmpty() && !elm->isTempoText()) {
                 isMouse = true;
                 printer.beginMouseGroup();
             }
 ///!!!OBSOLETE!!!            printer.setStartMSecs(startMSecsFromCueID(score, cue_id));
             printer.setCueID(cue_id);
-            printer.setElement(i.value());
-            paintElement(p, i.value());
+            printer.setElement(elm);
+            paintElement(p, elm);
         }
+        if (!isMouse)
+            printer.beginMouseGroup(); // makes reading the file consistent
         printer.endGroup(2); // mouse group
         printer.endGroup(1); // staff group
 
