@@ -721,7 +721,7 @@ void SvgPaintEngine::updateState(const QPaintEngineState &s)
         // Frozen def:   InstrumentName" = 15
         // Frozen elm: InstrumentChange" = 17
         qts << SVG_CLASS;
-        qts.setFieldWidth(_et == EType::BRACKET ? 15 : 17);
+        qts.setFieldWidth(_et == EType::BRACKET ? 15 : 17); //!!not a good conditional test, always 15
         qts << QString("%1%2").arg(_classValue).arg(SVG_QUOTE);
         qts.setFieldWidth(0);
     }
@@ -979,8 +979,8 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
         QRectF cpr = p.controlPointRect(); // faster than .boundingRect()
         _textFrame.setX(rint(cpr.x() + _dx));
         _textFrame.setY(rint(cpr.y() + yOff));
-        _textFrame.setWidth (rint(_e->width()));
-        _textFrame.setHeight(rint(_e->height()));
+        _textFrame.setWidth (rint((_e->width()  * 0.5)) * 2); // even number for
+        _textFrame.setHeight(rint((_e->height() * 0.5)) * 2); // centering text
         int rxy = static_cast<const Ms::TextBase*>(_e)->frameRound();
 
         stream() << SVG_RECT << classState << styleState
@@ -1063,7 +1063,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
                     else if (isStem) {
                         z = trunc(x) + 0.5;
                         qts << z << SVG_COMMA << iy;
-                        if (_e->staff()->isTabStaff(_e->tick()))
+                        if (_e->staff()->isTabStaff(_e->tick()) && _stemX.find(tick) == _stemX.end())
                             _stemX[tick] = z;
                         _offsets[tick] = RealPair(z - x, 0); // stems first
                     }
@@ -1191,17 +1191,27 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 
 void SvgPaintEngine::drawRects(const QRectF *rects, int rectCount)
 {
-    for (int i = 0; i < rectCount; i++) {
+    int h, i, w, x, y, z;
+    for (i = 0; i < rectCount; i++) {
         if (_classValue == "tabNote") {
-            int w = rint(rects[i].width());
-            int h = rint(rects[i].height());
+            w = rint(rects[i].width());
+            h = rint(rects[i].height());
             if (!(w % 2)) // stems are 3px stroke width
                 w++;
             if (h % 2)    // staff lines are 2px stroke-width
                 h--;      // opaque: height only needs to block staff line
-            int x = trunc(_stemX[_e->tick().ticks()] - (w / 2));
-            int y = _staffLinesY[static_cast<const Ms::Note*>(_e)->string()]
-                  - (h / 2);
+
+            z = _e->tick().ticks();
+            if (_stemX.find(z) == _stemX.end()) {
+                _stemX[z] = rint(_dx + (w / 2)); // as if there was a stem
+                x = rint(_dx);
+            }
+            else
+                x = trunc(_stemX[z] - (w / 2));
+
+            z = static_cast<const Ms::Note*>(_e)->string();
+            y = _staffLinesY[z] - (h / 2);
+
             stream() << SVG_4SPACES << SVG_PATH  << SVG_D 
                      << SVG_M << x  << SVG_COMMA << y
                      << SVG_H << x + w // everything is in absolute coordinates,
@@ -1298,8 +1308,8 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         break; // These elements all styled by CSS
 
     case EType::REHEARSAL_MARK : // center the text inside _textFrame
-        x = _textFrame.x() + (_textFrame.width()  / 2.0);
-        y = _textFrame.y() + (_textFrame.height() / 2.0);
+        x = _textFrame.x() + (_textFrame.width()  / 2); // width/height are even
+        y = _textFrame.y() + (_textFrame.height() / 2); // integers
         break;
 
     default:
@@ -1318,7 +1328,11 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
 
     // Stream the fancily formatted x and y coordinates
     bool isFrBr = (_et == EType::BRACKET); // Brackets are frozen pane elements
-    qts << formatXY(x, y, isFrBr);
+    if (_e->isRehearsalMark())
+        qts << SVG_X << SVG_QUOTE << int(x) << SVG_QUOTE
+            << SVG_Y << SVG_QUOTE << int(y) << SVG_QUOTE;
+    else
+        qts << formatXY(x, y, isFrBr);
 
     // If it's a note, stream the pitch value (MIDI note number 0-127)
     if (pitch != -1)

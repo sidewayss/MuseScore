@@ -139,6 +139,7 @@
 #define FILE_FRETS_12_4 "templates/SMAWS_Frets12-4.svg.txt"  // 12-fret, 4-string fretboard template
 #define FILE_FRETS_14_6 "templates/SMAWS_Frets14-6.svg.txt"  // 14-fret, 6-string fretboard template
 #define FILE_FRETS_14_4 "templates/SMAWS_Frets14-4.svg.txt"  // 14-fret, 4-string fretboard template
+#define FILE_FRETS_21_6 "templates/SMAWS_Frets21-6.svg.txt"  // 14-fret, 6-string fretboard template
 #define FILE_GRID_DEFS  "templates/SMAWS_GridDefs.svg.txt"   // Grid <defs>
 #define FILE_GRID_BG    "templates/SMAWS_GridBg.svg.txt"     // Grid background elements
 #define FILE_GRID_TEMPO "templates/SMAWS_GridTempo.svg.txt"  // Grid page buttons
@@ -3348,8 +3349,9 @@ static void paintStaffLines(Score*        score,
         Staff*          staff = score->staves()[idxStaff];
         QList<Staff*>* staves = staff->part()->staves();
         int              size = staves->size();
-        bool           isLink = staff->links();
         bool         isSingle = (size == 1);
+        bool           isLink = staff->links() // unlinked, paired tab staves too
+                             || (!isSingle && (*staves)[1]->isTabStaff(Fraction()));
 
         // Multi-staff "parts" that are not linked (e.g. piano)
         isStaff = (isLink || isSingle || (*staves)[0]->idx() == idxStaff);
@@ -3465,9 +3467,9 @@ static void paintStaffLines(Score*        score,
                         if (!isMulti) { // multi has fixed margins, only one system
                             // Get the left and right edges of the staff lines for
                             // title, subtitle, composer, and poet layout
-                            StaffLines* ls =  s->lastMeasure()->staffLines(i);
-                            qreal right = ls->bbox().right()
-                                        + ls->pagePos().x()
+                            StaffLines* tpcStaff =  s->lastMeasure()->staffLines(i);
+                            qreal right = tpcStaff->bbox().right()
+                                        + tpcStaff->pagePos().x()
                                         - sl->pagePos().x();
                             printer->setLeftRight(sl->bbox().left(), right);
 
@@ -3746,9 +3748,9 @@ static void paintStaffSMAWS(Score*        score,
         // Close any pending Multi-Select Staves group element
         Staff* staff = score->staff(idxStaff);
         QList<Staff*>* staves = staff->part()->staves();
-        int size = staves->size();
-        if (size == 1 || staff->links()
-         || (*staves)[size - 1]->idx() == idxStaff)
+        int    size = staves->size();
+        Staff* last = (*staves)[size - 1]; // unlinked, paired tab staves too
+        if (size == 1 || staff->links() || last->idx() == idxStaff || last->isTabStaff(Fraction()))
             printer->endGroup(1); // ends the staff group
 
         // Lyrics are a separate <g> element pseudo staff
@@ -4059,8 +4061,9 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
         visibleStaves[i] = nVisible;
 
         QList<Staff*>* staves = part->staves();
-        int size = staves->size();
-        if (size == 1 || (*staves)[size - 1]->idx() == i || staff->links())
+        int    size = staves->size();
+        Staff* last = (*staves)[size - 1]; // unlinked, paired tab staves too
+        if (size == 1 || staff->links() || last->idx() == i || last->isTabStaff(Fraction()))
             ++nVisible;
 
         // Non-standard staves
@@ -6459,11 +6462,11 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
     }
 
     Staff*          staff;
-    Staff*          ls;   // linked staff
+    Staff*          tpcStaff; // notation staff
     Measure*        m;
     Segment*        s;
     ChordRest*      cr;
-    LinkedElements* le;
+    QList<Staff*>*  staves;
 
     QString*    pqs;
     QTextStream qts;
@@ -6479,6 +6482,7 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
     IntVect     stavesTab; // tablature staff indices
     IntVect     stavesTPC; // standard notation staff indices for note spelling, if available
     IntVect     xOffsets;
+    IntVect     frets;
     IntListVect lastTicks;
     IntList*    pil;
     IntSet      setVTT;
@@ -6487,7 +6491,7 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
     StrPtrVectList tuningText;
     const int   SVG_FRET_NO = -999; // noLite y-coord for fingers. No headstock will be that tall.
     const int   MARGIN      = 20;   // margin between staves and for fret numbers
-    const qreal RULE_OF_18  = 17.817154;
+    const qreal RULE_OF_18  = 17.81715374510575;
 
     // What staves are we using? Does the tab staff pair with a notation staff?
     x = 0;
@@ -6509,13 +6513,14 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
             lastTicks.append(pil);
 
             stavesTab.append(i);
+            frets.append(staff->part()->instrument()->stringData()->frets());
 
-            le = staff->links();
-            if (le) {
-                for(j = 0; j < le->size(); ++j) {
-                    ls = static_cast<Staff*>(le->at(j));
-                    if (!ls->isTabStaff(Fraction())) {
-                        stavesTPC.append(ls->idx());
+            staves = staff->part()->staves();
+            if (staves) {
+                for(j = 0; j < staves->size(); ++j) {
+                    tpcStaff = static_cast<Staff*>(staves->at(j));
+                    if (!tpcStaff->isTabStaff(Fraction())) {
+                        stavesTPC.append(tpcStaff->idx());
                         break;
                     }
                 }
@@ -6670,7 +6675,10 @@ bool MuseScore::saveSMAWS_Frets(Score* score, QFileInfo* qfi)
         nStrings = values[i]->size();
         switch (nStrings) {
         case 6:
-            fileName = FILE_FRETS_14_6;
+            if (frets[i] == 14)
+                fileName = FILE_FRETS_14_6;
+            else
+                fileName = FILE_FRETS_21_6;
             break;
         case 4:
             fileName = FILE_FRETS_14_4;
