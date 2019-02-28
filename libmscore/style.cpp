@@ -2533,16 +2533,6 @@ void MStyle::save(XmlWriter& xml, bool optimize)
       xml.etag();
       }
 
-//---------------------------------------------------------
-//   reset
-//---------------------------------------------------------
-
-void MStyle::reset(Score* score)
-      {
-      for (const StyleType& st : styleTypes)
-            score->undo(new ChangeStyleVal(score, st.styleIdx(), MScore::defaultStyle().value(st.styleIdx())));
-      }
-
 //--------------------------------------------------------------------------
 //   initPageLayout - only applied to MScore::_baseStyle and _defaultStyle
 //                    must wait until setMscoreLocale() is called in main()

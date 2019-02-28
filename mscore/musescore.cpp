@@ -1614,7 +1614,6 @@ MuseScore::MuseScore()
       menuFormat->addMenu(menuStretch);
       menuFormat->addSeparator();
 
-      menuFormat->addAction(getAction("reset-style"));
       menuFormat->addAction(getAction("reset-beammode"));
       menuFormat->addAction(getAction("reset"));
       menuFormat->addSeparator();
@@ -3246,7 +3245,6 @@ static void loadScores(const QStringList& argv)
                               MasterScore* score = mscore->readScore(startScore);
                               if (startScore.startsWith(":/") && score) {
                                     score->setName(mscore->createDefaultName());
-                                    // TODO score->setPageFormat(*MScore::defaultStyle().pageFormat());
                                     score->doLayout();
                                     score->setCreated(true);
                                     }
@@ -3254,7 +3252,6 @@ static void loadScores(const QStringList& argv)
                                     score = mscore->readScore(":/data/My_First_Score.mscz");
                                     if (score) {
                                           score->setName(mscore->createDefaultName());
-                                          // TODO score->setPageFormat(*MScore::defaultStyle().pageFormat());
                                           score->doLayout();
                                           score->setCreated(true);
                                           }

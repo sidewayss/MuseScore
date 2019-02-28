@@ -1224,8 +1224,6 @@ class MStyle {
       bool readStyleValCompat(XmlReader&);
       bool readTextStyleValCompat(XmlReader&);
 
-      void reset(Score*);
-
       void fromPageLayout();
       void   toPageLayout();
       void spatium301(XmlReader& e);

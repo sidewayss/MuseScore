@@ -45,8 +45,7 @@ EditStyle::EditStyle(Score* s, QWidget* parent)
       setupUi(this);
       setWindowFlags(this->windowFlags() & ~Qt::WindowContextHelpButtonHint);
       cs = s;
-      buttonApplyToAllParts = buttonBox->addButton(tr("Apply to all Parts"), QDialogButtonBox::ApplyRole);
-      buttonApplyToAllParts->setEnabled(!cs->isMaster());
+      applyToParts->setVisible(!cs->isMaster());
       buttonTogglePagelist->setIcon(QIcon(*icons[int(Icons::goNext_ICON)]));
       setModal(true);
 
@@ -686,8 +685,10 @@ EditStyle::EditStyle(Score* s, QWidget* parent)
       textStyles->setCurrentRow(0);
 
       connect(resetToBase,    SIGNAL(clicked()), SLOT(resetToBaseStyle()));
+      connect(resetToDefault, SIGNAL(clicked()), SLOT(resetToDefaultStyle()));
       connect(saveAsDefault,  SIGNAL(clicked()), SLOT(saveAsDefaultStyle()));
       connect(saveAsDefParts, SIGNAL(clicked()), SLOT(saveAsPartsStyle()));
+      connect(applyToParts,   SIGNAL(clicked()), SLOT(applyToAllParts()));
 
       MuseScore::restoreGeometry(this);
       cs->startCmd();
@@ -718,10 +719,7 @@ void EditStyle::buttonClicked(QAbstractButton* b)
                   done(0);
                   cs->endCmd(true);
                   break;
-            case QDialogButtonBox::NoButton:
             default:
-                  if (b == buttonApplyToAllParts)
-                        applyToAllParts();
                   break;
             }
       }
@@ -1478,10 +1476,18 @@ void EditStyle::resetUserStyleName()
 //---------------------------------------------------------
 
 void EditStyle::resetToBaseStyle()
-      {     ///!!!needs undo code or a confirm dialog because this is undoable!!!
-      ///!!!MStyle::reset() looks like an undoable version using MScore::defaultStyle()
-      ///!!!Should I clone that function as MStyle::resetToBase() or MStyle::fullReset()???
-      cs->setStyle(MScore::baseStyle());
+      {
+      cs->undo(new ChangeStyle(cs, MScore::baseStyle()));
+      setValues();
+      }
+
+//---------------------------------------------------------
+//   resetToDefault
+//---------------------------------------------------------
+
+void EditStyle::resetToDefaultStyle()
+      {
+      cs->undo(new ChangeStyle(cs, MScore::defaultStyle()));
       setValues();
       }
 

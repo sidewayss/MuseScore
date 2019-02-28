@@ -80,6 +80,7 @@ class EditStyle : public QDialog, private Ui::EditStyleBase {
       void textStyleChanged(int);
       void resetTextStyle(Pid);
       void resetToBaseStyle();
+      void resetToDefaultStyle();
       void saveAsDefaultStyle();
       void saveAsPartsStyle();
       void textStyleValueChanged(Pid, QVariant);
