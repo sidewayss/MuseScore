@@ -5960,8 +5960,8 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 ctrls = qts.readAll();
                 cellY = 0;
 
-                tableStream << SVG_GROUP_BEGIN << SVG_GT << endl; // easier to navigate in javascript
-                for (int r = 0; r < nStaves; r++) {
+                tableStream << SVG_GROUP_BEGIN << SVG_GT << endl;
+                for (int r = 0; r < nStaves; r++) {         /// for each row
                     const bool isGridRow   = (r == idxGrid);
                     const bool isChordsRow = (r == idxChords);
                     QStringList names;
@@ -6019,9 +6019,9 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             if (r != idxChords) { // chords staff never changes name
                                 pqs = (*pageNames[0])[r];
                                 for (int p = 1; p < idxPage; p++) {
-                                     if ((*pageNames[p])[r] != 0) { // if user creates identical intrument changes, it's their own fault.
-                                        changesName = true;
-                                        break;
+                                     if ((*pageNames[p])[r] != 0) {
+                                        changesName = true; // if user creates identical intrument
+                                        break;              // changes, it's their own fault.
                                     }
                                 }
                             }
@@ -6099,7 +6099,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                           && pitchSet[r]->size() > 1);
 
                     if (!(isPages && isGridRow)) {
-                        for (int c = 0; c < grid.size(); c++) {
+                        for (int c = 0; c < grid.size(); c++) { /// for each column
                             if ((*grid[c])[r] == 0)
                                 continue;
 
@@ -6310,7 +6310,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
             height    = 0;
             cellY     = 0;
             gridTicks = 0;
-            grid.clear();
+            grid.clear();    //!! these all need garbage collection here
             gridUse.clear();
             gridText.clear();
             barNums.clear();
