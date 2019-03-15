@@ -5374,25 +5374,25 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         continue; // empty cell complete, on to the next staff
                     }
 
-                    if (isChord)
-                        dataTicks = note->playTicks(); // handles tied notes, secondary tied notes excluded above
+                    if (isChord) // handles tied notes, secondary tied notes excluded above
+                        dataTicks = note->playTicks();
                     else if (!has2)
                         dataTicks = crData->actualTicks().ticks();
                     else
-                        dataTicks = gridTicks; // makes things simpler in code below
+                        dataTicks = gridTicks; // makes things simpler below
 
-                    if (dataTicks >= gridTicks) {
+                    if (dataTicks >= gridTicks) { // full cell or multiple cells
                         colSpan  = dataTicks / gridTicks;
                         sme.clear();
                     }
-                    else {
+                    else {                        // split cell
                         colSpan  = gridTicks / dataTicks * -1;
                         if (isGridCol)
-                            sme = "s";
+                            sme = "s"; // start
                         else if (startTick + dataTicks == gridTick + gridTicks)
-                            sme = "e";
+                            sme = "e"; // end
                         else
-                            sme = "m";
+                            sme = "m"; // middle
                     }
 
                     if (isChord2) {
