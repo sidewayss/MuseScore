@@ -5381,7 +5381,9 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                     else
                         dataTicks = gridTicks; // makes things simpler below
 
-                    if (dataTicks >= gridTicks) { // full cell or multiple cells
+                    if (dataTicks >= gridTicks) { // full cell, multiple cells, or tuplet
+                        if (dataTicks % gridTicks)
+                            ; // tuplet larger than one grid column
                         colSpan  = dataTicks / gridTicks;
                         sme.clear();
                     }
@@ -5396,11 +5398,10 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                     }
 
                     if (isChord2) {
-                        dataTicks2 = (isChord2 ? note2->playTicks() : gridTicks);
+                        dataTicks2 = isChord2 ? note2->playTicks() : gridTicks;
 
-                        colSpan2 = (dataTicks2 >= gridTicks
-                                    ? dataTicks2 / gridTicks
-                                    : gridTicks  / dataTicks2 * -1);
+                        colSpan2 = (dataTicks2 >= gridTicks ? dataTicks2 / gridTicks
+                                                            : gridTicks  / dataTicks2 * -1);
                     }
 
                     if (!isGridCol) {                                          /// TUPLET or other non-grid sub-division ///
