@@ -5251,7 +5251,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         const int denom = mTicks
                                         / score->staff(r)->timeSig(Fraction().fromTicks(startTick))->sig().denominator();
 
-                        tick  = startTick - mStartTick;
+                        tick = startTick - mStartTick;
                         if (tick && !(tick % denom)) {
                             if (!isPages || idxBeat == beatLines.size()) {
                                 // Initial x-coord for line: if it's not
@@ -5381,20 +5381,37 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                     else
                         dataTicks = gridTicks; // makes things simpler below
 
-                    if (dataTicks >= gridTicks) { // full cell, multiple cells, or tuplet
-                        if (dataTicks % gridTicks)
-                            ; // tuplet larger than one grid column
-                        colSpan  = dataTicks / gridTicks;
-                        sme.clear();
-                    }
-                    else {                        // split cell
-                        colSpan  = gridTicks / dataTicks * -1;
-                        if (isGridCol)
-                            sme = "s"; // start
-                        else if (startTick + dataTicks == gridTick + gridTicks)
-                            sme = "e"; // end
+                    //!!does not support double-tuplet durations, use rests!!
+                    //!!e.g. 1/8th + 1/16th as a full 3x16th triplet duration
+                    //!!use 1/16th + rest + 1/16th to make the triplet
+                    sme = ""; // start/middle/end indicator
+                    colSpan2 = 1;
+                    if (dataTicks >= gridTicks) {    // full cell, >1 cells, or
+                        if (dataTicks % gridTicks) { // tuplet >1 grid column
+                            sme    += "-4"; // only supports 3 leds across 4 columns
+                            colSpan2 = 2;   // for finding end segment
+                            colSpan = -3;   
+                        }
                         else
-                            sme = "m"; // middle
+                            colSpan = dataTicks / gridTicks;
+                    }
+                    else {                // split cell, 2 or 3 segments
+                        double d = gridTicks / dataTicks;
+                        if (d == 2.0)
+                            colSpan = -2;
+                        else {
+                            colSpan = -3; // 3 segments cover 1 or 2
+                            if (d < 2.0)  // columns, the 1 is implied.
+                                sme += "-2"; 
+                        }
+                    }
+                    if (colSpan < 0) {
+                        if (isGridCol)
+                              sme += "s"; // start
+                        else if (startTick + dataTicks == gridTick + (gridTicks * colSpan2))
+                              sme += "e"; // end
+                        else
+                              sme += "m"; // middle
                     }
 
                     if (isChord2) {
@@ -5505,7 +5522,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             if (isLED) { // LED staff, notes not text
                                 qts << SVG_USE << SVG_SPACE
                                     << formatInt(SVG_X, cellX, maxDigits, true)
-                                    << SVG_Y       << SVG_PERCENT // for multi-pitch
+                                    << SVG_Y   << SVG_PERCENT // for multi-pitch
                                     << formatInt(SVG_COL_CUE, tick, cueIdDigits, true)
                                     << XLINK_HREF;
 
@@ -5635,17 +5652,16 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                      << SVG_TEXT_END;
                         }
                     } // else: SVG
+
+                    if (!isGridCol)
+                        idxCol = idxGridCol; // restore this
                 } // else: r != idxGrid
 
                 cellY += cellHeight; // Move to the next row/staff
-
             } // for (r < nStaves)
 
-            if (!isGridCol)
-                idxCol = idxGridCol; // restore this to normal grid alignment
-            else if (isPages)
+            if (isPages)
                 idxCol++;
-
             height = cellY + cellHeight; // Extra row for title/buttons
             cellY  = 0;
             if (isPageStart) {
