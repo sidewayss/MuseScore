@@ -4915,7 +4915,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
     const int width      = iNameWidth + (nGridCols * cellWidth);
 
     // Variables for SVG table cell positions
-    int cellX  = 0;    // fixed offset for instrument name row headers
+    int cellX  = 0; // there is a fixed x-offset for instrument name row headers
     int cellY  = 0;
     int height = 0;
 
@@ -5388,9 +5388,9 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                     colSpan2 = 1;
                     if (dataTicks >= gridTicks) {    // full cell, >1 cells, or
                         if (dataTicks % gridTicks) { // tuplet >1 grid column
-                            sme    += "-4"; // only supports 3 leds across 4 columns
-                            colSpan2 = 2;   // for finding end segment
-                            colSpan = -3;   
+                            sme += "-4";   // only supports 3 leds across 4 columns
+                            colSpan2 =  2; // for finding end segment
+                            colSpan  = -3;   
                         }
                         else
                             colSpan = dataTicks / gridTicks;
@@ -5401,7 +5401,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             colSpan = -2;
                         else {
                             colSpan = -3; // 3 segments cover 1 or 2
-                            if (d < 2.0)  // columns, the 1 is implied.
+                            if (d < 2.0)  // columns, the "-1" is implied.
                                 sme += "-2"; 
                         }
                     }
@@ -5660,7 +5660,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 cellY += cellHeight; // Move to the next row/staff
             } // for (r < nStaves)
 
-            if (isPages)
+            if (isPages && isGridCol)
                 idxCol++;
             height = cellY + cellHeight; // Extra row for title/buttons
             cellY  = 0;
