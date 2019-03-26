@@ -4142,8 +4142,12 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
         const int idx = e->staffIdx();
         if (isMulti && idxStaff != idx) {
             if (idxStaff > -1 && visibleStaves[idxStaff] != visibleStaves[idx]) {
-                const int lyricsHeight = (idxStaff != idxLastLyrics ? 20 : 25);
                 // Paint the previous staff's animated elements
+                const int lyricsHeight = (idxStaff != idxLastLyrics ? 20 : 25);
+
+                printer.setGrandStaff(idxStaff > 0
+                                   && visibleStaves[idxStaff] == visibleStaves[idxStaff - 1]);
+
                 paintStaffSMAWS(score, &p, &printer, &barLines, &mapFrozen, &mapSVG,
                      &mapLyrics, &visibleStaves, &staffTops, idxStaff, lyricsHeight);
                 mapFrozen.clear();

@@ -398,9 +398,10 @@ public:
     void setNStaves(int n);
     void setStaffLines(int n);
     void setStaffIndex(int idx);
+    void setGrandStaff(bool b);
     void setCursorTop(qreal top);
     void setCursorHeight(qreal height);
-    void setStartMSecs(int start);
+//    void setStartMSecs(int start);
     void freezeIt(int idxStaff);
     void frozenClefs(int tick, bool b);
     void streamDefs();

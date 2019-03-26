@@ -222,6 +222,7 @@ protected:
 //
     bool _hasFrozen; // Does this score have a frozen pane? = _isSMAWS && !_isScrollVertical
     bool _isFrozen;  // Is _e part of a frozen pane?
+    bool _isGrand;   // Is the current staff a grand staff or other unlinked multi-stave staff?
     int  _nStaves;   // Number of staves in the current score
     int  _idxStaff;  // The current staff index
     int  _idxGrid;   // The grid staff index
@@ -1733,7 +1734,7 @@ void SvgPaintEngine::freezeDef(int idxStaff)
 
 void SvgPaintEngine::freezeSig(FDef* def, int idx, RealListVect& frozenY, EType eType, qreal x)
 {
-    int         i;
+    int         i, j, size, half; // only supports grand staff, 2 unlinked staves max
     QString*    elm;
     QString     key, content, type;
     QTextStream qts;
@@ -1746,8 +1747,11 @@ void SvgPaintEngine::freezeSig(FDef* def, int idx, RealListVect& frozenY, EType 
         spl = new StrPtrList;
         def->insert(key, spl);
     }
+    size = (*def)[key]->size();
+    half = (isKeySig && _isGrand) ? size / 2 : 0;
+
     for (i = 0; i < frozenY[idx].size(); i++) {
-        if ((*def)[key]->size() == i) {
+        if (size == i) {
             if (_prevDef != 0 && _prevDef->contains(key) && (*_prevDef)[key]->size() > i)
             {                                            // Better than maintaining another vector by staff
                 elm     = (*(*_prevDef)[key])[i];        // Each character = 1 XML element (time sig has no support for sub-divided numerators, like 7/8 as 4+3/8. It's a frozen pane width issue too.)
@@ -1767,10 +1771,11 @@ void SvgPaintEngine::freezeSig(FDef* def, int idx, RealListVect& frozenY, EType 
             elm->resize(0);
         }
         qts.setString(elm);
+        j = (half && i >= half) ? i - half : i; // grand staff must reset half-way
         qts << getFrozenElement(content,
                                 type,
                                 eType,
-                                x + (isKeySig ? i * 5 * Ms::DPI_F : 0),
+                                x + (isKeySig ? j * 5 * Ms::DPI_F : 0),
                                 frozenY[idx][i] + (isKeySig ? yOffsetKeySig[idx] : 0));
     }
 }
@@ -2243,6 +2248,10 @@ void SvgGenerator::setStaffIndex(int idx) {
         pe->frozenKeyY[idx].clear();
         pe->frozenTimeY[idx].clear();
     }
+}
+
+void SvgGenerator::setGrandStaff(bool b) {
+    static_cast<SvgPaintEngine*>(paintEngine())->_isGrand = b;
 }
 
 /*!
