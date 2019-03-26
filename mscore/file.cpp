@@ -4141,7 +4141,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
         // Multi-Select Staves groups and draws staves one at a time
         const int idx = e->staffIdx();
         if (isMulti && idxStaff != idx) {
-            if (idxStaff > -1) {
+            if (idxStaff > -1 && visibleStaves[idxStaff] != visibleStaves[idx]) {
                 const int lyricsHeight = (idxStaff != idxLastLyrics ? 20 : 25);
                 // Paint the previous staff's animated elements
                 paintStaffSMAWS(score, &p, &printer, &barLines, &mapFrozen, &mapSVG,
