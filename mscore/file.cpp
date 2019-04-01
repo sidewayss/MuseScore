@@ -6898,8 +6898,8 @@ bool MuseScore::saveSMAWS_Tree(Score* score, QFileInfo* qfi)
 //
 // saveSMAWS_Lyrics() - produces one VTT file and one HTML text file.
 // All staves are exported to VTT.
-// Only staves with .hideSystemBarLine() == true are exported to SVG.
-// Multiple staves are consolidated into one flow in the SVG file.
+// Only staves with .hideSystemBarLine() == true are exported to HTML/text.
+// Multiple staves are consolidated into one flow in the text file.
 // The possibility of multiple columns of lyrics highlighting
 // independently has some appeal, but it it not implemented yet.
 //
