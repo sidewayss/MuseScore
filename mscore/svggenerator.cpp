@@ -223,6 +223,7 @@ protected:
     bool _hasFrozen; // Does this score have a frozen pane? = _isSMAWS && !_isScrollVertical
     bool _isFrozen;  // Is _e part of a frozen pane?
     bool _isGrand;   // Is the current staff a grand staff or other unlinked multi-stave staff?
+    bool _isLinked;  // Is the current staff linked or part of a notes/tabs pair of staves?
     int  _nStaves;   // Number of staves in the current score
     int  _idxStaff;  // The current staff index
     int  _idxGrid;   // The grid staff index
@@ -343,19 +344,23 @@ public:
         _e  = NULL;
         _et = Ms::ElementType::INVALID;
 
-        _prevDef       = 0;   // FDef*
-        _iNames        = 0;   // QStringList*
-        _fullNames     = 0;   // QStringList*
-        _nonStdStaves  = 0;   // QVector<int>*
-        _nStaves       = 0;   // int
-        _nLines        = 0;   // int
-        _idxGrid       = -1;  // int
-        _xLeft         = 0.0; // qreal
-        _cursorTop     = 0.0; // qreal
-        _cursorHeight  = 0.0; // qreal
-        _yOffset       = 0.0; // qreal
-        _sysLeft       = 0.0; // qreal
-        _sysRight      = 0.0; // qreal
+        _hasFrozen    = false;
+        _isFrozen     = false;
+        _isGrand      = false;
+        _isLinked     = false;
+        _prevDef      = 0;   // FDef*
+        _iNames       = 0;   // QStringList*
+        _fullNames    = 0;   // QStringList*
+        _nonStdStaves = 0;   // QVector<int>*
+        _nStaves      = 0;   // int
+        _nLines       = 0;   // int
+        _idxGrid      = -1;  // int
+        _xLeft        = 0.0; // qreal
+        _cursorTop    = 0.0; // qreal
+        _cursorHeight = 0.0; // qreal
+        _yOffset      = 0.0; // qreal
+        _sysLeft      = 0.0; // qreal
+        _sysRight     = 0.0; // qreal
     }
 
     bool begin(QPaintDevice *device);
@@ -1134,7 +1139,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
 
         if (frozenLines[_idxStaff] == 0) { // staff lines draw first
             frozenLines[_idxStaff] = new QString;
-            if (isStaffLines && _e->staff()->links())
+            if (_isLinked)
                 frozenINameY.insert(_idxStaff, iy + (height / 2) + INAME_OFFSET);
         }
 
@@ -1270,17 +1275,19 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     const Ms::Note* note;
     int pitch  = -1;
     int tick   = _e->tick().ticks();
-    bool isTab = false;
+    bool isTab = _e->staff()->isTabStaff(_e->tick());
+    bool isRM  = false;
+    bool isTabNote = false;
     switch (_et) {
     case EType::NOTE              :
         note  = static_cast<const Ms::Note*>(_e);
         pitch = note->pitch();
-        if (_e->staff()->isTabStaff(_e->tick())) {
+        if (isTab) {
+            isTabNote = true;
             if (_stemX.find(tick) != _stemX.end())
                 x = _stemX[tick];
             y = _staffLinesY[note->string()] + 1; //??stroke-width:2; 1 = 2 / 2?
-            isTab = true;                         //??numbers = no-sub-baseline?
-            break;       
+            break;                                //??numbers = no-sub-baseline?
         } // fallthru
     case EType::ACCIDENTAL        :
     case EType::ARTICULATION      :
@@ -1309,6 +1316,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         break; // These elements all styled by CSS
 
     case EType::REHEARSAL_MARK : // center the text inside _textFrame
+        isRM = true;
         x = _textFrame.x() + (_textFrame.width()  / 2); // width/height are even
         y = _textFrame.y() + (_textFrame.height() / 2); // integers
         break;
@@ -1328,8 +1336,8 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     }
 
     // Stream the fancily formatted x and y coordinates
-    bool isFrBr = (_et == EType::BRACKET); // Brackets are frozen pane elements
-    if (_e->isRehearsalMark())
+    bool isFrBr = _e->isBracket(); // Brackets are frozen pane elements
+    if (isRM)
         qts << SVG_X << SVG_QUOTE << int(x) << SVG_QUOTE
             << SVG_Y << SVG_QUOTE << int(y) << SVG_QUOTE;
     else
@@ -1364,19 +1372,24 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         return;
     }
     // stream the text element to the body or the leftovers bin
-    if (_e->isTuplet() || _e->isGlissandoSegment() || _e->isRehearsalMark() || (isTab && _e->isNote()))
+    if (isRM || isTabNote || _e->isTuplet() || _e->isGlissandoSegment())
         _leftovers.append(qs); // text after shape in z-order
     else
         stream() << qs;
 
     // Frozen Pane elements (except brackets)
-    if (_isFrozen || (_et == EType::TEMPO_TEXT && _hasFrozen)) {
-        bool   multiTempo = _isMulti && _et == EType::TEMPO_TEXT;
+    if (_isFrozen || (_e->isTempoText() && _hasFrozen)) {
+        bool multiTempo = _isMulti && _e->isTempoText();
+        bool isINameY   = frozenINameY.contains(_idxStaff);
+        bool isIName    = false;
+        bool isTimeSig  = false;
+        bool isKeySig   = false;
+
         const QString key = getDefKey(multiTempo ? _nStaves : _idxStaff, _et);
 
-        FDef*       def;
-        QString     defClass;
-        qreal       line;
+        FDef*   def;
+        QString defClass;
+        qreal   line;
 
         if (!frozenDefs.contains(_cue_id))
             frozenDefs[_cue_id] = new FDef;
@@ -1386,27 +1399,22 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
 
         // This switch() is MuseScore-draw-order dependent
         switch (_et) {
-        case EType::INSTRUMENT_NAME   :
         case EType::INSTRUMENT_CHANGE :
-            _et = EType::INSTRUMENT_NAME;         // no frozen class="InstrumentChange"
-            if (frozenINameY.contains(_idxStaff)) // linked staves iName only in 1st staff
-                defClass = "iNameLink";
-            else
-                defClass = _e->name(_et);
-            // FALLTHROUGH
+            _et = EType::INSTRUMENT_NAME; // fallthru - no frozen class="InstrumentChange"
+        case EType::INSTRUMENT_NAME :
+            isIName  = true;              // linked staves iName only in 1st staff
+            defClass = isINameY ? "iNameLink" : _e->name(_et); // fallthru
         case EType::TEMPO_TEXT :
-            x   = 1;                      // That's as far left as it goes
+            x = 1;                        // that's as far left as it goes
             break;
 
         case EType::CLEF :
             x = _xLeft + CLEF_OFFSET;
-
-            // No frozen class="ClefCourtesy", only "Clef"
-            defClass = _e->name(_et);
+            defClass = _e->name(_et);     // no frozen class="ClefCourtesy", only "Clef"
 
             // A change in clef w/o a change in keysig might require y-offset
             line = (qreal)(Ms::ClefInfo::lines(static_cast<const Ms::Clef*>(_e)->clefType())[0])
-                 * 2.5; //!!!This is SPATIUM20 / 2, but I should really get the score's spatium
+                 * 2.5; //!!!literal value, related to SPATIUM20???
 
             // C/Am is the absence of a KeySig, so a score can start w/o a
             // KeySig. Not true for Clef of TimeSig. The first KeySig will
@@ -1417,8 +1425,8 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
                                          + yOffsetKeySig[_idxStaff];
             yLineKeySig[_idxStaff] = line;
             break;
-
         case EType::KEYSIG :
+            isKeySig = true;
             if (!def->contains(key) || (*def)[key]->size() == 0) {
                 // First accidental in new KeySig:
                 // Reset the list of frozen keysigs for this staff
@@ -1438,8 +1446,8 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
                 // Set the accidentals in left-to-right order in the vector
                 frozenKeyY[_idxStaff].insert(0, y);
             break;
-
         case EType::TIMESIG :
+            isTimeSig = true;
             if (!def->contains(key)) {
                 // First character in new TimeSig:
                 // Reset the list of frozen timesigs for this staff
@@ -1448,7 +1456,6 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
             // Add the timesig character to the vector, order not an issue here
             frozenTimeY[_idxStaff].append(y);
             break;
-
         default:
             break;
         }
@@ -1456,24 +1463,22 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         QString* elm = new QString;
         qts.setString(elm);
         initStream(&qts);
-        if (_idxStaff != _idxGrid || _et == EType::TIMESIG) {
-            if (_et == EType::KEYSIG || _et == EType::TIMESIG)
+        if (_idxStaff != _idxGrid || isTimeSig) {
+            if (isKeySig || isTimeSig)
                 // KeySigs/TimeSigs simply cache the text content until freezeDef()
                 qts << textContent;
             else if (_idxStaff != _idxGrid) {
                 // The other element types cache a fully-defined <text> element
                 qts << getFrozenElement(textContent, defClass, _et, x, y);
 
-                if (_et == EType::INSTRUMENT_NAME) {
+                if (isIName && isINameY) 
                     // The solo (link off) version of instrument names, one for each
                     // staff. Linked staves' first staff's iname gets two elements.
-                    if (frozenINameY.contains(_idxStaff))
-                        qts << getFrozenElement(textContent, _e->staff()->isTabStaff(Ms::Fraction())
-                                                ? CLASS_INAME_TABS : CLASS_INAME_NOTE,
-                                                _et,
-                                                x,
-                                                frozenINameY[_idxStaff]);
-                }
+                    qts << getFrozenElement(textContent,
+                                            isTab ? CLASS_INAME_TABS : CLASS_INAME_NOTE,
+                                            _et,
+                                            x,
+                                            frozenINameY[_idxStaff]);
             }
 
             // Ensure that tempo defs have the correct width
@@ -1503,7 +1508,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
                 def->insert(key, spl);
             }
 
-            if (_et == EType::KEYSIG) {
+            if (isKeySig) {
                 // Set KeySig order: left-to-right (and exclude natural signs)
                 // The reverse order is needed for unlinked multi-staff parts too
                 if (*(textItem.text().unicode()) != NATURAL_SIGN)
@@ -1528,7 +1533,7 @@ QString SvgPaintEngine::getClass()
     // Element type as SVG/CSS "class"
     switch(_et) {
     case EType::BRACKET :
-        eName = (_e->staff()->links() ? CLASS_BRACKET_LINK : _e->name(_et));
+        eName = (_isLinked ? CLASS_BRACKET_LINK : _e->name(_et));
         break;
     case EType::CLEF :
         // For horizontal scrolling, all but the first clef are courtesy clefs.
@@ -2237,21 +2242,19 @@ void SvgGenerator::setStaffLines(int n) {
 /*!
     setStaffIndex() function
     Sets the _idxStaff variable in SvgPaintEngine: current visible-staff index
-    Clears some variables for unlinked multi-staff parts
+    Also sets _isGrand and _isLinked, which are staff-level properties
     Called by saveSMAWS() in mscore/file.cpp.
 */
-void SvgGenerator::setStaffIndex(int idx) {
+void SvgGenerator::setStaffIndex(int idx, bool isGrand, bool isLinked) {
     SvgPaintEngine* pe = static_cast<SvgPaintEngine*>(paintEngine());
-    pe->_idxStaff      = idx;
+    pe->_idxStaff = idx;
+    pe->_isGrand  = isGrand;
+    pe->_isLinked = isLinked;
     if (idx < pe->_nStaves) {
         // "system" staff does not have key or time signatures
         pe->frozenKeyY[idx].clear();
         pe->frozenTimeY[idx].clear();
     }
-}
-
-void SvgGenerator::setGrandStaff(bool b) {
-    static_cast<SvgPaintEngine*>(paintEngine())->_isGrand = b;
 }
 
 /*!
@@ -2338,7 +2341,7 @@ void SvgGenerator::beginMultiGroup(QStringList* pINames,
                                    int top)
 {
     SvgPaintEngine* pe = static_cast<SvgPaintEngine*>(paintEngine());
-    QString fullName = (pFullNames  == 0 ? 0 : pFullNames->last());
+    QString fullName = (pFullNames == 0 ? 0 : pFullNames->last());
     pe->_isMulti = true;
     pe->_prevDef = 0;
     pe->_staffLinesY.clear();

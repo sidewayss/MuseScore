@@ -3334,9 +3334,11 @@ static void paintStaffLines(Score*        score,
 {
     const qreal cursorOverlap = Ms::SPATIUM20 / 2; // half staff-space overlap, top + bottom
 
-    bool  isMulti = (idxStaff != -1);
-    bool  isFirst = true;             // first system
-    bool  isStaff = true;
+    bool  isMulti  = (idxStaff != -1);
+    bool  isFirst  = true; // first system
+    bool  isStaff  = true;
+    bool  isLinked = false;
+    bool  isGrand  = false;
     qreal cursorTop;
     qreal cursorBot;
     qreal vSpacerUp = 0;
@@ -3346,51 +3348,71 @@ static void paintStaffLines(Score*        score,
 
     // isMulti requires a <g></g> wrapper around each staff's elements
     if (isMulti && idxStaff > -1 && pINames != 0  && pVisibleStaves != 0) {
-        Staff*          staff = score->staves()[idxStaff];
-        QList<Staff*>* staves = staff->part()->staves();
-        int              size = staves->size();
-        bool         isSingle = (size == 1);
-        bool           isLink = staff->links() // unlinked, paired tab staves too
-                             || (!isSingle && (*staves)[1]->isTabStaff(Fraction()));
+        Staff* staff = score->staves()[idxStaff];
 
-        // Multi-staff "parts" that are not linked (e.g. piano)
-        isStaff = (isLink || isSingle || (*staves)[0]->idx() == idxStaff);
+        QList<Staff*>* staves = staff->part()->staves();
+
+        int  size     = staves->size();
+        bool isSingle = (size == 1);
+        bool hasLinks = staff->links();
+
+        // isLinked included wannabe linked notes/tabs pairs
+        isLinked = hasLinks || (!isSingle && (*staves)[1]->isTabStaff(Fraction()));
+        isGrand  = !isSingle && !hasLinks; // two staves max for now
+
+        isStaff = (isLinked || isSingle || (*staves)[0]->idx() == idxStaff);
         if (isStaff) {
             bool isTab = staff->isTabStaff(Fraction());
 
-            const int gridHeight = 30;
-            const int tabHeight  = 53;
-            const int stdHeight  = 45;                //!!! see below
+            const int gridHeight = 30 * DPI_F;
+            const int stdHeight  = 45 * DPI_F;
+            const int tab6Height = 312;
+            const int tab4Height = 247;
             const int idxVisible = (*pVisibleStaves)[idxStaff];
 
-            System* s = page->systems().value(page->systems().size() > 1 ? 1 : 0);
-            top = s->staff(idxStaff)->y();
+            int h, i;
+            Staff*  st;
+            System* sys = page->systems().value(page->systems().size() > 1 ? 1 : 0);
 
-            if (s->firstMeasure()->vspacerUp(idxStaff) != 0) {
+            top = sys->staff(idxStaff)->y();
+            if (sys->firstMeasure()->vspacerUp(idxStaff) != 0) {
                 // This measure claims the extra space between it and the staff above it
-                // Get the previous visible staff - top staff can't have a vertical spacer up
-                for (int i = idxStaff - 1; i >= 0; i--) {
-                    if ((*pVisibleStaves)[i] > 0) {
-                        vSpacerUp = top - (s->staff(i)->y() + (score->staff(i)->isTabStaff(Fraction()) ? tabHeight : stdHeight));
+                // Get the previous visible staff. Top staff can't have a vertical spacer up
+                for (i = idxStaff - 1; i >= 0; i--) {
+                    if ((*pVisibleStaves)[i] > 0) { // gotta exclude invisible staves
+                        st = score->staff(i);
+                        if (st->isTabStaff(Fraction()))
+                            h = (st->staffType(Fraction())->lines() == 6 ? tab6Height : tab4Height);
+                        else
+                            h = stdHeight;
+
+                        vSpacerUp = top - (sys->staff(i)->y() + h);
                         break;
                     }
                 }
             }
 
             // > 0 when multi-staff part that is not linked staves, e.g. piano.
-            int lastStaff = (isSingle || isLink ? -1 : (*staves)[size - 1]->idx());
+            int lastStaff = (isSingle || isLinked ? -1 : (*staves)[size - 1]->idx());
 
             if (idxVisible >= 0 && idxVisible < nVisible - 1) {
                 // Get the next visible staff (below)
-                for (int i = idxStaff + 1; i < pVisibleStaves->size(); i++) {
+                for (i = idxStaff + 1; i < pVisibleStaves->size(); i++) {
                     if ((*pVisibleStaves)[i] > 0) {
-                        if (s->firstMeasure()->vspacerUp(i) != 0)
+                        if (sys->firstMeasure()->vspacerUp(i) != 0) {
+                            st = score->staff(i);
+                            if (st->isTabStaff(Fraction()))
+                                h = (st->staffType(Fraction())->lines() == 6 ? tab6Height : tab4Height);
+                            else
+                                h = stdHeight;
+
                             // Next staff (below) claims the extra space below this staff
-                            bot = top + (isTab ? tabHeight : stdHeight); //!!! I assume that this staff's height is the standard 45pt/px or 53 for tablature
+                            bot = top + h;
+                        }
                         else if (i <= lastStaff)
                             continue;
                         else
-                            bot = s->staff(i)->y(); // top of next visible staff
+                            bot = sys->staff(i)->y(); // top of next visible staff
                         break;
                     }
                 }
@@ -3408,19 +3430,15 @@ static void paintStaffLines(Score*        score,
             // Standard notation, tablature, or grid? I need to know by staff.
             // For Multi, the short name is the long name and vice versa, the
             // short name never appears in the sheet music: only one system.
-            // The short name is the longer name in the staves list. For linked
-            // tabs staves, the shortName is the note staff's long name.
-            // JavaScript uses this to link the staves, which are separate in SVG.
+            // The short name is the longer name in the staves list.
             QString qs = staff->part()->longName();
-            const QString shortName = (isTab && isLink
-                                     ? stringToUTF8(stripNonCSS(staff->part()->longName()))
-                                     : stringToUTF8(staff->part()->shortName(Fraction()), true));
+            const QString shortName = stringToUTF8(staff->part()->shortName(Fraction()), true);
             const bool    isGrid    = (shortName == STAFF_GRID);
             const int     height    = (isGrid ? gridHeight : bot - top);
             const QString className = (isGrid ? CLASS_GRID
                                               : (isTab ? CLASS_TABS
                                                        : CLASS_NOTES));
-            if (isTab && isLink)
+            if (isTab && isLinked)
                 qs.append("Tabs");
             pINames->append(stringToUTF8(stripNonCSS(qs)));
             pFullNames->append(shortName);
@@ -3445,7 +3463,7 @@ static void paintStaffLines(Score*        score,
             // especially for vertical scores. It assumes all systems are the
             // same height. Systems and staves are in top-to-bottom order here.
             if (pVisibleStaves != 0) {
-                printer->setStaffIndex(pVisibleStaves->value(i));
+                printer->setStaffIndex(pVisibleStaves->value(i), isGrand, isLinked);
                 if (isFirst) {
                     int j;
                     StaffLines* sl = s->firstMeasure()->staffLines(i);
@@ -4143,10 +4161,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
         if (isMulti && idxStaff != idx) {
             if (idxStaff > -1 && visibleStaves[idxStaff] != visibleStaves[idx]) {
                 // Paint the previous staff's animated elements
-                const int lyricsHeight = (idxStaff != idxLastLyrics ? 20 : 25);
-
-                printer.setGrandStaff(idxStaff > 0
-                                   && visibleStaves[idxStaff] == visibleStaves[idxStaff - 1]);
+                const int lyricsHeight = (idxStaff != idxLastLyrics ? 20 : 25) * DPI_F;
 
                 paintStaffSMAWS(score, &p, &printer, &barLines, &mapFrozen, &mapSVG,
                      &mapLyrics, &visibleStaves, &staffTops, idxStaff, lyricsHeight);

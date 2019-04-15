@@ -397,8 +397,7 @@ public:
     void setNonStandardStaves(QVector<int>* nonStdStaves);
     void setNStaves(int n);
     void setStaffLines(int n);
-    void setStaffIndex(int idx);
-    void setGrandStaff(bool b);
+    void setStaffIndex(int idx, bool isGrand = false, bool isLinked = false);
     void setCursorTop(qreal top);
     void setCursorHeight(qreal height);
 //    void setStartMSecs(int start);
