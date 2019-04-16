@@ -208,7 +208,7 @@ void PageSettings::updateWidgets(bool onlyUnits)
                         landscape->setChecked(true);
                   else
                         portrait ->setChecked(true);
-                }
+                  }
             else {
                   type = getPaperType(int(psid));
                   if (type == PaperType::NOTYPE) { // fallback, in case a psid becomes invalid
@@ -219,10 +219,6 @@ void PageSettings::updateWidgets(bool onlyUnits)
                         portrait ->setChecked(true);
                   else
                         landscape->setChecked(true);
-                  }
-            typesList->setCurrentIndex(int(type)); // typesList blocks signals - cleaner that way
-            typeChanged(int(type));                // typeChanged() loads sizesList
-            sizesList->setCurrentIndex(sizesList->findData(int(psid)));
 
             bool is2 = score->styleB(Sid::pageTwosided);
             twosided->setChecked(is2);
