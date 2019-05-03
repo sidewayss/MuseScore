@@ -1235,28 +1235,39 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         return;
 
     qreal x, y;
+    bool hasTick = true;
 
     // Variables, constants, initial setup
-    if (_isSMAWS && !_isMulti && _et == EType::TEXT) {
-        switch(Ms::Tid(static_cast<const Ms::Text*>(_e)->subtype())) {
-        case Ms::Tid::TITLE:
-        case Ms::Tid::SUBTITLE :
-            x = ((_sysRight - _sysLeft) / 2) + _sysLeft; // centered
-            break;
-        case Ms::Tid::COMPOSER:
-            x = _sysLeft;
-            break;
-        case Ms::Tid::POET:
-            x = _sysRight;
-            break;
-        default:
+    if (_isSMAWS && !_isMulti) {
+        if (_et == EType::TEXT) {
+            switch(Ms::Tid(static_cast<const Ms::Text*>(_e)->subtype())) {
+            case Ms::Tid::TITLE:
+            case Ms::Tid::SUBTITLE :
+                x = ((_sysRight - _sysLeft) / 2) + _sysLeft; // centered
+                hasTick = false;
+                break;
+            case Ms::Tid::COMPOSER:
+                x = _sysLeft;
+                hasTick = false;
+                break;
+            case Ms::Tid::POET:
+                x = _sysRight;
+                hasTick = false;
+                break;
+            default:
+                x = p.x();
+                break;
+            }
+        }
+        else if (_et == EType::PAGE) { // header/footer
             x = p.x();
-            break;
+            hasTick = false;
         }
         x += _dx;
     }
     else
         x = p.x() + _dx; // The de-translated coordinates
+
     y = p.y() + _dy + (_isFullMatrix ? 0 : _yOffset);
 
     const QFont   font       = textItem.font();
@@ -1272,80 +1283,83 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     // Begin the <text>
     qts << SVG_TEXT_BEGIN << classState;
 
-    const Ms::Note* note;
-    int pitch  = -1;
-    int tick   = _e->tick().ticks();
-    bool isTab = _e->staff()->isTabStaff(_e->tick());
-    bool isRM  = false;
+    int pitch = -1;
+    bool isRM      = false;
+    bool isTab     = false;
     bool isTabNote = false;
-    switch (_et) {
-    case EType::NOTE              :
-        note  = static_cast<const Ms::Note*>(_e);
-        pitch = note->pitch();
-        if (isTab) {
-            isTabNote = true;
-            if (_stemX.find(tick) != _stemX.end())
-                x = _stemX[tick];
-            y = _staffLinesY[note->string()] + 1; //??stroke-width:2; 1 = 2 / 2?
-            break;                                //??numbers = no-sub-baseline?
-        } // fallthru
-    case EType::ACCIDENTAL        :
-    case EType::ARTICULATION      :
-    case EType::HOOK              :
-    case EType::NOTEDOT           :
-        if (_offsets.find(tick) != _offsets.end()) {
-            RealPair& xy = _offsets[tick];
-            x += xy.first;
-            y += xy.second;
-        } // fallthru
-    case EType::BRACKET           :
-    case EType::CLEF              :
-    case EType::GLISSANDO_SEGMENT :
-    case EType::HARMONY           : // Chord text/symbols for song book, fake book, etc,
-    case EType::INSTRUMENT_CHANGE :
-    case EType::INSTRUMENT_NAME   :
-    case EType::KEYSIG            :
-    case EType::LYRICS            :
-    case EType::MEASURE_NUMBER    :
-    case EType::REST              :
-    case EType::STAFF_TEXT        :
-    case EType::TEMPO_TEXT        :
-    case EType::TEXT              : // Measure Numbers, Title, Subtitle, Composer, Poet
-    case EType::TIMESIG           :
-    case EType::TUPLET            :
-        break; // These elements all styled by CSS
+    if (hasTick) {
+        const Ms::Note* note;
+        int tick  = _e->tick().ticks();
+        isTab     = _e->staff()->isTabStaff(_e->tick());
+        switch (_et) {
+        case EType::NOTE :
+            note  = static_cast<const Ms::Note*>(_e);
+            pitch = note->pitch();
+            if (isTab) {
+                isTabNote = true;
+                if (_stemX.find(tick) != _stemX.end())
+                    x = _stemX[tick];
+                y = _staffLinesY[note->string()] + 1; //??stroke-width:2; 1 = 2 / 2?
+                break;                                //??numbers = no-sub-baseline?
+            } // fallthru
+        case EType::ACCIDENTAL   :
+        case EType::ARTICULATION :
+        case EType::HOOK         :
+        case EType::NOTEDOT      :
+            if (_offsets.find(tick) != _offsets.end()) {
+                RealPair& xy = _offsets[tick];
+                x += xy.first;
+                y += xy.second;
+            } // fallthru
+        case EType::BRACKET           :
+        case EType::CLEF              :
+        case EType::GLISSANDO_SEGMENT :
+        case EType::HARMONY           : // Chord text/symbols for song book, fake book, etc,
+        case EType::INSTRUMENT_CHANGE :
+        case EType::INSTRUMENT_NAME   :
+        case EType::KEYSIG            :
+        case EType::LYRICS            :
+        case EType::MEASURE_NUMBER    :
+        case EType::REST              :
+        case EType::STAFF_TEXT        :
+        case EType::TEMPO_TEXT        :
+        case EType::TEXT              : // Measure Numbers, Title, Subtitle, Composer, Poet
+        case EType::TIMESIG           :
+        case EType::TUPLET            :
+            break; // These elements all styled by CSS
 
-    case EType::REHEARSAL_MARK : // center the text inside _textFrame
-        isRM = true;
-        x = _textFrame.x() + (_textFrame.width()  / 2); // width/height are even
-        y = _textFrame.y() + (_textFrame.height() / 2); // integers
-        break;
+        case EType::REHEARSAL_MARK : // center the text inside _textFrame
+            isRM = true;
+            x = _textFrame.x() + (_textFrame.width()  / 2); // width/height are even
+            y = _textFrame.y() + (_textFrame.height() / 2); // integers
+            break;
 
-    default:
-        // Attributes normally contained in styleState. updateState() swaps
-        // the stroke/fill values in <text> elements; this is the remedy:
-        if (_color != SVG_BLACK)
-            qts << SVG_FILL         << _color        << SVG_QUOTE;
-        if (_colorOpacity != SVG_ONE)
-            qts << SVG_FILL_OPACITY << _colorOpacity << SVG_QUOTE;
+        default:
+            // Attributes normally contained in styleState. updateState() swaps
+            // the stroke/fill values in <text> elements; this is the remedy:
+            if (_color != SVG_BLACK)
+                qts << SVG_FILL         << _color        << SVG_QUOTE;
+            if (_colorOpacity != SVG_ONE)
+                qts << SVG_FILL_OPACITY << _colorOpacity << SVG_QUOTE;
 
-        // The font attributes, not handled in updateState()
-        qts << SVG_FONT_FAMILY << fontFamily << SVG_QUOTE
-            << SVG_FONT_SIZE   << fontSize   << SVG_QUOTE;
-        break;
+            // The font attributes, not handled in updateState()
+            qts << SVG_FONT_FAMILY << fontFamily << SVG_QUOTE
+                << SVG_FONT_SIZE   << fontSize   << SVG_QUOTE;
+            break;
+        }
     }
 
     // Stream the fancily formatted x and y coordinates
     bool isFrBr = _e->isBracket(); // Brackets are frozen pane elements
     if (isRM)
-        qts << SVG_X << SVG_QUOTE << int(x) << SVG_QUOTE
-            << SVG_Y << SVG_QUOTE << int(y) << SVG_QUOTE;
+          qts << SVG_X << SVG_QUOTE << int(x) << SVG_QUOTE
+          << SVG_Y << SVG_QUOTE << int(y) << SVG_QUOTE;
     else
-        qts << formatXY(x, y, isFrBr);
+          qts << formatXY(x, y, isFrBr);
 
     // If it's a note, stream the pitch value (MIDI note number 0-127)
     if (pitch != -1)
-        qts << SVG_DATA_P << pitch << SVG_QUOTE;
+          qts << SVG_DATA_P << pitch << SVG_QUOTE;
     qts << SVG_GT;
 
     // The Content, as in: <text>Content</text>

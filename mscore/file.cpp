@@ -1845,13 +1845,12 @@ void MuseScore::exportFile()
 
             if (selectedFilter.contains(FILTER_SMAWS_AUTO_OPEN))
                   autoSMAWS(cs, &fi, false);
-
-            if (selectedFilter.contains(FILTER_SMAWS_AUTO_ALL))
+            else if (selectedFilter.contains(FILTER_SMAWS_AUTO_ALL))
                   autoSMAWS(cs, &fi, true);
             else if (selectedFilter.contains(FILTER_SMAWS))
-                  saveSMAWS_Music(cs, &fi, false, true); // for PART, auto-export FRETS
+                  saveSMAWS_Music(cs, &fi, false, false); // PART
             else if (selectedFilter.contains(FILTER_SMAWS_MULTI))
-                  saveSMAWS_Music(cs, &fi, true, false); // for SCORE, don't export FRETS
+                  saveSMAWS_Music(cs, &fi, false, true); // SCORE
             else if (selectedFilter.contains(FILTER_SMAWS_RULERS))
                   saveSMAWS_Rulers(cs, &fi);
             else if (selectedFilter.contains(FILTER_SMAWS_GRID))
@@ -3448,10 +3447,8 @@ static void paintStaffLines(Score*        score,
     } // if (isMulti)
 
     bool isVertical = printer->isScrollVertical();
-    if (isVertical) { // at this point it's the same as !_isMulti...
+    if (isVertical)  // at this point it's the same as !_isMulti...
         printer->setStaffLines(score->staves()[0]->lines(Fraction()));
-        printer->beginGroup();
-    }
 
     for (System* s : page->systems()) {
         for (int i = 0, n = s->staves()->size(); i < n; i++) {
@@ -3590,8 +3587,6 @@ static void paintStaffLines(Score*        score,
             isFirst = false;
 
     } //for each System
-    if (isVertical)
-        printer->endGroup();
 }
 
 // svgInit() - consolidates shared code in saveSVG and saveSMAWS.
@@ -3978,7 +3973,7 @@ bool MuseScore::autoSMAWS(Score* score, QFileInfo* qfi, bool isAll)
 // But you must choose that option, otherwise rounding errors persist due
 // to the default templates being in mm (or inches, either way).
 //
-bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool isAuto)
+bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isAuto, bool isMulti)
 {
     if (score->metaTag(tagWorkNo).isEmpty()) {
         QMessageBox::critical(this, tr("SMAWS: saveSMAWS_Music"), tr("You must set the Work Number property for this Score.\nUse File menu / Score Properties dialog."));
@@ -4199,11 +4194,11 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
                 maxNote = qMax(maxNote, cr->actualTicks().ticks());
                 break;
             case EType::NOTEDOT    :
-				if (e->parent()->isRest()) {
-					cr = static_cast<const ChordRest*>(e->parent());
-					break;
-				}                // else falls through
-			case EType::ACCIDENTAL :
+		    if (e->parent()->isRest()) {
+		    	  cr = static_cast<const ChordRest*>(e->parent());
+		    	  break;
+		    }                // else falls through
+		case EType::ACCIDENTAL :
                 cr = static_cast<const ChordRest*>(e->parent()->parent());
                 break;
             case EType::HARMONY : // special case: end tick is next HARMONY
@@ -4309,10 +4304,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isMulti, bool
 
         // Set the cue_id, even if it's empty (especially if it's empty)
         printer.setCueID(cue_id);
-
-        // Paint the (un-animated) element
-        paintElement(p, e);
-
+        paintElement(p, e);      // paint the (un-animated) element
     } // for (e. elmPtrs)
 
     // Multi-Select Staves

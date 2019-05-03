@@ -494,7 +494,7 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
 
       ///// SMAWS ////////////////////////////////////////////////////////////////////
       bool autoSMAWS        (Score* score, QFileInfo* qfi, bool isAll);
-      bool saveSMAWS_Music  (Score* score, QFileInfo* qfi, bool isMulti, bool isAuto);
+      bool saveSMAWS_Music  (Score* score, QFileInfo* qfi, bool isAuto, bool isMulti);
       bool saveSMAWS_Rulers (Score* score, QFileInfo* qfi);
       bool saveSMAWS_Tables (Score* score, QFileInfo* qfi, bool isHTML, bool hasRulers);
       bool saveSMAWS_Frets  (Score* score, QFileInfo* qfi);
