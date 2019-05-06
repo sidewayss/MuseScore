@@ -1241,16 +1241,16 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     if (_isSMAWS && !_isMulti) {
         if (_et == EType::TEXT) {
             switch(Ms::Tid(static_cast<const Ms::Text*>(_e)->subtype())) {
-            case Ms::Tid::TITLE:
+            case Ms::Tid::TITLE :
             case Ms::Tid::SUBTITLE :
                 x = ((_sysRight - _sysLeft) / 2) + _sysLeft; // centered
                 hasTick = false;
                 break;
-            case Ms::Tid::COMPOSER:
+            case Ms::Tid::COMPOSER :
                 x = _sysLeft;
                 hasTick = false;
                 break;
-            case Ms::Tid::POET:
+            case Ms::Tid::POET :
                 x = _sysRight;
                 hasTick = false;
                 break;
@@ -1357,9 +1357,10 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     else
           qts << formatXY(x, y, isFrBr);
 
-    // If it's a note, stream the pitch value (MIDI note number 0-127)
-    if (pitch != -1)
-          qts << SVG_DATA_P << pitch << SVG_QUOTE;
+///!!!not for this release...    // If it's a note, stream the pitch value (MIDI note number 0-127)
+///!!!not for this release...    if (pitch != -1)
+///!!!not for this release...          qts << SVG_DATA_P << pitch << SVG_QUOTE;
+
     qts << SVG_GT;
 
     // The Content, as in: <text>Content</text>
