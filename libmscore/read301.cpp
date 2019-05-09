@@ -462,6 +462,7 @@ void MStyle::toPageLayout301()
       _pageOdd.setUnits(QPageLayout::Unit(idxUnit));
       _pageOdd.setOrientation(isLandscape ? QPageLayout::Landscape
                                           : QPageLayout::Portrait);
+cout << "or: " << _pageOdd.orientation() << endl;
       _pageOdd.setMargins(oddMarg);
       if (MScore::testMode && _pageOdd.margins().left() == 0) { /// Travis workaround
             // _pageOdd.fullRect().width() and .height() are reliable. The style
