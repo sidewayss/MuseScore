@@ -219,7 +219,7 @@ void PageSettings::updateWidgets(bool onlyUnits)
                         portrait ->setChecked(true);
                   else
                         landscape->setChecked(true);
-
+                  }
             bool is2 = score->styleB(Sid::pageTwosided);
             twosided->setChecked(is2);
             for (auto w : { evenTopMargin, evenBottomMargin, evenLeftMargin, evenRightMargin })
