@@ -220,6 +220,10 @@ void PageSettings::updateWidgets(bool onlyUnits)
                   else
                         landscape->setChecked(true);
                   }
+            typesList->setCurrentIndex(int(type)); // typesList blocks signals - cleaner that way
+            typeChanged(int(type));                // typeChanged() loads sizesList
+            sizesList->setCurrentIndex(sizesList->findData(int(psid)));
+
             bool is2 = score->styleB(Sid::pageTwosided);
             twosided->setChecked(is2);
             for (auto w : { evenTopMargin, evenBottomMargin, evenLeftMargin, evenRightMargin })
@@ -427,6 +431,7 @@ void PageSettings::twosidedToggled(bool flag)
 void PageSettings::widthChanged(double val)
       {
       widthHeightChanged(val, pageHeight->value(), false);
+      cout << "widthHeightChanged" << endl;
       }
 void PageSettings::heightChanged(double val)
       {
@@ -498,11 +503,8 @@ void PageSettings::widthHeightChanged(double w, double h, bool byType)
       QPageSize qps;
       if (psid != QPageSize::Custom)
             qps = QPageSize(psid);
-      else {
-            if (landscape->isChecked())
-                  size.transpose(); // custom landscape must flip manually
+      else // for now, custom is always portrait orientation internally
             qps = QPageSize(size, unit, QPageSize::name(psid), QPageSize::ExactMatch);
-            }
 
       style.setPageSize(qps);
       style.pageOdd ().setPageSize(qps);
