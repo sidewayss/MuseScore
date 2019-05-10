@@ -208,7 +208,7 @@ void PageSettings::updateWidgets(bool onlyUnits)
                         landscape->setChecked(true);
                   else
                         portrait ->setChecked(true);
-                  }
+                }
             else {
                   type = getPaperType(int(psid));
                   if (type == PaperType::NOTYPE) { // fallback, in case a psid becomes invalid
@@ -221,7 +221,7 @@ void PageSettings::updateWidgets(bool onlyUnits)
                         landscape->setChecked(true);
                   }
             typesList->setCurrentIndex(int(type)); // typesList blocks signals - cleaner that way
-            typeChanged(int(type));                // typeChanged() loads sizesList
+            typeChanged(int(type), false);         // typeChanged() loads sizesList
             sizesList->setCurrentIndex(sizesList->findData(int(psid)));
 
             bool is2 = score->styleB(Sid::pageTwosided);
@@ -320,11 +320,11 @@ void PageSettings::updateWidthHeight(const QRectF& rect)
 
 //---------------------------------------------------------
 //   typeChanged - populates sizesList based on typesList
+//         isSignal == false when called by updateWidgets
 //---------------------------------------------------------
 
-void PageSettings::typeChanged(int idx)
+void PageSettings::typeChanged(int idx, bool isSignal)
       {
-      int id = sizesList->currentData().toInt(); // current PageSizeId as int
       std::set<int>* sizes;
       switch (PaperType(idx)) {
             case PaperType::Common:
@@ -358,10 +358,13 @@ void PageSettings::typeChanged(int idx)
       // Custom (= 0). Even if it's a preset size, if it doesn't exist in this
       // type's list, then the list must display Custom. But if the currentIndex
       // is Custom, then maybe it's a preset size in this new type's list.
-      if (QPageSize::PageSizeId(id) != QPageSize::Custom)
-            sizesList->setCurrentIndex(qMax(0, sizesList->findData(id)));
-      else // try to find the page size by the width and height
-            widthHeightChanged(pageWidth->value(), pageHeight->value(), true);
+      if (isSignal) {
+            int id = sizesList->currentData().toInt(); // current PageSizeId as int
+            if (QPageSize::PageSizeId(id) != QPageSize::Custom)
+                  sizesList->setCurrentIndex(qMax(0, sizesList->findData(id)));
+            else // try to find the page size by the width and height
+                  widthHeightChanged(pageWidth->value(), pageHeight->value(), true);
+            }
       }
 
 //---------------------------------------------------------
@@ -431,7 +434,6 @@ void PageSettings::twosidedToggled(bool flag)
 void PageSettings::widthChanged(double val)
       {
       widthHeightChanged(val, pageHeight->value(), false);
-      cout << "widthHeightChanged" << endl;
       }
 void PageSettings::heightChanged(double val)
       {
@@ -503,7 +505,7 @@ void PageSettings::widthHeightChanged(double w, double h, bool byType)
       QPageSize qps;
       if (psid != QPageSize::Custom)
             qps = QPageSize(psid);
-      else // for now, custom is always portrait orientation internally
+      else // Custom always portrait until orientation is stored in the .mscx file
             qps = QPageSize(size, unit, QPageSize::name(psid), QPageSize::ExactMatch);
 
       style.setPageSize(qps);

@@ -63,7 +63,7 @@ class PageSettings : public AbstractDialog, private Ui::PageSettingsBase {
       PaperType getPaperType(int id);
 
    private slots:
-      void typeChanged(int idx);
+      void typeChanged(int idx, bool isSignal = true);
       void sizeChanged();
       void unitsChanged();
 
