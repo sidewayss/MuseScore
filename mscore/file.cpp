@@ -4277,11 +4277,17 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isAuto, bool 
                 cue_id = ""; // vertical scrolling: these elements not animated
             break;
 
+        case EType::MEASURE_NUMBER :
+            if (isMulti) {
+                mapSysStaff.insert("", e); // add to "system" staff, but no cue
+                continue;
+            }
+            break;
+
         case EType::TEXT       :        /// Assorted other elements
         case EType::STAFF_TEXT : {
             Tid ss = Tid(static_cast<const Text*>(e)->subtype());
-            if (isMulti && (ss == Tid::MEASURE_NUMBER
-                         || ss == Tid::SYSTEM)) {
+            if (isMulti &&  ss == Tid::SYSTEM) {
                 mapSysStaff.insert("", e); // add to "system" staff, but no cue
                 continue;
             }
