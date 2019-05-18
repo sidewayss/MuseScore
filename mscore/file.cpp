@@ -6935,7 +6935,6 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
     const QString   VTT_CLASS_BEGIN = "<c.";
     const QString   VTT_CLASS_END   = "</c>";
 
-    int     i;
     int     tick;
     int     startTick  = 0;
     bool    isLyric;
@@ -6951,6 +6950,7 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
     IntSet  setVTT;                      // std::set of mapHTML.uniqueKeys()
     QMultiMap<QString, QString> mapVTT;  // subtitles:   key = cue_id,    value = lyrics text
     QMultiMap<int,     QString> mapHTML; // lyrics html: key = startTick, value = lyrics text
+    Int2BoolMap mapItalic;               // maps tick to bool, doesn't handle multi-line mixed italics
 
     RehearsalMark* rm;
 
@@ -6962,7 +6962,7 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
 
     // Iterate over the lyrics staves and collect cue_ids + lyrics text
     // By staff by measure by segment of type ChordRest
-    for (i = 0; i < score->nstaves(); i++)
+    for (int i = 0; i < score->nstaves(); i++)
     {
         isPrevRest = true;
         isLyric    = score->staff(i)->hideSystemBarLine(); // it's a reasonable property to hijack for this purpose
@@ -6990,16 +6990,12 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
                     isOmit = ch->hasArticulation(art);
                     if (cr->lyrics().size() > 0) {
                         if (isPrevRest) { // New line of lyrics
+                            lyricsHTML.clear();
                             startTick = tick;
                             lyricsVTT = lyricsStaff;
                             isItalic  = cr->lyrics()[0]->textBlock(0).formatAt(0)->italic();
-
-                            if (isItalic) {
+                            if (isItalic)
                                 lyricsVTT += "Italic";
-                                lyricsHTML = beginItalics;
-                            }
-                            else
-                                lyricsHTML.clear();
 
                             lyricsVTT += SVG_SPACE;
                         }
@@ -7032,8 +7028,7 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
                         mapVTT.insert(getCueID(startTick, tick), lyricsVTT);
 
                         if (isLyric && !isPrevOmit) {
-                            if (isItalic)
-                                lyricsHTML += endItalics;
+                            mapItalic[startTick] = isItalic;
                             mapHTML.insert(startTick, lyricsHTML);
                             setVTT.insert(startTick);
                         }
@@ -7042,24 +7037,18 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
                     // RehearsalMarks on rests are used to create non-lyrics
                     // lines in the HTML file. These are necessary to animate
                     // spaces between verses properly, intro/outro/solo sections too.
-                    if (!isChord && isLyric) { // no good way to restrict this further, every rest in this staff...
+                    if (isLyric) { // no good way to restrict this further, every rest in this staff...
                         for (Element* eAnn : s->annotations()) {
                             if (eAnn->type()  == EType::REHEARSAL_MARK
                              && setVTT.find(tick) == setVTT.end())
                             { // rehearsal marks are system-level, not staff-level
-                                rm       = static_cast<RehearsalMark*>(eAnn);
-                                isItalic = rm->textBlock(0).formatAt(0)->italic();
-
-                                if (isItalic)
-                                    lyricsEmpty = beginItalics;
-                                else
-                                    lyricsEmpty.clear();
-                                lyricsEmpty += rm->xmlText();
-                                if (isItalic)
-                                    lyricsEmpty += endItalics;
+                                rm = static_cast<RehearsalMark*>(eAnn);
+                                lyricsEmpty = rm->xmlText();
                                 if (lyricsEmpty.trimmed().isEmpty())
-                                    lyricsEmpty = br;\
+                                    lyricsEmpty = br;
 
+                                isItalic = rm->textBlock(0).formatAt(0)->italic();
+                                mapItalic[tick] = isItalic;
                                 mapHTML.insert(tick, lyricsEmpty);
                                 setVTT.insert(tick);
                                 break; // only one marker per segment
@@ -7078,8 +7067,6 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
         lyricsVTT += VTT_CLASS_END;
         mapVTT.insert(getCueID(startTick, score->lastSegment()->tick().ticks()), lyricsVTT);
         if (!lyricsHTML.isEmpty()) {
-            if (isItalic)
-                lyricsHTML += endItalics;
             mapHTML.insert(startTick, lyricsHTML);
             setVTT.insert(startTick);
         }
@@ -7128,14 +7115,19 @@ bool MuseScore::saveSMAWS_Lyrics(Score* score, QFileInfo* qfi)
     // Collect the cues into a string, iterating by cue_id, and calculating y
     lyricsHTML.clear();
     qts.setString(&lyricsHTML);
-    for (IntSet::iterator tick = setVTT.begin(); tick != setVTT.end(); ++tick) {
-        values = mapHTML.values(*tick);
-        for (QStringList::iterator i = values.begin(); i != values.end(); ++i)
+    for (auto t = setVTT.begin(); t != setVTT.end(); ++t) {
+        values   = mapHTML.values(*t);
+        isItalic = mapItalic[*t];
+        for (auto i = values.begin(); i != values.end(); ++i) {
             qts << "<span"
-                   << formatInt(SVG_CUE_NQ, *tick, CUE_ID_FIELD_WIDTH, true)
-                   << SVG_CLASS << "lyricsOtNo" << SVG_QUOTE
-                   << SVG_GT    << *i
-                << "</span>" << endl;
+                << formatInt(SVG_CUE_NQ, *t, CUE_ID_FIELD_WIDTH, true)
+                << SVG_CLASS << "lyricsOtNo" << SVG_QUOTE;
+
+            if (isItalic)
+                qts << " style=\"font-style:italic;\"";
+
+            qts << SVG_GT << *i << "</span>" << endl;
+        }
     }
 
     // Open a stream into the HTML file
