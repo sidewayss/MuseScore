@@ -226,7 +226,7 @@ protected:
     bool _isLinked;  // Is the current staff linked or part of a notes/tabs pair of staves?
     int  _nStaves;   // Number of staves in the current score
     int  _idxStaff;  // The current staff index
-    int  _idxGrid;   // The grid staff index
+    int  _idxSlash;  // The grid staff index
 
     QVector<int>* _nonStdStaves; // Vector of staff indices for the tablature and percussion staves in this score
 
@@ -288,14 +288,14 @@ protected:
                              << SVG_CLASS        << className   << SVG_QUOTE
                              << SVG_INAME        << name        << SVG_QUOTE
                           << SVG_GT << endl;
-        if (fullName == STAFF_GRID)
-            _idxGrid = _iNames->size() - 1;
+        if (fullName == STAFF_SLASH)
+            _idxSlash = _iNames->size() - 1;
     }
     void beginMouseGroup() {
         closeGroup(); // groups by class must be terminated first
         *d_func()->stream << SVG_SPACE   << SVG_SPACE   << SVG_GROUP_BEGIN
-                          << SVG_POINTER << SVG_VISIBLE << SVG_QUOTE
-                          << SVG_ONCLICK << SVG_GT      << endl;
+                          << SVG_POINTER << SVG_VISIBLE << SVG_QUOTE << SVG_GT
+                          << endl;
     }
     void beginGroup(int indent, bool isFrozen) {
         closeGroup(); // groups by class must be terminated first
@@ -354,7 +354,7 @@ public:
         _nonStdStaves = 0;   // QVector<int>*
         _nStaves      = 0;   // int
         _nLines       = 0;   // int
-        _idxGrid      = -1;  // int
+        _idxSlash     = -1;  // int
         _xLeft        = 0.0; // qreal
         _cursorTop    = 0.0; // qreal
         _cursorHeight = 0.0; // qreal
@@ -568,7 +568,7 @@ bool SvgPaintEngine::end()
                          << SVG_ID          << (*_iNames)[i] << SVG_QUOTE
                          << XLINK_HREF      << (*_iNames)[i] << SVG_DASH
                                             << CUE_ID_ZERO   << SVG_QUOTE;
-                if (i != _idxGrid && i != last)
+                if (i != _idxSlash && i != last)
                     stream() << SVG_GT
                          << SVG_TITLE_BEGIN << _multiTitle[i]
                          << SVG_TITLE_END   << SVG_USE_END << endl;
@@ -658,7 +658,7 @@ bool SvgPaintEngine::end()
                     if ((*frozenDefs[cue_id])[timeKey] != 0 && (*frozenDefs[cue_id])[timeKey]->size() > 0) {
                         beginDef((*_nonStdStaves)[i], cue_id);
 
-                        if ((*_nonStdStaves)[i] != _idxGrid) // Slashes-only "grid" staff has no clef either (it should be a percussion staff)
+                        if ((*_nonStdStaves)[i] != _idxSlash) // Slashes-only "slash" staff has no clef either (it should be a percussion staff)
                             stream() << *((*(*frozenDefs[CUE_ID_ZERO])[getDefKey((*_nonStdStaves)[i], EType::CLEF)])[0]); // only one element for clefs
 
                         const StrPtrList* spl = (*frozenDefs[cue_id])[getDefKey(idxStd, EType::TIMESIG)];
@@ -1114,7 +1114,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     qts << SVG_QUOTE;
 
     if (isStaffLines && !_cue_id.isEmpty()) {
-        int bottom = ceil(height + p.elementAt(0).y);
+        int bottom = ceil(p.elementAt(0).y + height + _dy);
         qts << SVG_DATA_C << _cue_id << SVG_QUOTE
             << SVG_BOTTOM << bottom  << SVG_QUOTE;
         _cue_id = ""; // only the top staff line gets the extra attributes
@@ -1294,7 +1294,6 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     bool isTab     = false;
     bool isTabNote = false;
     if (hasTick) {
-        int iy;
         const Ms::Note* note;
         int tick  = _e->tick().ticks();
         isTab     = _e->staff()->isTabStaff(_e->tick());
@@ -1485,11 +1484,11 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         QString* elm = new QString;
         qts.setString(elm);
         initStream(&qts);
-        if (_idxStaff != _idxGrid || isTimeSig) {
+        if (_idxStaff != _idxSlash || isTimeSig) {
             if (isKeySig || isTimeSig)
                 // KeySigs/TimeSigs simply cache the text content until freezeDef()
                 qts << textContent;
-            else if (_idxStaff != _idxGrid) {
+            else if (_idxStaff != _idxSlash) {
                 // The other element types cache a fully-defined <text> element
                 qts << getFrozenElement(textContent, defClass, _et, x, y);
 
@@ -1645,7 +1644,7 @@ void SvgPaintEngine::beginDef(const int      idx,
              << SVG_GT      << endl;
 
     if (_isMulti) {
-        if (idx < _nStaves && idx != _idxGrid)
+        if (idx < _nStaves && idx != _idxSlash)
             // StaffLines/System BarLine(s) in all defs except System and Grid staves
             stream() << *(frozenLines[idx]);
     }
@@ -1698,7 +1697,7 @@ void SvgPaintEngine::freezeDef(int idxStaff)
         if (idxStaff > -1)
             idx = idxStaff; // Freeze one staff only
 
-        if (idx != _idxGrid) { // grid staff frozen pane only has timesigs
+        if (idx != _idxSlash) { // slash staff frozen pane only has timesigs
             // InstrumentNames are special because of linked staves
             key = getDefKey(idx, EType::INSTRUMENT_NAME);
             if (!def->contains(key)) {

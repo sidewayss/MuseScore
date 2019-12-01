@@ -233,9 +233,7 @@ using IntPairSet      = std::set<IntPair>;
 #define HTML_HEADER    "<!DOCTYPE html>\n<!-- SMAWS HTML Tables -->\n<html>\n<head>\n    <meta charset=\"utf-8\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">\n    <link rel=\"stylesheet\" href=\"../SMAWS_22.css\">\n</head>\n\n<body onload=\"onLoadHTMLTables()\">\n\n"
 
 // Boilerplate events
-#define SVG_ONCLICK    " onclick=\"musicClick(evt)\""
 #define SVG_ONLOAD     " onload=\"onLoadSVGGrid(evt)\""
-#define SVG_TOP_ONLOAD " onload=\"top.onLoadSVGGrid(evt)\""
 
 // SMAWS
 #define SMAWS         "SMAWS"
@@ -280,7 +278,8 @@ using IntPairSet      = std::set<IntPair>;
 #define RULER_HEIGHT 47
 #define INAME_OFFSET  4     //!!third of 12px, which is default font size - alignment-baseline!!
 #define CLEF_OFFSET  16
-#define STAFF_GRID   "grid" // Yes, it's the same as CLASS_GRID, but they serve different roles, STAFF_GRID is used outside of saveSMAWS_Tables() too.
+#define STAFF_GRID   "grid" // Yes, it's the same as CLASS_GRID, but they serve different roles
+#define STAFF_SLASH  "slash"
 #define PICK_DOWN    "d"
 #define PICK_UP      "u"
 #define PICK_NO      "n"
