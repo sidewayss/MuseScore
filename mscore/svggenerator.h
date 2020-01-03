@@ -50,14 +50,16 @@
 #include <QtCore/qscopedpointer.h>
 
 #include "libmscore/mscore.h"
-#include "libmscore/element.h" // for Element class
+#include "libmscore/element.h"  // for Element class
 #include "libmscore/barline.h"  // for BarLine class
 using EType  = Ms::ElementType; // it gets used a lot, Type consts are long too
 using BLType = Ms::BarLineType; // for convenience, and consistency w/EType
 
-using CueMap   = QMap<QString, const Ms::Element*>;
-using CueMulti = QMultiMap<QString, const Ms::Element*>;
-using Type2Cue = QMap<EType, CueMulti>;
+using Int2ElmMap   = QMap<int, const Ms::Element*>;
+using Int2ElmMulti = QMultiMap<int, const Ms::Element*>;
+using Str2ElmMap   = QMap<QString, const Ms::Element*>;
+using Str2ElmMulti = QMultiMap<QString, const Ms::Element*>;
+using Type2Multi   = QMap<EType, Str2ElmMulti>;
 
 using StrPtrList      = QList<QString*>;
 using StrPtrVect      = QVector<QString*>;
@@ -110,6 +112,7 @@ using IntPairSet      = std::set<IntPair>;
 #define SVG_GT        '>'
 #define SVG_LT        '<'
 #define SVG_ZERO      '0'
+#define CUE_ZERO      "0"
 #define SVG_ONE       "1"
 #define SVG_SPACE     ' '
 
@@ -143,6 +146,8 @@ using IntPairSet      = std::set<IntPair>;
 #define SVG_PATH        "<path"
 #define SVG_POLYLINE    "<polyline"
 #define SVG_IMAGE       "<image"
+#define SVG_CDATA_BEGIN "<![CDATA[\n"
+#define SVG_CDATA_END   "]]>\n"
 
 // SVG element attributes
 #define SVG_VIEW_BOX    " viewBox=\""
@@ -226,7 +231,7 @@ using IntPairSet      = std::set<IntPair>;
 #define XML_STYLE_MUSE "<?xml-stylesheet type=\"text/css\" href=\"/SMAWS/MuseScore.svg.css\"?>\n"
 #define XML_STYLE_GRID "<?xml-stylesheet type=\"text/css\" href=\"/SMAWS/SMAWS_Grid.svg.css\"?>\n<?xml-stylesheet type=\"text/css\" href=\"/SMAWS/SMAWS_Grid.psu.css\"?>\n"
 #define XML_NAMESPACE  " xmlns=\"http://www.w3.org/2000/svg\""
-#define XML_XLINK      "     xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n"
+#define XML_XLINK      " xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n"
 #define VTT_HEADER     "WEBVTT\n\nNOTE\n    SMAWS  - Sheet Music Animation w/Sound -\n    This file links to one or more SVG files via the\n    cue ids, which are in this format: 0000000_1234567\nNOTE\n\n"
 #define VTT_START_ONLY "WEBVTT\n\nNOTE\n    SMAWS  - Sheet Music Animation w/Sound -\n    This file links to one or more SVG files via the\n    cue ids, which are integer MIDI tick values formatted variable-length\nNOTE\n\n"
 #define VTT_MIXED      "WEBVTT\n\nNOTE\n    SMAWS  - Sheet Music Animation w/Sound -\n    This file links to one or more SVG files via the\n    cue ids, which are in two formats:\n    1) fixed 7-digit start_end ticks: 0000000_1234567\n    2) variable-length tick values, start time only\nNOTE\n\n"
@@ -237,7 +242,7 @@ using IntPairSet      = std::set<IntPair>;
 
 // SMAWS
 #define SMAWS         "SMAWS"
-#define SMAWS_VERSION "2.3"
+#define SMAWS_VERSION "2.4"
 
 // Custom SVG attributes (and some default settings)
 #define SVG_SCROLL     " data-scroll=\""  // "x" or "y", horizontal or vertical
@@ -249,7 +254,6 @@ using IntPairSet      = std::set<IntPair>;
 #define SVG_START      " data-start=\""   // cue start time in milliseconds
 #define SVG_START_NQ   " data-start="     // cue start time in milliseconds with no quote character
 #define SVG_INAME      " data-iname=\""   // full instrument name == MuseScore "short" instrument name
-#define SVG_BARNUMB    " data-barnumb="   // measure (bar) number for rulers/counters - no quotes!!
 #define SVG_BOTTOM     " data-bottom=\""  // vertical scroll: staff bottom y
 
 #define SVG_PREFIX_TAB "tab" // For tablature class names

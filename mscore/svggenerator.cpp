@@ -194,6 +194,7 @@ private:
 
 // For fancy text formatting inside the SVG file
     QString formatXY(qreal x, qreal y, bool isFrozen);
+    QString formatInt(const QString& attr, const QString& qsInt, const int maxDigits, const bool withQuotes);
     QString fixedFormat(const QString& attr,
                         const qreal    n,
                         const int      maxDigits,
@@ -205,7 +206,8 @@ protected:
 
 ////////////////////
 // SMAWS
-    QString _cue_id;           // The current VTT cue ID
+    QString _cue_id;           // The current cue ID
+    QString _cueString;        // ditto, formatted
     bool    _isSMAWS;          // In order to use SMAWS code only when necessary
     bool    _isScrollVertical; // Only 2 axes: x = false, y = true.
     bool    _isMulti;          // Multi-Select Staves file formats/formatting
@@ -281,7 +283,7 @@ protected:
         QString name = (fullName == 0 ? iName : fullName);
         *d_func()->stream << SVG_SPACE << SVG_GROUP_BEGIN
                              << SVG_TRANSFORM
-                                << SVG_TRANSLATE << SVG_ZERO    << SVG_SPACE // x
+                                << SVG_TRANSLATE << CUE_ZERO    << SVG_SPACE // x
                                                  << top  << SVG_RPAREN_QUOTE // y
                              << SVG_HEIGHT       << height      << SVG_QUOTE
                              << SVG_ID           << iName       << SVG_QUOTE
@@ -518,9 +520,9 @@ bool SvgPaintEngine::end()
         }
         stream() << indent << SVG_RECT
                     << SVG_CLASS          << CLASS_CURSOR  << SVG_QUOTE
-                    << SVG_X << SVG_QUOTE << SVG_ZERO      << SVG_QUOTE
+                    << SVG_X << SVG_QUOTE << CUE_ZERO      << SVG_QUOTE
                     << SVG_Y << SVG_QUOTE << _cursorTop    << SVG_QUOTE
-                    << SVG_WIDTH          << SVG_ZERO      << SVG_QUOTE
+                    << SVG_WIDTH          << CUE_ZERO      << SVG_QUOTE
                     << SVG_HEIGHT         << _cursorHeight << SVG_QUOTE
                     << SVG_STROKE         << SVG_NONE      << SVG_QUOTE
                  << SVG_ELEMENT_END << endl;
@@ -549,7 +551,7 @@ bool SvgPaintEngine::end()
                 stream() << SVG_4SPACES     << _multiUse[i]
                          << SVG_ID          << (*_iNames)[i] << SVG_QUOTE
                          << XLINK_HREF      << (*_iNames)[i] << SVG_DASH
-                                            << CUE_ID_ZERO   << SVG_QUOTE;
+                                            << CUE_ZERO      << SVG_QUOTE;
                 if (i != _idxSlash && i != last)
                     stream() << SVG_GT
                          << SVG_TITLE_BEGIN << _multiTitle[i]
@@ -565,7 +567,7 @@ bool SvgPaintEngine::end()
                 stream() << *(frozenLines[i]);
 
             // One <use> element
-            stream() << SVG_USE    << XLINK_HREF      << CUE_ID_ZERO
+            stream() << SVG_USE    << XLINK_HREF      << CUE_ZERO
                      << SVG_QUOTE  << SVG_ELEMENT_END << endl;
         }
 
@@ -622,20 +624,20 @@ bool SvgPaintEngine::end()
             // It assumes that non-standard staves never have clef changes.
             // It also causes the frozen <def> groups for non-standard staves to
             // appear out of order in the <svg> file (after the "system" staff).
-            if (hasKeySig && _nonStdStaves != 0 && _nonStdStaves->size() > 0 && cue_id != CUE_ID_ZERO) {
+            if (hasKeySig && _nonStdStaves != 0 && _nonStdStaves->size() > 0 && cue_id != CUE_ZERO) {
                 for (i = 0; i < _nonStdStaves->size(); i++) {
                     QString timeKey = getDefKey(i, EType::TIMESIG);
                     if ((*frozenDefs[cue_id])[timeKey] != 0 && (*frozenDefs[cue_id])[timeKey]->size() > 0) {
                         beginDef((*_nonStdStaves)[i], cue_id);
 
                         if ((*_nonStdStaves)[i] != _idxSlash) // Slashes-only "slash" staff has no clef either (it should be a percussion staff)
-                            stream() << *((*(*frozenDefs[CUE_ID_ZERO])[getDefKey((*_nonStdStaves)[i], EType::CLEF)])[0]); // only one element for clefs
+                            stream() << *((*(*frozenDefs[CUE_ZERO])[getDefKey((*_nonStdStaves)[i], EType::CLEF)])[0]); // only one element for clefs
 
                         const StrPtrList* spl = (*frozenDefs[cue_id])[getDefKey(idxStd, EType::TIMESIG)];
                         for (int j = 0; j < spl->size(); j++)
                             stream() << *((*spl)[j]); // 1 or 2 elements for timesig, possibly more
 
-                        stream() << *((*(*frozenDefs[CUE_ID_ZERO])[getDefKey((*_nonStdStaves)[i], EType::INSTRUMENT_NAME)])[0]); // only one element for instrument name - this does not handle instrument name changes!!! not easy to do, as I would need to completely rebuild this svg element text using the cue_id start tick - or keep track of the last def-cue_id for this staff, which is a bummer.
+                        stream() << *((*(*frozenDefs[CUE_ZERO])[getDefKey((*_nonStdStaves)[i], EType::INSTRUMENT_NAME)])[0]); // only one element for instrument name - this does not handle instrument name changes!!! not easy to do, as I would need to completely rebuild this svg element text using the cue_id start tick - or keep track of the last def-cue_id for this staff, which is a bummer.
 
                         stream() << SVG_4SPACES << SVG_GROUP_END << endl;
                     }
@@ -709,7 +711,7 @@ void SvgPaintEngine::updateState(const QPaintEngineState &s)
 
     // Stream the cue id to classState
     if (!_cue_id.isEmpty() && _et != EType::STAFF_LINES && _et != EType::BRACKET)
-        qts << SVG_CUE << _cue_id << SVG_QUOTE;
+        qts << _cueString;
 
     // Translations, SVG transform="translate()", are handled separately from
     // other transformations such as rotation. Qt translates everything, but
@@ -999,10 +1001,6 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
              && p.fillRule() == Qt::OddEvenFill)
         qts << SVG_FILL_RULE; // fill-rule="evenodd"
 
-//    // Barline cues only for the first staff in a system for SCORE
-//    if (isBarLine && !_cue_id.isEmpty())
-//        qts << SVG_CUE << _cue_id << SVG_QUOTE;
-
     char cmd  = 0;
     char prev = 0;
     QPointF pt;
@@ -1091,8 +1089,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
 
     if (isStaffLines && !_cue_id.isEmpty()) {
         int bottom = ceil(p.elementAt(0).y + height + _dy);
-        qts << SVG_CUE    << _cue_id << SVG_QUOTE
-            << SVG_BOTTOM << bottom  << SVG_QUOTE;
+        qts << _cueString << SVG_BOTTOM << bottom  << SVG_QUOTE;
         _cue_id = ""; // only the top staff line gets the extra attributes
     }
     qts << SVG_ELEMENT_END << endl;
@@ -1413,7 +1410,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
             // C/Am is the absence of a KeySig, so a score can start w/o a
             // KeySig. Not true for Clef of TimeSig. The first KeySig will
             // never require a translation. This is a y-axis offset.
-            if (yLineKeySig[_idxStaff] != line && _cue_id != CUE_ID_ZERO)
+            if (yLineKeySig[_idxStaff] != line && _cue_id != CUE_ZERO)
                 yOffsetKeySig[_idxStaff] = line
                                          - yLineKeySig[_idxStaff]
                                          + yOffsetKeySig[_idxStaff];
@@ -1533,7 +1530,7 @@ QString SvgPaintEngine::getClass()
         // For horizontal scrolling, all but the first clef are courtesy clefs.
         // Unfortunately, everything is in reverse order, so the first clef is
         // the last one to pass through here. cue_id is draw-order-independent.
-        eName = (!_isScrollVertical && _cue_id != CUE_ID_ZERO)
+        eName = (!_isScrollVertical && _cue_id != CUE_ZERO)
                  ? CLASS_CLEF_COURTESY
                  : _e->name(_et);
         break;
@@ -1599,14 +1596,33 @@ QString SvgPaintEngine::fixedFormat(const QString& attr,
 
     return qs;
 }
+// Formats ints in fixed width for SVG attribute value
+// Duplicated in file.cpp, formatInt(), except here the arg is already a string
+QString SvgPaintEngine::formatInt(const QString& attr,
+                                  const QString& qsInt,
+                                  const int      maxDigits,
+                                  const bool     withQuotes)
+{
+    QString qs;
+    QTextStream qts(&qs);
+    qts << attr;
+    qts.setFieldAlignment(QTextStream::AlignRight);
+    qts.setFieldWidth(maxDigits + (withQuotes ? 2: 0));
+    if (withQuotes)
+        qts << QString("%1%2%3").arg(SVG_QUOTE).arg(qsInt).arg(SVG_QUOTE);
+    else
+        qts << QString("%1").arg(qsInt);
+
+    return qs;
+}
 
 // Streams the start of a frozen pane def, including the staff lines,
 // consolidating some code in SvgPaintEngine::end()
 void SvgPaintEngine::beginDef(const int      idx,
                               const QString& cue_id)
 {
-    const QString id  = !_isMulti ? cue_id
-                                  : QString("%1%2%3")
+    const QString id = !_isMulti ? cue_id
+                                 : QString("%1%2%3")
                                        .arg((*_iNames)[idx])
                                        .arg(SVG_DASH)
                                        .arg(cue_id);
@@ -2175,7 +2191,11 @@ void SvgGenerator::setSMAWS() {
     Called by saveSMAWS() in mscore/file.cpp.
 */
 void SvgGenerator::setCueID(const QString& qs) {
-    static_cast<SvgPaintEngine*>(paintEngine())->_cue_id = qs;
+    SvgPaintEngine* pe = static_cast<SvgPaintEngine*>(paintEngine());
+    pe->_cue_id    = qs;
+    pe->_cueString =(qs.size() > CUE_ID_FIELD_WIDTH) 
+                   ? QString("%1%2%3").arg(SVG_CUE).arg(qs).arg(SVG_QUOTE)
+                   : pe->formatInt(SVG_CUE_NQ, qs, CUE_ID_FIELD_WIDTH, true);
 }
 
 /*!
