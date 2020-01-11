@@ -3303,15 +3303,11 @@ static void paintStaffLines(Score*        score,
                             QStringList*  pFullNames     =  0,
                             QList<qreal>* pStaffTops     =  0)
 {
-    const qreal cursorOverlap = Ms::SPATIUM20 / 2; // half staff-space overlap, top + bottom
-
-    bool  isMulti  = (idxStaff != -1);
-    bool  isFirst  = true; // first system
-    bool  isStaff  = true;
-    bool  isLinked = false;
-    bool  isGrand  = false;
-    qreal cursorTop;
-    qreal cursorBot;
+    bool  isMulti   = (idxStaff != -1);
+    bool  isFirst   = true; // first system
+    bool  isStaff   = true;
+    bool  isLinked  = false;
+    bool  isGrand   = false;
     qreal vSpacerUp = 0;
     qreal bot = -1;
     qreal top = -1;
@@ -3447,11 +3443,9 @@ static void paintStaffLines(Score*        score,
                     }
 
                     if (i == j) { // only first visible staff in first system
-                        // Set the cursor's y-coord
-                        cursorTop = (isMulti ? 5 : top - cursorOverlap);
-                        printer->setCursorTop(cursorTop);
-
-                        if (!isMulti) { // multi has fixed margins, only one system
+                        if (isMulti)  // Set the cursor's y-coord
+                            printer->setCursorTop(DPI_F);
+                        else { // multi has fixed margins, only one system
                             // Get the left and right edges of the staff lines for
                             // title, subtitle, composer, and poet layout
                             StaffLines* tpcStaff =  s->lastMeasure()->staffLines(i);
@@ -3459,19 +3453,6 @@ static void paintStaffLines(Score*        score,
                                         + tpcStaff->pagePos().x()
                                         - sl->pagePos().x();
                             printer->setLeftRight(sl->bbox().left(), right);
-
-                            // Get the last visible staff index in the first system
-                            for (j = pVisibleStaves->size() - 1; j >= 0; j--) {
-                                if (pVisibleStaves->value(j) >= 0)
-                                    break;
-                            }
-                            // Set the cursor's height
-                            sl        = s->firstMeasure()->staffLines(j);
-                            cursorBot = sl->bbox().top()
-                                      + sl->pagePos().y()
-                                      + score->staff(i)->height() // bbox().bottom() includes margins
-                                      + cursorOverlap;
-                            printer->setCursorHeight(cursorBot - cursorTop);
                         }
                     }
 
@@ -3541,10 +3522,9 @@ static void paintStaffLines(Score*        score,
                 for (int l = 0, c = lines.size(); l < c; l++)
                     lines[l].setP2(QPointF(lastX, lines[l].p2().y()));
 
-                if (isVertical && i == 0)
-                    cue_id = getCueID2(score, s->firstMeasure()->tick().ticks());
-                else
-                    cue_id = "";
+                cue_id = isVertical && i == 0
+                       ? getCueID2(score, s->firstMeasure()->tick().ticks())
+                       : "";
 
                 printer->setCueID(cue_id);
                 printer->setElement(firstSL);
@@ -4054,7 +4034,9 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isAuto, bool 
     printer.setNonStandardStaves(&nonStdStaves);
 
     // It's too counter-intuitive to do this inside the staves loop w/ClefList
+    int idx;
     int tick;
+    const ChordRest* cr;    // it has duration, segments do not
     st = SegmentType::Clef; // for keysig/timesig x offset
     for (seg = score->firstMeasureMM()->first(st); seg; seg = seg->next1MM(st)) {
         tick = seg->tick().ticks();
@@ -4071,63 +4053,63 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isAuto, bool 
     }
 
     /// setCues and this entire block of code is for potential future use...
-    auto cue_compare = [](QString a, QString b) {
-        bool aOk, bOk;
-        int ai = a.toInt(&aOk);
-        int bi = b.toInt(&bOk);
-        return aOk && bOk ? ai < bi : a < b; 
-    };
-    std::set<QString, decltype(cue_compare)> setCues(cue_compare);
-    const ChordRest* cr;      // it has duration, segments do not
-    Measure* m;
-    Segment* s;
-    n *= VOICES; // iterate over all the tracks...
-    for (m = score->firstMeasure(); m; m = m->nextMeasureMM()) {
-        setCues.insert(getCueID2(score, m->tick().ticks()));
-        for (s = m->first(SegmentType::ChordRest); s; s = s->next(SegmentType::ChordRest)) {
-            for (i = 0; i < n; i++) {
-                cr = s->cr(i);
-                if (cr) {
-                    tick = cr->tick().ticks();
-                    setCues.insert(getCueID2(score, tick, tick + cr->actualTicks().ticks()));
-                }
-            }
-            for (Element* eAnn : s->annotations()) {
-                switch(eAnn->type()) {
-                case EType::HARMONY : // special case: end tick is next HARMONY
-                    setCues.insert(getAnnCueID(score, eAnn, eAnn->type()));
-                    break;
-                case EType::TEMPO_TEXT        :
-                case EType::INSTRUMENT_CHANGE :
-                    if (s->tick().ticks() != m->tick().ticks())
-                        setCues.insert(getScrollCueID(score, eAnn)); // Zero-duration cue
-                    break;
-                default:
-                    break;
-                }
-            }
-        }
-    } 
-    std::map<QString, int> idxByCue;
-    int idx = -1;
-    QFile       cdataFile;
-    QTextStream cdataStream(&cdataFile);
-    cdataFile.setFileName(QString("%1%2%3").arg(fnRoot).arg("cues").arg(EXT_SVG));
-    cdataFile.open(QIODevice::WriteOnly | QIODevice::Text);  // TODO: check for failure here!!!
-    cdataStream << SVG_BEGIN << XML_NAMESPACE << SVG_GT << endl
-                << SVG_DESC_BEGIN  << score->metaTag("workTitle") << SVG_SPACE
-                                   << smawsDesc(score)  << SVG_DESC_END  << endl
-                << SVG_CDATA_BEGIN;
-    for (auto cue : setCues) {        // std::set is ordered, sorted with less()
-        idxByCue.emplace(cue, ++idx); // for cue index as data-i...
-        cdataStream << cue << endl;   // newline-delimited CDATA of cue_ids
-    }
-    cdataStream << SVG_CDATA_END << SVG_END;
-
-    cdataStream.flush();
-    cdataFile.close();
-
-    const int cueIdxDigits = QString::number(idx).size();
+//    auto cue_compare = [](QString a, QString b) {
+//        bool aOk, bOk;
+//        int ai = a.toInt(&aOk);
+//        int bi = b.toInt(&bOk);
+//        return aOk && bOk ? ai < bi : a < b; 
+//    };
+//    std::set<QString, decltype(cue_compare)> setCues(cue_compare);
+//    Measure* m;
+//    Segment* s;
+//    n *= VOICES; // iterate over all the tracks...
+//    for (m = score->firstMeasure(); m; m = m->nextMeasureMM()) {
+//        setCues.insert(getCueID2(score, m->tick().ticks()));
+//        for (s = m->first(SegmentType::ChordRest); s; s = s->next(SegmentType::ChordRest)) {
+//            for (i = 0; i < n; i++) {
+//                cr = s->cr(i);
+//                if (cr) {
+//                    tick = cr->tick().ticks();
+//                    setCues.insert(getCueID2(score, tick, tick + cr->actualTicks().ticks()));
+//                }
+//            }
+//            for (Element* eAnn : s->annotations()) {
+//                switch(eAnn->type()) {
+//                case EType::HARMONY : // special case: end tick is next HARMONY
+//                    setCues.insert(getAnnCueID(score, eAnn, eAnn->type()));
+//                    break;
+//                case EType::TEMPO_TEXT        :
+//                case EType::INSTRUMENT_CHANGE :
+//                    if (s->tick().ticks() != m->tick().ticks())
+//                        setCues.insert(getScrollCueID(score, eAnn)); // Zero-duration cue
+//                    break;
+//                default:
+//                    break;
+//                }
+//            }
+//        }
+//    } 
+//
+//    std::map<QString, int> idxByCue;
+//    idx = -1;
+//    QFile       cdataFile;
+//    QTextStream cdataStream(&cdataFile);
+//    cdataFile.setFileName(QString("%1%2%3").arg(fnRoot).arg("cues").arg(EXT_SVG));
+//    cdataFile.open(QIODevice::WriteOnly | QIODevice::Text);  // TODO: check for failure here!!!
+//    cdataStream << SVG_BEGIN << XML_NAMESPACE << SVG_GT << endl
+//                << SVG_DESC_BEGIN  << score->metaTag("workTitle") << SVG_SPACE
+//                                   << smawsDesc(score)  << SVG_DESC_END  << endl
+//                << SVG_CDATA_BEGIN;
+//    for (auto cue : setCues) {        // std::set is ordered, sorted with less()
+//        idxByCue.emplace(cue, ++idx); // for cue index as data-i...
+//        cdataStream << cue << endl;   // newline-delimited CDATA of cue_ids
+//    }
+//    cdataStream << SVG_CDATA_END << SVG_END;
+//
+//    cdataStream.flush();
+//    cdataFile.close();
+//
+//    const int cueIdxDigits = QString::number(idx).size();
     /// end future use
 
     // The sort order for elmPtrs is critical: if (isMulti) by type, by staff;

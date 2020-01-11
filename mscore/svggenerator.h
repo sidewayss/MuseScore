@@ -245,23 +245,19 @@ using IntPairSet      = std::set<IntPair>;
 #define SMAWS_VERSION "2.4"
 
 // Custom SVG attributes (and some default settings)
-#define SVG_SCROLL     " data-scroll=\""  // "x" or "y", horizontal or vertical
-#define SVG_STAVES     " data-staves=\""  // number of staves for the score (OBSOLETE?)
 #define SVG_STAFFLINES " data-lines=\""   // number of staff lines for the part
 #define SVG_CUE        " data-cue=\""     // the cue id
 #define SVG_CUE_NQ     " data-cue="       // the cue id with no quote char
 #define SVG_COL_CUE    " data-col-cue="   // the relative cue id within a grid page (start tick only)
-#define SVG_START      " data-start=\""   // cue start time in milliseconds
-#define SVG_START_NQ   " data-start="     // cue start time in milliseconds with no quote character
 #define SVG_INAME      " data-iname=\""   // full instrument name == MuseScore "short" instrument name
-#define SVG_BOTTOM     " data-bottom=\""  // vertical scroll: staff bottom y
+#define SVG_TOP        "data-top=\""      // vertical scroll: cursor top and bottom by system
+#define SVG_BOT        "data-bot=\""
 
 #define SVG_PREFIX_TAB "tab" // For tablature class names
 
 // SMAWS class attribute values
 #define CLASS_CLEF_COURTESY "ClefCourtesy"
-#define CLASS_CURSOR        "cursor HiScore" // always hiLited
-#define CLASS_GRAY          "bgFill LoScore"
+#define CLASS_CURSOR        "cursor HiS" // always hiLited
 #define CLASS_NOTES         "notes"
 #define CLASS_TABS          "tablature"
 #define CLASS_GRID          "grid"
@@ -274,15 +270,15 @@ using IntPairSet      = std::set<IntPair>;
 #define CLASS_LYRICS        "lyrics"
 
 // Miscellaneous SMAWS constants
-#define CUE_ID_FIELD_WIDTH 7
-#define CUE_ID_ZERO  "0000000_0000000"
+#define CUE_ID_FIELD_WIDTH 6 // that's 16 minutes 39 seconds
+#define CUE_ID_ZERO  "000000_000000"
 #define TEXT_BPM     "bpm"
-#define NATURAL_SIGN 57953  // 0xE261, natural signs excluded from frozen panes
-#define FROZEN_WIDTH 535    // frozen-staff-lines:x2; fader-rect:width;
+#define NATURAL_SIGN 57953   // 0xE261, natural signs excluded from frozen panes
+#define FROZEN_WIDTH 535     // frozen-staff-lines:x2; fader-rect:width;
 #define RULER_HEIGHT 47
-#define INAME_OFFSET  4     //!!third of 12px, which is default font size - alignment-baseline!!
+#define INAME_OFFSET  4      //!!third of 12px, which is default font size - alignment-baseline!!
 #define CLEF_OFFSET  16
-#define STAFF_GRID   "grid" // Yes, it's the same as CLASS_GRID, but they serve different roles
+#define STAFF_GRID   "grid"  // same as CLASS_GRID, but they serve different roles
 #define STAFF_SLASH  "slash"
 #define PICK_DOWN    "d"
 #define PICK_UP      "u"
@@ -403,8 +399,6 @@ public:
     void setStaffLines(int n);
     void setStaffIndex(int idx, bool isGrand = false, bool isLinked = false);
     void setCursorTop(qreal top);
-    void setCursorHeight(qreal height);
-//    void setStartMSecs(int start);
     void freezeIt(int idxStaff);
     void frozenClefs(int tick, bool b);
     void streamDefs();

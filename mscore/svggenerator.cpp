@@ -212,12 +212,13 @@ protected:
     bool    _isScrollVertical; // Only 2 axes: x = false, y = true.
     bool    _isMulti;          // Multi-Select Staves file formats/formatting
     qreal   _cursorTop;        // For calculating the height of (vertical bar)
-    qreal   _cursorHeight;     // Sheet music playback position cursor.
     qreal   _yOffset;          // Y axis offset used by Multi-Select Staves
     qreal   _sysLeft;          // Left and right edges of staff lines on the
     qreal   _sysRight;         // page for part title and credits formatting
     int     _nLines;           // Number of staff lines for a part
     IntVect _staffLinesY;      // by staff line for the current _idxStaff
+    Int2IntMap _systemTop;     // for PART, by start-of-system cue_id
+    Int2IntMap _systemBot;     // ditto
 ////////////////////
 // Frozen Pane
 //
@@ -313,6 +314,8 @@ protected:
         *d_func()->stream << SVG_GROUP_END << endl;
         if (isFrozen)
             _isFrozen = false; // end of frozen group
+        else if (indent == 1)
+            _offsets.clear();  // end of staff group
     }
     void closeGroup() {
         if (_isGroupOpen) { // these are groups by element type/class
@@ -359,7 +362,6 @@ public:
         _idxSlash     = -1;  // int
         _xLeft        = 0.0; // qreal
         _cursorTop    = 0.0; // qreal
-        _cursorHeight = 0.0; // qreal
         _yOffset      = 0.0; // qreal
         _sysLeft      = 0.0; // qreal
         _sysRight     = 0.0; // qreal
@@ -493,8 +495,7 @@ bool SvgPaintEngine::end()
 
     if (_isSMAWS) {
         stream() << SVG_4SPACES << SVG_XYMIN_SLICE
-                 << SVG_POINTER << SVG_NONE   << SVG_QUOTE
-                 << SVG_SCROLL  << scrollAxis << SVG_QUOTE;
+                 << SVG_POINTER << SVG_NONE   << SVG_QUOTE;
 
         if (!_isMulti)
             stream() << SVG_STAFFLINES <<_nLines << SVG_QUOTE;
@@ -514,23 +515,38 @@ bool SvgPaintEngine::end()
 
         // Two gray-out <rect>s (left/right) for graying out inactive bars
         QString indent;
-        if (_isMulti) { // fixed margins relative to page height, modified in javascript
+        if (_isMulti) // fixed margins relative to page height, modified in javascript
             indent = SVG_SPACE;
-            _cursorHeight = height - (_cursorTop * 2);
+        else
+            indent = SVG_2SPACES;
+
+        stream() << indent     << SVG_RECT
+                 << SVG_CLASS  << CLASS_CURSOR << SVG_QUOTE
+                 << SVG_STROKE << SVG_NONE     << SVG_QUOTE;
+
+        if (_isMulti)
+            stream() << SVG_Y << SVG_QUOTE << _cursorTop << SVG_QUOTE;
+        else { // for PART only, is this if() correct??
+            QString qs;
+            QTextStream qts(&qs);
+            qts << endl << SVG_8SPACES << SVG_TOP;
+            for (auto top : _systemTop)
+                qts << top.second << SVG_COMMA;
+            qs.chop(1); // trim final comma
+            stream() << qs << SVG_QUOTE;
+
+            qs.clear();
+            qts << endl << SVG_8SPACES << SVG_BOT;
+            for (auto bot : _systemBot)
+                qts << bot.second << SVG_COMMA;
+            qs.chop(1); // trim final comma
+            stream() << qs << SVG_QUOTE;
         }
-        stream() << indent << SVG_RECT
-                    << SVG_CLASS          << CLASS_CURSOR  << SVG_QUOTE
-                    << SVG_X << SVG_QUOTE << CUE_ZERO      << SVG_QUOTE
-                    << SVG_Y << SVG_QUOTE << _cursorTop    << SVG_QUOTE
-                    << SVG_WIDTH          << CUE_ZERO      << SVG_QUOTE
-                    << SVG_HEIGHT         << _cursorHeight << SVG_QUOTE
-                    << SVG_STROKE         << SVG_NONE      << SVG_QUOTE
-                 << SVG_ELEMENT_END << endl;
+        stream() << SVG_ELEMENT_END << endl;
 
         if (_isMulti) // Terminate the Staves group
             stream() << SVG_GROUP_END << endl;
     }
-
     // Deal with Frozen Pane, if it exists
     if (_hasFrozen) {
         // Frozen body - _hasFrozen depends on _isSMAWS, setString(&d->body) above
@@ -1059,7 +1075,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
                         qts << x << SVG_COMMA << y;
                 }
                 else if (is24 || is3 || isBeam)
-                    qts << (cmd == SVG_H ? ix : iy); // grouped by variable type
+                    qts << (cmd == SVG_H ? ix : iy);
                 else
                     qts << (cmd == SVG_H ? x : y);
                 break;
@@ -1088,9 +1104,13 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     qts << SVG_QUOTE;
 
     if (isStaffLines && !_cue_id.isEmpty()) {
-        int bottom = ceil(p.elementAt(0).y + height + _dy);
-        qts << _cueString << SVG_BOTTOM << bottom  << SVG_QUOTE;
-        _cue_id = ""; // only the top staff line gets the extra attributes
+        const int pad = Ms::DPI_F * 3;
+        int top = p.elementAt(0).y + _dy;
+        int cue = _cue_id.toInt();
+        _systemTop[cue] = floor(top) - pad; // initial values, staff lines painted first
+        _systemBot[cue] = ceil(top + height) + pad;
+        _cue_id.clear(); // only the top staff line gets the extra attributes
+        qts << _cueString;
     }
     qts << SVG_ELEMENT_END << endl;
 
@@ -1326,11 +1346,33 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     // Stream the fancily formatted x and y coordinates
     bool isFrBr = _e->isBracket(); // Brackets are frozen pane elements
     if (isRM)
-          qts << SVG_X << SVG_QUOTE << int(x) << SVG_QUOTE
-          << SVG_Y << SVG_QUOTE << int(y) << SVG_QUOTE;
-    else
-          qts << formatXY(x, y, isFrBr);
+        qts << SVG_X << SVG_QUOTE << int(x) << SVG_QUOTE
+            << SVG_Y << SVG_QUOTE << int(y) << SVG_QUOTE;
+    else {
+        qts << formatXY(x, y, isFrBr);
+        if (!_isMulti && (_et == EType::NOTE || _et == EType::LYRICS)) {
+            // find the relevant system start time, the index into the maps
+            double n;
+            int key, iy;
+            int cue = _cue_id.left(CUE_ID_FIELD_WIDTH).toInt();
+            Int2IntMap::iterator i;
+            for (i = _systemTop.begin(); ; ++i) { // go all the way to .end()
+                if (cue < i->first || i == _systemTop.end()) {
+                    n  = _e->bbox().y() + _dy;
+                    iy = floor(n);
+                    if (iy < _systemTop[key])
+                        _systemTop[key] = iy;
 
+                    iy = ceil(n + _e->bbox().height());
+                    if (iy > _systemBot[key])
+                        _systemBot[key] = iy;
+                    break;
+                }
+                else 
+                  key = i->first;
+            }
+        }
+    }
 ///!!!not for this release...    // If it's a note, stream the pitch value (MIDI note number 0-127)
 ///!!!not for this release...    if (pitch != -1)
 ///!!!not for this release...          qts << SVG_DATA_P << pitch << SVG_QUOTE;
@@ -1430,7 +1472,7 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
                 if (!xOffsetTimeSig.contains(_cue_id) && _e->staff()->isPitchedStaff(Ms::Fraction()))
                     xOffsetTimeSig.insert(_cue_id,
                                           qAbs((int)(static_cast<const Ms::KeySig*>(_e)->keySigEvent().key()))
-                                            * 5 * Ms::DPI_F); //!!! literal keysig-accidental-width
+                                          * 5 * Ms::DPI_F); //!!! literal keysig-accidental-width
             }
             // Natural signs are not frozen
             if (*(textItem.text().unicode()) != NATURAL_SIGN)
@@ -2289,27 +2331,6 @@ void SvgGenerator::setCursorTop(qreal top) {
     if (pe->_cursorTop == 0 || top < pe->_cursorTop)
         pe->_cursorTop = top;
 }
-
-/*!
-    setCursorHeight() function
-    Sets the _cursorHeight variable in SvgPaintEngine.
-    Called by saveSMAWS() in mscore/file.cpp.
-*/
-void SvgGenerator::setCursorHeight(qreal height) {
-    SvgPaintEngine* pe = static_cast<SvgPaintEngine*>(paintEngine());
-
-    if (height > pe->_cursorHeight)
-        pe->_cursorHeight = height;
-}
-
-/*!
-    !!!OBSOLETE!!! setStartMSecs() function
-    Sets the _startMSecs variable in SvgPaintEngine.
-    Called by saveSMAWS() in mscore/file.cpp.
-*/
-//void SvgGenerator::setStartMSecs(int start) {
-//    static_cast<SvgPaintEngine*>(paintEngine())->_startMSecs = start;
-//}
 
 /*!
     freezeIt() function (SMAWS)
