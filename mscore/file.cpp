@@ -3927,13 +3927,15 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isAuto, bool 
     QString cue_id;
     int msec;
 
-    // mapSVG      - a QMultiMap: key = cue_id; value = list of elements.
-    // mapFrozen   - ditto, value = SCORE frozen pane elements
-    // mapSysStaff - ditto, value = SCORE "system" staff: tempos, chords, markers (should be measure numbers!!!)
-    // mapLyrics   - ditto, value = SCORE lyrics as a separate group
+    // mapSVG     - a QMultiMap: key = cue_id; value = list of elements.
+    // mapFrozen  - ditto, value = SCORE frozen pane elements
+    // mapSysCues - ditto, value = SCORE "system" staff: tempos, chords, markers (should be measure numbers!!!)
+    // mapLyrics  - ditto, value = SCORE lyrics as a separate group
     Type2Multi   mapSVG;
     Str2ElmMulti cues;
-    Str2ElmMulti mapSysStaff;
+    std::vector<const Element*> sysElms;
+    Str2ElmMulti mapSysFreeze;
+    Str2ElmMulti mapSysCues;
     Str2ElmMulti mapLyrics;
     Int2ElmMulti mapFrozen;
     Int2ElmMap   barLines; // not a multi-map
@@ -4198,7 +4200,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isAuto, bool 
                                    cr->tick().ticks() + cr->actualTicks().ticks());
 
             if (isMulti && eType == EType::HARMONY) 
-                mapSysStaff.insert(cue_id, e);  // "system" staff
+                mapSysCues.insert(cue_id, e);  // "system" staff
             else if (isMulti && eType == EType::LYRICS) 
                 mapLyrics.insert(cue_id, e); // lyrics get their own pseudo-staff
             else {
@@ -4229,7 +4231,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isAuto, bool 
 
         case EType::REHEARSAL_MARK :
             if (isMulti) {
-                mapSysStaff.insert("", e);
+                sysElms.push_back(e);
                 continue;
             }
             break;
@@ -4243,7 +4245,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isAuto, bool 
         case EType::BRACKET :
             if (!isScrollVertical) {
                 if (isMulti && eType == EType::TEMPO_TEXT)
-                    mapSysStaff.insert(getScrollCueID(score, e), e);
+                    mapSysFreeze.insert(getScrollCueID(score, e), e);
                 else
                     mapFrozen.insert(getScrollMsec(score, e), e);
                 continue;
@@ -4254,7 +4256,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isAuto, bool 
 
         case EType::MEASURE_NUMBER :
             if (isMulti) {
-                mapSysStaff.insert("", e); // add to "system" staff, but no cue
+                sysElms.push_back(e); // add to "system" staff, but no cue
                 continue;
             }
             break;
@@ -4263,7 +4265,7 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isAuto, bool 
         case EType::STAFF_TEXT : {
             Tid ss = Tid(static_cast<const Text*>(e)->subtype());
             if (isMulti &&  ss == Tid::SYSTEM) {
-                mapSysStaff.insert("", e); // add to "system" staff, but no cue
+                sysElms.push_back(e); // add to "system" staff, but no cue
                 continue;
             }
             break;}
@@ -4308,7 +4310,18 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isAuto, bool 
         printer.beginMultiGroup(&iNames, 0, system, 35, 0); ///!!! 35 is standard top staff line y-coord, I'm being lazy here by hardcoding it
         bool isMouse = false;
         const Element* elm;
-        for (auto i = mapSysStaff.begin(); i != mapSysStaff.end(); ++i) {
+        printer.setCueID("");
+        for (auto i : sysElms) {
+              printer.setElement(i);
+              paintElement(p, i);
+        }
+        for (auto i = mapSysFreeze.begin(); i != mapSysFreeze.end(); ++i) {
+            elm = i.value();
+            printer.setCueID(i.key());
+            printer.setElement(elm);
+            paintElement(p, elm);
+        }
+        for (auto i = mapSysCues.begin(); i != mapSysCues.end(); ++i) {
             cue_id = i.key();
             elm    = i.value();
             if (!isMouse && !cue_id.isEmpty() && !elm->isTempoText()) {
@@ -5067,9 +5080,12 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             spv = new StrPtrVect(nStaves, 0);
                             pageNames.append(spv);
                             for (Element* eAnn : s->annotations()) {
-                                if (eAnn->type() == EType::INSTRUMENT_CHANGE)
-                                    (*pageNames[idxPage])[eAnn->staffIdx()] =
-                                        new QString(static_cast<InstrumentChange*>(eAnn)->xmlText());
+                                if (eAnn->type() == EType::INSTRUMENT_CHANGE) {
+                                    pqs = new QString(static_cast<InstrumentChange*>(eAnn)->xmlText());
+                                    if (pqs->endsWith('\n')) // happens every time, but maybe changes in the future...
+                                          pqs->chop(1);
+                                    (*pageNames[idxPage])[eAnn->staffIdx()] = pqs;
+                                }
                             }
                         }
                         // Reset indices for the new table or page
@@ -5722,21 +5738,14 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                     << SVG_DESC_BEGIN   << score->metaTag("workTitle")
                     << SVG_SPACE        << smawsDesc(score) << SVG_DESC_END << endl;
 
-                // Import the <defs>
+                // Import the background rects (pattern + gradient in one fill == impossible)
                 QFile qf;
-                qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_GRID_DEFS));
-                qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
-                qts.setDevice(&qf);
-                tableStream << qts.readAll() << endl;
-
-                // The background rects (pattern + gradient in one fill == not)
                 qf.setFileName(QString("%1/%2").arg(qfi->path()).arg(FILE_GRID_BG));
                 qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
                 qts.setDevice(&qf);
                 tableStream << qts.readAll()
                                   .replace("%1", QString::number(width))
-                                  .replace("%2", QString::number(height))
-                            << endl;
+                                  .replace("%2", QString::number(height));
 
                 if (isPages) {
                     // This is just more convenient - now it's page count
@@ -5998,7 +6007,6 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             title = (names.size() > 1 && !names[1].isEmpty()
                                      ? stringToUTF8(names[1], true)
                                      : name);
-
                             tableStream << ctrls.arg(title)
                                         << SVG_FILL_URL << names[2] << SVG_RPAREN_QUOTE
                                         << *iNames[r];
