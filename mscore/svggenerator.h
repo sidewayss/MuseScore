@@ -146,8 +146,8 @@ using IntPairSet      = std::set<IntPair>;
 #define SVG_PATH        "<path"
 #define SVG_POLYLINE    "<polyline"
 #define SVG_IMAGE       "<image"
-#define SVG_CDATA_BEGIN "<![CDATA[\n"
-#define SVG_CDATA_END   "]]>\n"
+#define SVG_CDATA_BEGIN "<![CDATA["
+#define SVG_CDATA_END   "]]>"
 
 // SVG element attributes
 #define SVG_VIEW_BOX    " viewBox=\""
@@ -246,9 +246,10 @@ using IntPairSet      = std::set<IntPair>;
 
 // Custom SVG attributes (and some default settings)
 #define SVG_STAFFLINES " data-lines=\""   // number of staff lines for the part
+#define SVG_PAGE_CUE   " data-page=\""    // for GRID
 #define SVG_CUE        " data-cue=\""     // the cue id
 #define SVG_CUE_NQ     " data-cue="       // the cue id with no quote char
-#define SVG_COL_CUE    " data-col-cue="   // the relative cue id within a grid page (start tick only)
+#define SVG_COL_CUE    " data-col="       // the relative cue id within a grid page (start tick only)
 #define SVG_INAME      " data-iname=\""   // full instrument name == MuseScore "short" instrument name
 #define SVG_TOP        "data-top=\""      // vertical scroll: cursor top and bottom by system
 #define SVG_BOT        "data-bot=\""

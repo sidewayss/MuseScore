@@ -3229,7 +3229,6 @@ static QString getScrollCueID(Score* score, const Element* e)
                        || eType != EType::INSTRUMENT_CHANGE))
         return cue_id;
 
-    Element* p = e->parent();
     switch (eType) {
     case EType::REHEARSAL_MARK :
         cue_id = getAnnCueID(score, e, eType); // it has a duration
@@ -4856,7 +4855,8 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
     int     prevTempoPage;  // previous tempo in BPS
     QString tempoCues;      // data-cue="id1;BPM1,id2:BPM2,..." for tempo changes
 
-    const int  BPM_PRECISION = 2;
+    const int   BPM_PRECISION = 2;
+    const qreal BPS_2_BPM     = 60.0;
     const TempoMap* tempoMap = score->tempomap(); // a convenience
 
     // By page
@@ -4882,7 +4882,6 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
     BoolVect    isStaffVisible(nStaves, true);
     Measure*    mp;       // temp variable for measure within a page
     Measure*    mPageEnd; // this page's end measure
-    QString     pageCues; // page #: data-cue="id1,text1;id2,text2;etc."
     QStringList pageIDs;  // just the page_ids, in order, by page
 
     // For 2-voice lyrics staves
@@ -4902,9 +4901,10 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
     const int cellWidth  =  48;
     const int cellHeight =  48;
     const int baseline   = cellHeight - 14; // text baseline for lyrics/instrument names
+    const int offScreen  = -99;
     const int nameLeft   =  19; // this value is duplicated in FILE_GRID_INST
     const int iNameWidth = 144; // Instrument names are in the left-most column
-    const int maxDigits  =   4; // for x/y value formatting, range = 0-9999px
+    const int maxDigits  =   4; // for x/y value formatting, range = 0-9999px ///!!!should be dynamic!!!!
     const int width      = iNameWidth + (nGridCols * cellWidth);
 
     // Variables for SVG table cell positions
@@ -5019,7 +5019,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
 
                         // The initial bpm
                         prevTempo     = tempoMap->tempo(m->tick().ticks());
-                        initialBPM    = prevTempo * 60;
+                        initialBPM    = prevTempo * BPS_2_BPM;
                         prevTempoPage = 0;
 
                         m1 = m; // this is useful later
@@ -5047,6 +5047,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             }
                         }
                         if (isPageStart) {                                     /// NEW PAGE ///
+                            ++idxPage;
                             cellX = 0; // reset horizontal position
 
                             // This page's last measure and endTick
@@ -5056,17 +5057,8 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             pageOffset = mStartTick;
 
                             // This page's cue_id, for scrolling by page
-                            page_id = getCueID(score, mStartTick);
+                            page_id = getCueID2(score, mStartTick);
                             tableCues.append(page_id); // add page cue to VTT
-
-                            // List of page cue_id/pageNumber pairs
-                            qts.setString(&pageCues);
-                            if (pageCues.isEmpty())
-                                qts << SVG_CUE;
-                            else
-                                qts << SVG_COMMA;
-                            qts << page_id << SVG_SEMICOLON
-                                << QString("%1").arg(++idxPage + 1, 2, 10, QLatin1Char(SVG_ZERO));
 
                             // Initialize this page's collections
                             pageCols.append(0);
@@ -5158,11 +5150,10 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         QString ref = STAFF_GRID;
                         ref += (isPages && idxPage > 0 ? LO: NO);
                         tick = startTick - pageOffset;
-                        // Grid <use> element
+                        // grid row <use> element
                         if (!isPages || idxCol == gridUse.size()) {
                             qts << SVG_USE  << SVG_SPACE
-                                << formatInt(SVG_X, cellX, maxDigits, true)
-                                << formatInt(SVG_Y, cellY, 2, true)
+                                << formatInt(SVG_X, cellX, maxDigits, true) // y ="0"
                                 << XLINK_HREF  << ref  << SVG_QUOTE
                                 << formatInt(SVG_COL_CUE, tick, cueIdDigits, true)
                                 << SVG_CUE << cue_id;
@@ -5186,21 +5177,13 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         // grid <text> LO == invisible == <text></text>
                         if (!isPages || idxCol == gridText.size()) {
                             qts << SVG_TEXT_BEGIN
-                                << formatInt(SVG_X, cellX + (cellWidth  / 2), maxDigits, true)
-                                << formatInt(SVG_Y, cellY + (cellHeight / 2), 2, true)
-                                << indy << SVG_CLASS << CLASS_GRID << NO << SVG_QUOTE
-                                << formatInt(SVG_COL_CUE, tick, cueIdDigits, true)
-                                << SVG_CUE << cue_id;
+                                << formatInt(SVG_X, cellX + (cellWidth  / 2), maxDigits, true);
 
                             if (!isPages)
-                                qts << SVG_QUOTE << SVG_GT << lyrics
+                                qts << SVG_GT << lyrics
                                     << SVG_TEXT_END << endl;
                             else
                                 gridText.append(pqs);
-                        }
-                        else { // gridText[r] exists (isPages == true)
-                            qts.setString(gridText[idxCol]);
-                            qts << SVG_COMMA << cue_id; // Highlight cue
                         }
 
                         // Rehearsal mark cue, for the markers ruler
@@ -5223,22 +5206,16 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             qts.setRealNumberNotation(QTextStream::FixedNotation);
                             qts.setRealNumberPrecision(BPM_PRECISION);
 
-                            // Is this the first tempo change?
-                            if (tempoCues.isEmpty()) {
-                                qts << SVG_CUE       << CUE_ID_ZERO
-                                    << SVG_SEMICOLON << initialBPM * 1.0 << TEXT_BPM;
+                            if (tempoCues.isEmpty()) { // Is this the first tempo change?
+                                qts << initialBPM;
                                 prevTempoPage = 1;
                             }
-
-                            // Any missing page cues
-                            while (idxPage > prevTempoPage)
-                                qts << SVG_COMMA     << pageIDs[prevTempoPage++]
-                                    << SVG_SEMICOLON << prevTempo * 60.0 << TEXT_BPM;
+                            while (idxPage > prevTempoPage++)
+                                qts << SVG_COMMA; // Any missing page cues
 
                             // The tempo change's cue
-                            prevTempo  = tempoMap->tempo(gridTick);
-                            qts << SVG_COMMA     << getCueID(score, startTick)
-                                << SVG_SEMICOLON << prevTempo * 60.0 << TEXT_BPM;
+                            prevTempo = tempoMap->tempo(gridTick);
+                            qts << SVG_COMMA << prevTempo * BPS_2_BPM;
                         }
 
                         // Grid <line> for whole beats e,g, 1/4 note in 4/4 time
@@ -5254,10 +5231,10 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                 pqs = new QString;
                                 qts.setString(pqs);
                                 qts << SVG_LINE               // + 0.5 because they're 1px vertical lines
-                                       << formatInt(SVG_X1_NQ, x + 0.5, maxDigits + 1, true)
+                                       << formatInt(SVG_X1_NQ, x + 0.5, maxDigits, true)
                                        << formatInt(SVG_Y1_NQ, cellHeight
                                                              + gridMargin, 2, true)
-                                       << formatInt(SVG_X2_NQ, x + 0.5, maxDigits + 1, true)
+                                       << formatInt(SVG_X2_NQ, x + 0.5, maxDigits, true)
                                        << formatInt(SVG_Y2_NQ, height
                                                              - cellHeight
                                                              - gridMargin, maxDigits, true)
@@ -5355,16 +5332,13 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             cellY += cellHeight; // for the next row
                         }
                         if (isPages) {
+                            pqs = new QString;
                             if ((*pitches[idxCol])[r] != 0)
                                 (*pitches[idxCol])[r]->append(MIDI_EMPTY);
-                            if ((*leds[idxCol])[r] != 0) {
-                                pqs = (isLED ? new QString(SVG_HASH) : new QString);
+                            if ((*leds[idxCol])[r] != 0)
                                 (*leds[idxCol])[r]->append(pqs);
-                            }
-                            if (has2 && (*leds2[idxCol])[r] != 0) {
-                                pqs = new QString;
+                            if (has2 && (*leds2[idxCol])[r] != 0) 
                                 (*leds2[idxCol])[r]->append(pqs);
-                            }
                         }
                         continue; // empty cell complete, on to the next staff
                     }
@@ -5517,14 +5491,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             if (isLED) { // LED staff, notes not text
                                 qts << SVG_USE << SVG_SPACE
                                     << formatInt(SVG_X, cellX, maxDigits, true)
-                                    << SVG_Y   << SVG_PERCENT // for multi-pitch
-                                    << formatInt(SVG_COL_CUE, tick, cueIdDigits, true)
-                                    << XLINK_HREF;
-
-                                if (!isPages || idxPage == 0)
-                                    qts << cellValue;
-
-                                qts << SVG_QUOTE;
+                                    << formatInt(SVG_COL_CUE, tick, cueIdDigits, true);
                             }
                             else if (isChord) {
                                 y = baseline - (has2 ? 15 : 1);
@@ -5592,12 +5559,8 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                 }
                                 while (spl->size() <= idxPage) {
                                     pqs = new QString();
-                                    if (isLED)
-                                        pqs->append(SVG_HASH);
-
                                     if (spl->size() == idxPage)
                                         pqs->append(cellValue);
-
                                     spl->append(pqs);
                                 }
                             }
@@ -5670,10 +5633,10 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
             if (isHTML) {
                 // Stream the <col> elements, instrument names column first
                 tableStream << HTML_COL_BEGIN << SVG_GT  << endl;
-                for (QStringList::iterator i  = tableCues.begin();
-                                           i != tableCues.end();
-                                         ++i)
-                    tableStream << HTML_COL_BEGIN << SVG_CUE << *i
+                for (QStringList::iterator c  = tableCues.begin();
+                                           c != tableCues.end();
+                                         ++c)
+                    tableStream << HTML_COL_BEGIN << SVG_CUE << *c
                                 << SVG_QUOTE      << SVG_GT  << endl;
 
                 // Stream the <tr>, <th>, and <td> elements: by row r, by col c
@@ -5721,8 +5684,34 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 else
                     height -= cellHeight;   // No ruler == no title bar/playback buttons either
 
-                if (isPages)
-                    pageCues += SVG_QUOTE;  // This needs termination:
+                QString pageCues;
+                if (isPages){
+                    qts.setString(&pageCues);
+                    qts << SVG_4SPACES << SVG_CUE;
+                    for (QStringList::iterator pageID  = pageIDs.begin();
+                                               pageID != pageIDs.end();
+                                             ++pageID) {
+                        if (pageID != pageIDs.begin())
+                            qts << SVG_COMMA;
+                        qts << *pageID;
+                    }
+                    qts << SVG_QUOTE << endl;
+
+                    // Terminate this string if it exists
+                    qts.setString(&tempoCues);
+                    qts.setRealNumberNotation(QTextStream::FixedNotation);
+                    qts.setRealNumberPrecision(BPM_PRECISION);
+                    if (tempoCues.isEmpty()) 
+                        qts << initialBPM << SVG_QUOTE;
+                    else {
+                        if (idxPage > prevTempoPage) {
+                            qts << SVG_COMMA << prevTempo * BPS_2_BPM;
+                            while (idxPage > ++prevTempoPage) // Complete any missing page cues
+                                qts << SVG_COMMA;
+                        }
+                        qts << SVG_QUOTE;
+                    }
+                }
 
                 // Stream the SVG header elements <svg>, <desc>.
                 // No <title> because it displays as tooltip for the entire doc.
@@ -5732,11 +5721,16 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                        << SVG_VIEW_BOX  << SVG_ZERO  << SVG_SPACE << SVG_ZERO << SVG_SPACE
                                         << width     << SVG_SPACE << height   << SVG_QUOTE
                        << SVG_HEIGHT    << height    << SVG_QUOTE
-                       << SVG_POINTER   << SVG_NONE  << SVG_QUOTE << endl << SVG_4SPACES
-                       << (hasRulers    ?  SVG_ONLOAD : "")
-                       << (isPages      ?  pageCues   : "") << SVG_GT << endl
-                    << SVG_DESC_BEGIN   << score->metaTag("workTitle")
-                    << SVG_SPACE        << smawsDesc(score) << SVG_DESC_END << endl;
+                       << SVG_POINTER   << SVG_NONE  << SVG_QUOTE
+                       << (hasRulers ? SVG_ONLOAD : "") << endl;
+
+                if (isPages)
+                    tableStream << pageCues  << SVG_4SPACES << SVG_PAGE_CUE 
+                                << tempoCues << SVG_GT      << endl;
+
+                tableStream << SVG_DESC_BEGIN << score->metaTag("workTitle")
+                            << SVG_SPACE      << smawsDesc(score) 
+                            << SVG_DESC_END   << endl;
 
                 // Import the background rects (pattern + gradient in one fill == impossible)
                 QFile qf;
@@ -5747,20 +5741,23 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                   .replace("%1", QString::number(width))
                                   .replace("%2", QString::number(height));
 
+                bool hasPageCues;
                 if (isPages) {
-                    // This is just more convenient - now it's page count
-                    idxPage++;
+                    idxPage++; // now it's page count
 
                     // Complete the barLines and barNums values
+                    int prevBarX = -1;
+                    IntList* barX;
                     for (int b = 0; b < barLines.size(); b++) {
                         // barLines
-                        bool hasPageCues = false;
-                        if (pageBars[b]->size() < idxPage)     // missing pages
+                        hasPageCues = false;
+                        barX = pageBars[b];
+                        if (barX->size() < idxPage)     // missing pages
                             hasPageCues = true;
                         else {
-                            const int x = (*pageBars[b])[0];   // initial x
+                            const int x = (*barX)[0];   // initial x
                             for (int p = 1; p < idxPage; p++) {
-                                if ((*pageBars[b])[p] != x) {  // diff x-coords
+                                if ((*barX)[p] != x) {  // diff x-coords
                                     hasPageCues = true;
                                     break;
                                 }
@@ -5772,14 +5769,15 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                 if (p > 0)
                                     qts << SVG_COMMA;
                                 else
-                                    qts << SVG_CUE;
+                                    qts << SVG_PAGE_CUE;
 
-                                qts << pageIDs[p] << SVG_SEMICOLON;
+                                if (p >= barX->size())
+                                    barX->append(offScreen);
 
-                                if (p >= pageBars[b]->size())
-                                    pageBars[b]->append(-100);  // -1 isn't far enough off the canvas
+                                if ((*barX)[p] != prevBarX)
+                                    qts << (*barX)[p];
 
-                                qts << (*pageBars[b])[p];
+                                prevBarX = (*barX)[p];
                             }
                             qts << SVG_QUOTE;
                         }
@@ -5802,18 +5800,14 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                 if (p > 0)
                                     qts << SVG_COMMA;
                                 else
-                                    qts << SVG_CUE;
+                                    qts << SVG_PAGE_CUE;
 
-                                qts << pageIDs[p] << SVG_SEMICOLON;
-
-                                if (p < pageBarNums[b]->size() && (*pageBarNums[b])[p] > -100)
+                                if (p < pageBarNums[b]->size() && (*pageBarNums[b])[p] > offScreen)
                                     qts << (*pageBarNums[b])[p];
-
-                                qts << SVG_SEMICOLON << (*pageBars[b])[p] + 4;
                             }
                             qts << SVG_QUOTE;
                         }
-                        qts << SVG_GT << num << SVG_TEXT_END << endl;
+                        qts << SVG_GT << SVG_TEXT_END << endl;
                     }
                 }
 
@@ -5831,11 +5825,13 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 // Stream the beatLines (beat and barline/barnum loops could be consolidated in a function, maybe?)
                 tableStream << SVG_GROUP_BEGIN << SVG_GT << endl;
 
+                int beatX;
+                int prevBeatX = -1;
                 for (int b = 0; b < beatLines.size(); b++) {
                     tableStream << SVG_2SPACES << *beatLines[b];
 
                     if (idxPage > 1) { // are there page cues for this beatline?
-                        bool hasPageCues = false;
+                        hasPageCues = false;
                         if (pageBeats[b]->size() < idxPage)     // missing pages
                             hasPageCues = true;
                         else {
@@ -5848,22 +5844,25 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             }
                         }
                         if (hasPageCues) { // page cues required
-                            tableStream << SVG_CUE;
+                            tableStream << SVG_PAGE_CUE;
                             for (int p = 0; p < idxPage; p++) {
                                 if (p > 0)
                                     tableStream << SVG_COMMA;
-                                tableStream << pageIDs[p] << SVG_SEMICOLON;
-                                if (p < pageBeats[b]->size())
-                                    tableStream << (*pageBeats[b])[p];
-                                else
-                                    tableStream << -100;  // -1 isn't far enough off the canvas
+                                beatX = p < pageBeats[b]->size() ? (*pageBeats[b])[p]
+                                                                 : offScreen;
+                                if (beatX != prevBeatX)
+                                    tableStream << beatX;
+
+                                prevBeatX = beatX;
                             }
                             tableStream << SVG_QUOTE;
                         }
                         tableStream << SVG_ELEMENT_END << endl;
                     }
                 }
-                tableStream << SVG_GROUP_END << endl;
+                tableStream << SVG_GROUP_END   << endl
+                            << SVG_GROUP_BEGIN << SVG_POINTER << SVG_VISIBLE
+                            << SVG_QUOTE       << SVG_GT      << endl;
 
                 if (isPages) {
                     // Stream the grid staff separately
@@ -5873,35 +5872,33 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             minCols = pageCols[p];
                     }
 
-                    tableStream << SVG_GROUP_BEGIN << SVG_POINTER << SVG_VISIBLE
-                                << SVG_QUOTE << SVG_GT << endl;
-
-                    // Stream the <use> and <text> into separate <g>s for
-                    // improved javascript load performance
+                    // Stream the <use> and <text> into separate <g>s
                     tableStream << SVG_2SPACES << SVG_GROUP_BEGIN << SVG_GT << endl;
                     for (int g = 0; g < nGridCols; g++) {
-                        tableStream << SVG_4SPACES << *gridUse[g];
-                        if (g >= minCols){ // grayed-out <use>s by page
+                        tableStream << SVG_4SPACES << *gridUse[g] << SVG_QUOTE;
+                        if (g >= minCols) { // grayed-out <use>s by page
+                            tableStream << SVG_PAGE_CUE;
                             for (int p = 0; p < idxPage; p++) {
-                                tableStream << SVG_COMMA     << pageIDs[p]
-                                            << SVG_SEMICOLON << SVG_HASH
-                                            << CLASS_GRID;
-                                if (g < pageCols[p])
-                                    tableStream << NO;
-                                else
-                                    tableStream << LO;
+                                if (p > 0)
+                                    tableStream << SVG_COMMA;
+                                tableStream << CLASS_GRID << (g < pageCols[p] ? NO : LO);
                             }
+                            tableStream << SVG_QUOTE;
                         }
-                        tableStream << SVG_QUOTE << SVG_ELEMENT_END << endl;
+                        tableStream << SVG_ELEMENT_END << endl;
                     }
 
-                    tableStream << SVG_2SPACES << SVG_GROUP_END   << endl
-                                << SVG_2SPACES << SVG_GROUP_BEGIN << SVG_GT << endl;
+                    tableStream << SVG_2SPACES   << SVG_GROUP_END    << endl
+                                << SVG_2SPACES   << SVG_GROUP_BEGIN 
+                                << SVG_CLASS     << CLASS_GRID << NO << SVG_QUOTE
+                                << SVG_TRANSFORM << SVG_TRANSLATE    << SVG_ZERO
+                                << SVG_SPACE     << cellHeight / 2   << SVG_RPAREN_QUOTE
+                                << SVG_GT        << endl;
 
                     for (int g = 0; g < nGridCols; g++) {
                         tableStream << SVG_4SPACES << *gridText[g];
 
-                        bool hasPageCues = (g >= minCols);
+                        hasPageCues = (g >= minCols);
                         if (!hasPageCues) {
                             pqs = (*pageGridText[0])[g];
                             for (int p = 0; p < idxPage; p++) {
@@ -5912,20 +5909,22 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             }
                         }
                         if (hasPageCues) {
+                            tableStream << SVG_PAGE_CUE;
                             for (int p = 0; p < idxPage; p++) {
-                                tableStream << SVG_COMMA << pageIDs[p] << SVG_SEMICOLON;
+                                if (p > 0)
+                                    tableStream << SVG_COMMA;
                                 if (g < pageCols[p])
                                     tableStream << *(*pageGridText[p])[g];
                             }
+                            tableStream << SVG_QUOTE;
                         }
+                        tableStream << SVG_GT;
 
-                        tableStream << SVG_QUOTE << SVG_GT;
                         if (g < pageCols[0])
                             tableStream << *(*pageGridText[0])[g];
                         tableStream << SVG_TEXT_END  << endl;
                     }
-                    tableStream << SVG_2SPACES   << SVG_GROUP_END << endl
-                                                 << SVG_GROUP_END << endl;
+                    tableStream << SVG_2SPACES << SVG_GROUP_END << endl;
                 }
 
                 const int colCount = grid.size(); // max # of columns per page
@@ -5962,11 +5961,10 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 qts.setDevice(&qf);
                 ctrls = qts.readAll();
                 cellY = 0;
-
-                tableStream << SVG_GROUP_BEGIN << SVG_GT << endl;
                 for (int r = 0; r < nStaves; r++) {         /// for each row
                     const bool isGridRow   = (r == idxGrid);
                     const bool isChordsRow = (r == idxChords);
+                    const bool hasPitches  = (pitchSet[r] != 0 && pitchSet[r]->size() > 1);
                     QStringList names;
 
                     // Stream the instrument names - similar loop to bar/beatlines
@@ -5998,12 +5996,18 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
 
                         if (!isLED && !isChordsRow)
                             tableStream << SVG_CLASS << "lyrics" << SVG_QUOTE;
+                        else if (hasPitches)
+                            tableStream << " data-pitches=\"Y\"";    // Y for "Yes"== not false
 
                         tableStream << SVG_TRANSFORM << SVG_TRANSLATE << SVG_ZERO
                                     << SVG_SPACE     << cellY << SVG_RPAREN_QUOTE
                                     << SVG_GT << endl;
 
-                        if (!isChordsRow) { // <title> = tooltip long name
+                        if (isChordsRow)// the one and only chords row
+                            tableStream << SVG_2SPACES << SVG_TEXT_BEGIN
+                                        << formatInt(SVG_X, nameLeft, 2, true)
+                                        << formatInt(SVG_Y, baseline, 2, true); 
+                        else {          // <title> = tooltip long name
                             title = (names.size() > 1 && !names[1].isEmpty()
                                      ? stringToUTF8(names[1], true)
                                      : name);
@@ -6011,10 +6015,6 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                         << SVG_FILL_URL << names[2] << SVG_RPAREN_QUOTE
                                         << *iNames[r];
                         }
-                        else                  // the one and only chords row
-                            tableStream << SVG_2SPACES << SVG_TEXT_BEGIN
-                                        << formatInt(SVG_X, nameLeft, 2, true)
-                                        << formatInt(SVG_Y, baseline, 2, true);
 
                         if (isPages) {
                             bool changesName  = false;
@@ -6037,9 +6037,13 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             }
                             if (changesName || changesStyle) { // page cues required
                                 bool isName, isStyle;
+                                bool hasName = false;
                                 QString* pqN;
                                 QString* pqS;
-                                tableStream << SVG_CUE;
+                                QString  cueName;
+                                qts.setString(&cueName);
+                                tableStream << SVG_PAGE_CUE;
+                                qts << " data-name=\"";
                                 for (int p = 0; p < idxPage; p++) {
                                     pqN = (*pageNames[p])[r];
                                     pqS = (*pageStyles[p])[r];
@@ -6048,20 +6052,21 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                         isStyle = true;
                                     else {
                                         tableStream << SVG_COMMA;
+                                        qts << SVG_COMMA;
                                         isStyle = (changesStyle && pqS != (*pageStyles[p - 1])[r]);
                                     }
-                                    tableStream << pageIDs[p];
+                                    if (isStyle)
+                                          tableStream << *pqS;
 
                                     isName = (changesName && pqN != 0);
-                                    if (isName || isStyle) {
-                                            tableStream << SVG_SEMICOLON;
-                                        if (isName)
-                                            tableStream << *pqN;
-                                        if (isStyle)
-                                            tableStream << SVG_SEMICOLON << *pqS;
+                                    if (isName) {
+                                          hasName = true;
+                                          qts << *pqN;
                                     }
                                 }
                                 tableStream << SVG_QUOTE;
+                                if (hasName)
+                                    tableStream << cueName << SVG_QUOTE;
                             }
                         }
                         // Stream the >content</text>
@@ -6087,8 +6092,8 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
 
                     // The data cells (and grid cells if isPage == false)
                     if (isPages && !isGridRow) {
-                        tableStream << SVG_2SPACES << SVG_GROUP_BEGIN
-                                    << SVG_CLASS << CLASS_NOTES << SMAWS_GRID << SVG_QUOTE;
+                        tableStream << SVG_2SPACES << SVG_GROUP_BEGIN << SVG_CLASS 
+                                    << CLASS_NOTES << SMAWS_GRID      << SVG_QUOTE;
 
                         if (!isChordsRow)
                             tableStream << SVG_FILL_URL << names[2] << SVG_RPAREN_QUOTE;
@@ -6096,29 +6101,16 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         tableStream << SVG_GT << endl;
                     }
 
-                    const bool hasPitches = (pitchSet[r] != 0
-                                          && pitchSet[r]->size() > 1);
-
                     if (!(isPages && isGridRow)) {
                         for (int c = 0; c < grid.size(); c++) { /// for each column
                             if ((*grid[c])[r] == 0)
                                 continue;
 
                             int  pitch0;
-                            qreal y = 0;
-
                             pqs = (*grid[c])[r];
-                            if (isLED) {
-                                if (hasPitches) {
-                                    pil    = (*pitches[c])[r];
-                                    pitch0 = (*pil)[0];
-                                    const int idx = pitchSet[r]->indexOf(pitch0);
-                                    y = (idx >= 0 ? intervals[r] * idx : restOffset);
-                                    pqs->replace(LED, MINI);
-                                }
-                                pqs->replace(QString("%1%2")    .arg(SVG_Y).arg(SVG_PERCENT),
-                                             QString("%1%2%3%4").arg(SVG_Y).arg(SVG_QUOTE)
-                                                                .arg(y)    .arg(SVG_QUOTE));
+                            if (hasPitches) {
+                                pil    = (*pitches[c])[r];
+                                pitch0 = (*pil)[0];
                             }
 
                             if (isPages)
@@ -6129,9 +6121,9 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             if (isPages) {                        // ¿Page Cues?
                                 bool changesPitch = false;
                                 bool changesValue = false;
-                                bool hasCues      = ((*dataCues[c])[r] != 0);
+                                bool hasCues      = (*dataCues[c])[r] != 0;
                                 if (hasCues)
-                                    tableStream << *(*dataCues[c])[r];
+                                    tableStream << *(*dataCues[c])[r] << SVG_QUOTE;
 
                                 spl  = (*leds[c])[r];
                                 if (spl != 0)
@@ -6149,40 +6141,60 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                         break;
                                 }
 
-                                bool hasPageCues = (changesPitch || changesValue);
+                                hasPageCues = (changesPitch || changesValue);
                                 if (hasPageCues) { // Page Cues
+                                    QString* led;
+                                    QString* prevLed = 0;
+                                    QString cueY;
+                                    double pitchY;
+                                    int pitch;
+                                    int prevPitch = -99; // pitch can be -1 or -2
+                                    qts.setString(&cueY);
                                     for (int p = 0; p < idxPage; p++) {
-                                        tableStream << (p == 0 && !hasCues ? SVG_CUE : QString(SVG_COMMA))
-                                                    << pageIDs[p] << SVG_SEMICOLON;
-
                                         if (changesValue) {
+                                            tableStream << (p == 0 ? SVG_PAGE_CUE : QString(SVG_COMMA));
                                             if (spl->size() > p) {
-                                                if (hasPitches)
-                                                    (*spl)[p]->replace(LED, MINI);
-                                                tableStream << *(*spl)[p];
+                                                led = (*spl)[p];
+                                                if (!led->isEmpty()) {
+                                                    if (hasPitches)
+                                                        led->replace(LED, MINI);
+                                                    if (prevLed != 0 && *led == *prevLed)
+                                                        tableStream << SVG_SPACE;
+                                                    else {
+                                                        tableStream << *led;
+                                                    }
+                                                }
+                                                prevLed = led;
                                             }
-                                            else if (isLED)
-                                                tableStream << SVG_HASH;
                                         }
-
                                         if (changesPitch) {
-                                            tableStream << SVG_SEMICOLON;
+                                            qts << (p == 0 ? " data-y=\"" : QString(SVG_COMMA));
                                             if (pil->size() > p) {
-                                                const int pitch = (*pil)[p];
-                                                if (pitch == MIDI_EMPTY)
-                                                    tableStream << -100;  // effectively invisible
-                                                else if (pitch == MIDI_REST)
-                                                    tableStream << (hasPitches ? restOffset : 0);
-                                                else
-                                                    tableStream << (intervals[r] * pitchSet[r]->indexOf(pitch));
+                                                int pitch = (*pil)[p];
+                                                if (pitch != MIDI_EMPTY) {
+                                                    if (pitch == prevPitch)
+                                                        qts << SVG_SPACE;
+                                                    else {
+                                                        if (pitch == MIDI_REST)
+                                                            qts << (hasPitches ? restOffset : 0);
+                                                        else if (pitch != MIDI_EMPTY) {
+                                                            pitchY = intervals[r] * pitchSet[r]->indexOf(pitch);
+                                                            if (pitchY == 0)
+                                                                qts << SVG_ZERO;
+                                                            else
+                                                                qts << QString::number(pitchY, 'f', SVG_PRECISION);
+                                                        }
+                                                    }
+                                                }
+                                                prevPitch = pitch;
                                             }
-                                            else
-                                                tableStream << -100; // effectively invisible
                                         }
                                     }
+                                    if (changesValue)
+                                        tableStream << SVG_QUOTE;
+                                    if (changesPitch)
+                                        tableStream << cueY << SVG_QUOTE;
                                 }
-                                if (hasCues || hasPageCues)
-                                    tableStream << SVG_QUOTE;
 
                                 if (isLED)
                                     tableStream << SVG_ELEMENT_END << endl;
@@ -6204,15 +6216,17 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
 
                             tableStream << *(*grid2[c])[r]; // text element begin
 
-                            if (isPages) {                        // page      cues
-                                if ((*dataCues2[c])[r] != 0) {    // highlight cues
-                                    tableStream << *(*dataCues2[c])[r];
+                            if (isPages) {                     // page      cues
+                                if ((*dataCues2[c])[r] != 0) { // highlight cues
+                                    tableStream << *(*dataCues2[c])[r] << SVG_QUOTE;
 
                                     spl = (*leds2[c])[r];
-                                    if (spl != 0) {
+                                    if (spl != 0) {            ///!!!lyrics row needs testing!!!
                                         for (int p = 0; p < idxPage; p++) {
-                                            tableStream << SVG_COMMA;
-                                            tableStream << pageIDs[p] << SVG_SEMICOLON;
+                                            if (p == 0)
+                                                tableStream << SVG_PAGE_CUE;
+                                            else
+                                                tableStream << SVG_COMMA;
                                             tableStream << (spl->size() > p ? *(*spl)[p] : "");
                                         }
                                     }
@@ -6262,16 +6276,6 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                 << bars             << SVG_GROUP_END << endl << endl;
                 }
 
-                // Terminate this string if it exists
-                if (!tempoCues.isEmpty()) {
-                    qts.setRealNumberNotation(QTextStream::FixedNotation);
-                    qts.setRealNumberPrecision(BPM_PRECISION);
-                    while (idxPage > prevTempoPage) // Complete any missing page cues
-                        qts << SVG_COMMA << pageIDs[prevTempoPage++] << SVG_SEMICOLON << prevTempo * 60.0 << TEXT_BPM;
-
-                    tempoCues.append(SVG_QUOTE);
-                }
-
                 // Import and vertically position the buttons/title.
                 // This file includes the reference to the external javascript,
                 // as well as the audio and vtt files.
@@ -6281,13 +6285,8 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 // Rulers + pages       == both page and play buttons
                 qf.setFileName(QString("%1/%2").arg(qfi->path())
                                                .arg(!hasRulers ? FILE_GRID_TEMPO
-                                                               : (isPages ? FILE_GRID_BOTH
-                                                                          : FILE_GRID_PLAY)));
-
-                qf.open(QIODevice::ReadOnly | QIODevice::Text);  // TODO: check for failure here!!!
-                qts.setDevice(&qf);
-                tableStream << qts.readAll().replace("%0", tempoCues)
-                                            .replace("%1", QString::number(initialBPM, 'f', BPM_PRECISION));
+                                                     : isPages ? FILE_GRID_BOTH
+                                                               : FILE_GRID_PLAY));
                 // </svg>
                 tableStream << SVG_END;
 
@@ -6333,7 +6332,6 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 leds.clear();
                 pageIDs.clear();
                 dataCues.clear();
-                pageCues.clear();
                 pageCols.clear();
                 pageBars.clear();
                 pageBeats.clear();
@@ -6346,7 +6344,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
         else {
             const int n  = m->no() + 2; // this is the bar number for the next bar
             const int cX = cellX + cellWidth; // the lines are to the right of the leds
-            const int x  = (isPages && idxPage > 0 ? -100 : cX - barRound);
+            const int x  = (isPages && idxPage > 0 ? offScreen : cX - barRound);
             if (!isHTML
             && (!isPages || (idxBar == barLines.size() && m != mPageEnd))) {
                 // End-of-Bar lines for the all but the last bar of the pattern.
@@ -6354,7 +6352,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 pqs = new QString;
                 qts.setString(pqs);
                 qts << SVG_RECT
-                       << formatInt(SVG_X, x,             maxDigits + 1, true)
+                       << formatInt(SVG_X, x, maxDigits, true)
                        << formatInt(SVG_Y, barMargin - 2, 2, true)
                        << SVG_WIDTH  << barWidth  << SVG_QUOTE
                        << SVG_HEIGHT << height - cellHeight - barMargin - 2
@@ -6371,9 +6369,9 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                 pqs = new QString;
                 qts.setString(pqs);
                 qts << SVG_TEXT_BEGIN
-                       << formatInt(SVG_X, x + 4,     maxDigits + 1, true)
+                       << formatInt(SVG_X, x + 4, maxDigits, true)
                        << formatInt(SVG_Y, barMargin, 2, true)
-                       << SVG_CLASS          << "barNumber"        << SVG_QUOTE;
+                       << SVG_CLASS << "barNumber" << SVG_QUOTE;
                 if (!isPages)
                     qts << SVG_GT << n << SVG_TEXT_END   << endl;
 
@@ -6387,8 +6385,8 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                     pageBarNums.append(pil);
                 }
                 while (pageBars[idxBar]->size() < idxPage) {
-                    pageBars[idxBar]->append(-100);    // This barline is initially invisible
-                    pageBarNums[idxBar]->append(-100); // It's bar number reflects that
+                    pageBars[idxBar]->append(offScreen);    // This barline is initially invisible
+                    pageBarNums[idxBar]->append(offScreen); // It's bar number reflects that
                 }
                 pageBars[idxBar]->append(cX - barRound);
                 pageBarNums[idxBar]->append(n);
@@ -6865,7 +6863,9 @@ bool MuseScore::saveSMAWS_Tree(Score* score, QFileInfo* qfi)
                                    ++cue_id)
     {
         const QStringList values = mapMix.values(*cue_id); // QStringList::join()
-        streamCDATA << *cue_id << SVG_COMMA << values.join(SVG_COMMA) << endl;
+        if (cue_id != keys.cbegin())  // no leading or trailing whitespace,
+            streamCDATA << SVG_SPACE; // but space-delimited.
+        streamCDATA << *cue_id << SVG_COMMA << values.join(SVG_COMMA);
     }
     streamCDATA << SVG_CDATA_END;
 
