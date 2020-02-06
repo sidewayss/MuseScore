@@ -91,6 +91,7 @@ using Int2RealMap     = QMap<int, qreal>;
 using IntSet          = std::set<int>;
 using IntPair         = std::pair<int, int>;
 using IntPairSet      = std::set<IntPair>;
+using Int2IntSet      = std::map<int, IntSet>;
 
 ///////////////////////////////////////////////////////////////////////////////
 // SVG and SMAWS constants
@@ -101,8 +102,10 @@ using IntPairSet      = std::set<IntPair>;
 // SVG chars/strings as constants
 // Chars
 #define SVG_QUOTE     '"'
+#define SVG_SINGLE    '\''
 #define SVG_COMMA     ','
 #define SVG_DASH      '-'
+#define SVG_COLON     ':'
 #define SVG_SEMICOLON ';'
 #define SVG_HASH      '#'
 #define SVG_PERCENT   '%'
@@ -115,6 +118,10 @@ using IntPairSet      = std::set<IntPair>;
 #define CUE_ZERO      "0"
 #define SVG_ONE       "1"
 #define SVG_SPACE     ' '
+#define SVG_L_BRACKET '['
+#define SVG_R_BRACKET ']'
+#define SVG_L_BRACE   '{'
+#define SVG_R_BRACE   '}'
 
 // Strings
 #define SVG_2SPACES      "  "
@@ -174,6 +181,7 @@ using IntPairSet      = std::set<IntPair>;
 #define SVG_RY    " ry=\""
 
 #define XLINK_HREF " xlink:href=\"#"
+#define HREF_EMPTY " xlink:href=\"\""
 #define SVG_CLASS  " class=\""
 #define SVG_ID     " id=\""
 
