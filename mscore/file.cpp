@@ -4868,6 +4868,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
     const TempoMap* tempoMap = score->tempomap(); // a convenience
 
     // By page
+    IntList        firstBarNums; // first bar number of each page     
     IntList        pageCols;     // active column count per page
     IntListList    pageBeats;    // x-coordinates by beatline, by page
     IntListList    pageBars;     // x-coordinates by barline, by page
@@ -5050,6 +5051,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                         page_id = getCueID2(score, mStartTick);
 
                         // Initialize this page's collections
+                        firstBarNums.append(m->no() + 1);
                         pageCols.append(0);
 
                         spl = new StrPtrList;
@@ -5166,7 +5168,8 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                     // grid <text> LO == invisible == <text></text>
                     if (!isPages || idxCol == gridText.size()) {
                         qts << SVG_TEXT_BEGIN
-                            << formatInt(SVG_X, cellX + (cellWidth  / 2), maxDigits, true);
+                            << formatInt(SVG_X, cellX + (cellWidth  / 2), maxDigits, true)
+                            << SVG_CLASS << CLASS_GRID << NO << SVG_QUOTE;
 
                         if (!isPages)
                             qts << SVG_GT << lyrics
@@ -5729,16 +5732,23 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
             tableStream << SVG_GROUP_BEGIN << SVG_GT << endl;
             for (int b = 0; b < barLines.size(); b++)
                 tableStream << SVG_2SPACES << *barLines[b];
-            tableStream << SVG_GROUP_END   << endl;
 
-            tableStream << SVG_GROUP_BEGIN << SVG_GT << endl;
+            tableStream << SVG_GROUP_END   << endl
+                        << SVG_GROUP_BEGIN << SVG_GT << endl
+                        << SVG_2SPACES     << SVG_TEXT_BEGIN
+                        << formatInt(SVG_X, iNameWidth + 2, maxDigits, true)
+                        << formatInt(SVG_Y, barMargin, 2, true)
+                        << SVG_CLASS       << "barNumber" << SVG_QUOTE
+                        << SVG_PAGE_CUE    << firstBarNums[0];
+            for (int b = 1; b < firstBarNums.size(); b++)
+                tableStream << SVG_COMMA << firstBarNums[b];
+            tableStream << SVG_QUOTE << SVG_GT << SVG_TEXT_END << endl;
             for (int b = 0; b < barNums.size(); b++)
                 tableStream << SVG_2SPACES << *barNums[b];
-            tableStream << SVG_GROUP_END   << endl;
+            tableStream << SVG_GROUP_END   << endl
+                        << SVG_GROUP_BEGIN << SVG_GT << endl;
 
             // Stream the beatLines (beat and barline/barnum loops could be consolidated in a function, maybe?)
-            tableStream << SVG_GROUP_BEGIN << SVG_GT << endl;
-
             int beatX;
             int prevBeatX = -1;
             for (int b = 0; b < beatLines.size(); b++) {
@@ -5815,7 +5825,6 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
 
                 tableStream << SVG_2SPACES   << SVG_GROUP_END    << endl
                             << SVG_2SPACES   << SVG_GROUP_BEGIN 
-                            << SVG_CLASS     << CLASS_GRID << NO << SVG_QUOTE
                             << SVG_TRANSFORM << SVG_TRANSLATE    << SVG_ZERO
                             << SVG_SPACE     << cellHeight / 2   << SVG_RPAREN_QUOTE
                             << SVG_GT        << endl;
@@ -5904,7 +5913,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                             QMessageBox::critical(this, tr("SMAWS: saveSMAWS_Tables"), tr("There is a staff without an initial instrument name!"));
                             return false;
                         }
-                        names = (*pageNames[0])[r]->split(SVG_PERCENT);
+                        names = (*pageNames[0])[r]->split(SVG_SEMICOLON);
                         if (names.size() < 3) {
                             QMessageBox::critical(this, tr("SMAWS: saveSMAWS_Tables"), tr("There is a staff without all 3 parts of the initial instrument name!"));
                             return false;
