@@ -50,7 +50,10 @@
 #include "libmscore/staff.h"     // for Tablature staves
 #include "libmscore/text.h"      // for Measure numbers
 #include "libmscore/note.h"      // for MIDI note numbers (pitches)
+#include "libmscore/chord.h"     // for NoteRight class of notes
+#include "libmscore/stem.h"      // ditto
 #include "libmscore/segment.h"
+#include "libmscore/spanner.h"
 
 #define SVG_DATA_P " data-p=\""  // 4 chars less for every note - it adds up!
 
@@ -231,6 +234,27 @@ protected:
     int  _idxSlash;  // The grid staff index
 
     QVector<int>* _nonStdStaves; // Vector of staff indices for the tablature and percussion staves in this score
+    bool _isOnePath;
+    const ETypeSet _notGrouped { // should be std::unordered_set<>, but VStudio doesn't like that...
+        EType::STEM, EType::BEAM, EType::BAR_LINE, EType::STAFF_LINES,
+        EType::LEDGER_LINE, EType::SLUR_SEGMENT, EType::TIE_SEGMENT, 
+        EType::LYRICSLINE_SEGMENT, EType::TREMOLO 
+    };
+    const ETypeSet _notStyled {// EType::REST: external CSS can't handle Rest <polyline>s
+        EType::ACCIDENTAL,        EType::INSTRUMENT_NAME,    EType::REHEARSAL_MARK,
+        EType::ARTICULATION,      EType::KEYSIG,             EType::SLUR_SEGMENT,
+        EType::BEAM,              EType::LEDGER_LINE,        EType::STAFF_LINES,
+        EType::BRACKET,           EType::LYRICS,             EType::STEM,
+        EType::CHORDLINE,         EType::LYRICSLINE_SEGMENT, EType::SYSTEM,
+        EType::CLEF,              EType::MEASURE_NUMBER,     EType::TEXT,
+        EType::GLISSANDO_SEGMENT, EType::NOTE,               EType::TIE_SEGMENT,
+        EType::HARMONY,           EType::OTTAVA_SEGMENT,     EType::TIMESIG,
+        EType::HOOK,              EType::PEDAL_SEGMENT,      EType::TREMOLO,
+        EType::INSTRUMENT_CHANGE, EType::NOTEDOT,            EType::TUPLET
+    };
+    const ETypeSet _noMatrix{ EType::CHORDLINE, EType::GLISSANDO_SEGMENT };
+
+    Str2IntMap _scrollXY;
 
     // These vary by Staff: (not sure if KeyY or TimeY need to be by staff, could clear between staves)
     StrPtrVect   brackets;      // in frozen pane, analogous to frozenLines, but not always populated
@@ -295,13 +319,13 @@ protected:
             _idxSlash = _iNames->size() - 1;
     }
     void beginMouseGroup() {
-        closeGroup(); // groups by class must be terminated first
+        _isOnePath ?  closePath() : closeGroup();
         *d_func()->stream << SVG_SPACE   << SVG_SPACE   << SVG_GROUP_BEGIN
                           << SVG_POINTER << SVG_VISIBLE << SVG_QUOTE << SVG_GT
                           << endl;
     }
     void beginGroup(int indent, bool isFrozen) {
-        closeGroup(); // groups by class must be terminated first
+        _isOnePath ?  closePath() : closeGroup();
         for (int i = 1; i <= indent; i++)
             *d_func()->stream << SVG_SPACE;
         *d_func()->stream << SVG_GROUP_BEGIN << SVG_GT << endl;
@@ -320,14 +344,23 @@ protected:
     void closeGroup() {
         if (_isGroupOpen) { // these are groups by element type/class
             *d_func()->stream << SVG_3SPACES << SVG_GROUP_END << endl;
-            if (!_leftovers.isEmpty()) {     //!!for now it's always <text>
-                *d_func()->stream << SVG_3SPACES << SVG_GROUP_BEGIN
-                                  << SVG_CLASS   << _classValue   << "Text"
-                     << SVG_QUOTE << SVG_GT      << endl          << _leftovers
-                                  << SVG_3SPACES << SVG_GROUP_END << endl;;
-                _leftovers.clear();
-            }
+            streamLeftovers();
             _isGroupOpen = false;
+        }
+    }
+    void closePath() {
+        *d_func()->stream << SVG_QUOTE << SVG_ELEMENT_END << endl;
+        streamLeftovers();
+        _isOnePath = false;
+    }
+    void streamLeftovers() {
+        if (!_leftovers.isEmpty()) { 
+            *d_func()->stream << SVG_3SPACES << SVG_GROUP_BEGIN
+                              << SVG_CLASS   << _classValue   
+                              << (_classValue == _e->name(EType::NOTE) ? "Left" : "Text")
+                 << SVG_QUOTE << SVG_GT      << endl          << _leftovers
+                              << SVG_3SPACES << SVG_GROUP_END << endl;;
+            _leftovers.clear();
         }
     }
 
@@ -353,6 +386,7 @@ public:
         _isFrozen     = false;
         _isGrand      = false;
         _isLinked     = false;
+        _isOnePath    = false;
         _prevDef      = 0;   // FDef*
         _iNames       = 0;   // QStringList*
         _fullNames    = 0;   // QStringList*
@@ -703,13 +737,15 @@ void SvgPaintEngine::updateState(const QPaintEngineState &s)
     qts.setString(&classState);
     initStream(&qts);
 
-    QString classVal = getClass();
-    bool  isNewGroup = (classVal != _classValue);
-
-    if (isNewGroup) {
-        closeGroup();
-        _classValue = classVal; // must follow closeGroup()
+    QString classVal  = getClass();
+    bool classChanged =(classVal != _classValue);
+    if (classChanged) {
+        _isOnePath ? closePath() : closeGroup();
+        _classValue = classVal;
     }
+    _isOnePath = _notGrouped.find(_et) != _notGrouped.end() 
+              || (_et == EType::NOTE && _e->staff()->isTabStaff(_e->tick()));
+
     if (_isFrozen) {
         // Stream the class attribute, with fancy fixed frozen formatting
         // Frozen def:   InstrumentName" = 15
@@ -719,10 +755,15 @@ void SvgPaintEngine::updateState(const QPaintEngineState &s)
         qts << QString("%1%2").arg(_classValue).arg(SVG_QUOTE);
         qts.setFieldWidth(0);
     }
-    else if (isNewGroup) { // classState gets no class attribute, but a new <g> does
-        stream() << SVG_3SPACES << SVG_GROUP_BEGIN
-                 << SVG_CLASS   << _classValue << SVG_QUOTE << SVG_GT << endl;
-        _isGroupOpen = true;
+    else if (classChanged) { // classState gets no class attribute, but a new <g> does
+        if (_isOnePath)
+            stream() << SVG_3SPACES << SVG_PATH << SVG_CLASS << _classValue
+                     << SVG_QUOTE   << SVG_D;
+        else {
+            stream() << SVG_3SPACES << SVG_GROUP_BEGIN
+                     << SVG_CLASS   << _classValue << SVG_QUOTE << SVG_GT << endl;
+            _isGroupOpen = true;
+        }
     }
 
     // Stream the cue id to classState
@@ -743,8 +784,9 @@ void SvgPaintEngine::updateState(const QPaintEngineState &s)
     const qreal m11 = rint(t.m11() * 1000) / 1000.0;
     const qreal m22 = rint(t.m22() * 1000) / 1000.0;
 
-    if ((m11 == 1 && m22 == 1 && t.m12() == t.m21()) // No scaling, no rotation
-     || _classValue == CLASS_CLEF_COURTESY) {        // Only translate
+    if ((m11 == 1 && m22 == 1 && t.m12() == t.m21()) // No scaling,
+     || _noMatrix.find(_et) != _noMatrix.end()       // no rotation,
+     || _classValue == CLASS_CLEF_COURTESY) {        // only translate
         _dx = t.m31();                               
         _dy = t.m32();
         _isFullMatrix = false;
@@ -761,34 +803,17 @@ void SvgPaintEngine::updateState(const QPaintEngineState &s)
                           << t.m32() + _yOffset << SVG_RPAREN_QUOTE;
     }
 
-    // Set attributes for element types *not* styled by CSS
-    switch (_et) {
-        case EType::ACCIDENTAL:            case EType::MEASURE_NUMBER:
-        case EType::ARTICULATION:          case EType::NOTE:
-        case EType::BEAM:                  case EType::NOTEDOT:
-        case EType::BRACKET:               case EType::REHEARSAL_MARK:
-        case EType::CLEF:                //case EType::REST : // CSS can't handle Rest <polyline>s
-        case EType::GLISSANDO_SEGMENT:     case EType::SLUR_SEGMENT:
-        case EType::HARMONY:               case EType::STAFF_LINES:
-        case EType::HOOK:                  case EType::STEM:
-        case EType::INSTRUMENT_CHANGE:     case EType::SYSTEM:
-        case EType::INSTRUMENT_NAME:       case EType::TEXT:
-        case EType::KEYSIG:                case EType::TIE_SEGMENT:
-        case EType::LEDGER_LINE:           case EType::TIMESIG:
-        case EType::LYRICS:                case EType::TREMOLO:
-        case EType::LYRICSLINE_SEGMENT:    case EType::TUPLET:
-            break; // Styled by CSS
-        default:
-            // The best way so far to style NORMAL bar lines in CSS w/o messing up
-            // other types' styling, which may or may not be plausible in CSS:
-            if (_et != EType::BAR_LINE
-             || static_cast<const Ms::BarLine*>(_e)->barLineType() != BLType::NORMAL) {
-                // Brush & Pen attributes only affect elements not styled by CSS
-                qts.setString(&styleState);
-                qts << qbrushToSvg(s.brush());
-                qts <<   qpenToSvg(s.pen());
-            }
-            break;
+    // Set attributes for element types not styled by external CSS
+    if (_notStyled.find(_et) == _notStyled.end()) {
+        // The best way so far to style NORMAL bar lines in CSS w/o messing up
+        // other types' styling, which may or may not be plausible in CSS:
+        if (_et != EType::BAR_LINE
+         || static_cast<const Ms::BarLine*>(_e)->barLineType() != BLType::NORMAL) {
+            // Brush & Pen attributes only affect elements not styled by CSS
+            qts.setString(&styleState);
+            qts << qbrushToSvg(s.brush());
+            qts <<   qpenToSvg(s.pen());
+        }
     }
 }
 
@@ -961,7 +986,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
 {
     qreal yOff = _dy + (_isFullMatrix ? 0 : _yOffset);
 
-    if (_isMulti)
+    if (_isMulti && !_isOnePath)
         stream() << SVG_4SPACES;
 
     if (_isSMAWS && _et == EType::REHEARSAL_MARK) {
@@ -990,7 +1015,8 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     QString qs;
     QTextStream qts(&qs);
     initStream(&qts);
-    qts << SVG_PATH << classState << styleState;
+    if (!_isOnePath)
+        qts << SVG_PATH << classState << styleState;
 
     // Keep in mind: staff lines, bar lines and stems are everywhere in a score
     // It's important to render them properly in SVG and minimize their SVG text
@@ -1002,19 +1028,21 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     bool  isLedger     = (_et == EType::LEDGER_LINE);         // stroke-width="3", horz
     bool  isStem       = (_et == EType::STEM);                // stroke-width="3", vert
     bool  isBeam       = (_et == EType::BEAM);                // no stroke, rhomboid shape
+    bool  isChordLine  = (_et == EType::CHORDLINE);           // the one type so far without a closing point...
     bool  is24   = isStaffLines || isLyricsLine || isBarLine; // horz || horz || vert
     bool  is3    = isLedger     || isStem;                    // horz || vert
+    bool  isTabs = _e->staff()->isTabStaff(_e->tick());
     int   height = _e->bbox().height();
-    qreal x, y, z;
+    qreal spatium, x, y, z;
     int i, l, n, ix, iy, tick;
 
     if (is3)          // they only need 1 decimal place for .5
         qts.setRealNumberPrecision(1);
-    else if (!is24 && !isBeam
-             && _et != EType::NOTE         && _et != EType::BRACKET
-             && _et != EType::SLUR_SEGMENT && _et != EType::TIE_SEGMENT
-             && _et != EType::TREMOLO
-             && p.fillRule() == Qt::OddEvenFill)
+    else if (p.fillRule() == Qt::OddEvenFill 
+          && !_isOnePath && !is24 && !isBeam && !isChordLine
+          && _et != EType::NOTE         && _et != EType::BRACKET
+          && _et != EType::SLUR_SEGMENT && _et != EType::TIE_SEGMENT
+          && _et != EType::TREMOLO)
         qts << SVG_FILL_RULE; // fill-rule="evenodd"
 
     char cmd  = 0;
@@ -1024,14 +1052,28 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     QString dLine;
     QTextStream qtsLine(&dLine);
     
-    qts << SVG_D; // elementCount - 1 because last == first == Z = closed path
-    for (i = 0,  l = p.elementCount() - 1; i < l; ++i) {
+    if (!_isOnePath)
+        qts << SVG_D; 
+
+    l = p.elementCount();
+    if (isChordLine) // would be better to get value from transform...
+        spatium = _e->score()->spatium();
+    else
+        --l; // elementCount() - 1 because last == first == Z = closed path
+
+    for (i = 0; i < l; ++i) {
         ppe = p.elementAt(i);
         switch (ppe.type) {
             case QPainterPath::MoveToElement:
             case QPainterPath::LineToElement:
-                x   = ppe.x + _dx;
-                y   = ppe.y + yOff;
+                if (isChordLine) { // better than a scaling transform...
+                    x = (ppe.x * spatium) + _dx;
+                    y = (ppe.y * spatium) + yOff;
+                }
+                else {
+                    x = ppe.x + _dx;
+                    y = ppe.y + yOff;
+                }
                 ix  = rint(x);
                 iy  = rint(y);
                 cmd = (ppe.type == QPainterPath::MoveToElement ? SVG_M : SVG_L);
@@ -1049,17 +1091,17 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
                     tick = _e->tick().ticks();
                     if (is24 || isBeam) {
                         qts << ix << SVG_COMMA << iy;
-                        if (isStaffLines) { 
+                        if (isStaffLines) {
                             qtsLine << SVG_D << cmd   << ix  << SVG_COMMA << iy
                                     << SVG_H << FROZEN_WIDTH << SVG_QUOTE;
-                            if (_e->staff()->isTabStaff(_e->tick())) 
+                            if (isTabs) 
                                 _staffLinesY.push_back(iy);
                         }
                     }
                     else if (isStem) {
                         z = trunc(x) + 0.5;
                         qts << z << SVG_COMMA << iy;
-                        if (_e->staff()->isTabStaff(_e->tick()) && _stemX.find(tick) == _stemX.end())
+                        if (isTabs && _stemX.find(tick) == _stemX.end())
                             _stemX[tick] = z;
                         _offsets[tick] = RealPair(z - x, 0); // stems first
                     }
@@ -1099,20 +1141,22 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     }
     if (is3) 
         qts.setRealNumberPrecision(SVG_PRECISION); // revert
-    else if (!is24 && (cmd == SVG_L || cmd == SVG_H || cmd == SVG_V))
+    else if (!is24 && !isChordLine && (cmd == SVG_L || cmd == SVG_H || cmd == SVG_V))
         qts << SVG_Z;           // closes the path
-    qts << SVG_QUOTE;
 
-    if (isStaffLines && !_cue_id.isEmpty()) {
+    if (!_isOnePath)
+        qts << SVG_QUOTE << SVG_ELEMENT_END << endl;
+    else if (isBarLine && _idxStaff == 0)
+        _scrollXY.insert(_cue_id, p.elementAt(0).x + _dx);
+    else if (isStaffLines && !_cue_id.isEmpty()) {
         const int pad = Ms::DPI_F * 3;
         int top = p.elementAt(0).y + _dy;
         int cue = _cue_id.toInt();
         _systemTop[cue] = floor(top) - pad; // initial values, staff lines painted first
         _systemBot[cue] = ceil(top + height) + pad;
-        _cue_id.clear(); // only the top staff line gets the extra attributes
-        qts << _cueString;
+        _scrollXY.insert(_cue_id, top);
+        _cue_id.clear(); // once per set of staff lines
     }
-    qts << SVG_ELEMENT_END << endl;
 
     // brackets and sys barline only in frozen pane, stafflines in both
     if (_isFrozen && (isBarLine || _et == EType::BRACKET)) {
@@ -1156,22 +1200,28 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
         path.closeSubpath();
         drawPath(path);
     }
-    else { // draw it as a <polyline>
+    else {
         qreal yOff = _dy + (_isFullMatrix ? 0 : _yOffset);
         QString qs;
         QTextStream qts(&qs);
         initStream(&qts);
-
+  
         if (_isMulti) qts << SVG_4SPACES;  // isMulti staff is inside a <g>
-
-        qts << SVG_POLYLINE << classState << styleState << SVG_POINTS;
-        for (int i = 0; i < pointCount; ++i) {
-            qts << points[i].x() + _dx << SVG_COMMA << points[i].y() + yOff;
-            if (i != pointCount - 1)
-                qts << SVG_SPACE;
+        
+        if (_et == EType::GLISSANDO_SEGMENT) {
+            const Ms::SpannerSegment* spanner = static_cast<const Ms::SpannerSegment*>(_e);
+            qts << SVG_PATH << SVG_D << SVG_M << _dx << SVG_COMMA << yOff << SVG_L
+                << _dx  + spanner->pos2().x() << SVG_COMMA << yOff + spanner->pos2().y();
         }
-        qts << SVG_QUOTE << SVG_ELEMENT_END <<endl;
-
+        else { // draw it as a <polyline>
+            qts << SVG_POLYLINE << classState << styleState << SVG_POINTS;
+            for (int i = 0; i < pointCount; ++i) {
+                qts << points[i].x() + _dx << SVG_COMMA << points[i].y() + yOff;
+                if (i != pointCount - 1)
+                    qts << SVG_SPACE;
+            }
+        }
+        qts << SVG_QUOTE << SVG_ELEMENT_END <<endl;        
         if (_isFrozen) { // certain bracket types
             if (brackets[_idxStaff] == 0) 
                 brackets[_idxStaff] = new QString;
@@ -1185,15 +1235,12 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 
 void SvgPaintEngine::drawRects(const QRectF *rects, int rectCount)
 {
-    int h, i, w, x, y, z;
+    int i, w, x, y, z;
     for (i = 0; i < rectCount; i++) {
         if (_classValue == "tabNote") {
             w = rint(rects[i].width());
-            h = rint(rects[i].height());
             if (!(w % 2)) // stems are 3px stroke width
-                w++;
-            if (h % 2)    // staff lines are 2px stroke-width
-                h--;      // opaque: height only needs to block staff line
+                w++;      // staff lines are 2px stroke width
 
             z = _e->tick().ticks();
             if (_stemX.find(z) == _stemX.end()) {
@@ -1204,19 +1251,12 @@ void SvgPaintEngine::drawRects(const QRectF *rects, int rectCount)
                 x = trunc(_stemX[z] - (w / 2));
 
             z  = static_cast<const Ms::Note*>(_e)->string();
-            y  = _staffLinesY[z] - (h / 2);
-            if (!_isMulti && abs(y - (rects[i].y() + _dy)) > 99) {
+            y  = _staffLinesY[z];
+            if (!_isMulti && abs(y - (rects[i].y() + _dy)) > 99) 
                 // PART, move to next system by removing the previous one's staff lines
                 _staffLinesY.remove(0, _e->staff()->staffType(Ms::Fraction())->lines());
-                y = _staffLinesY[z] - (h / 2);
-            }
 
-            stream() << SVG_4SPACES << SVG_PATH  << SVG_D 
-                     << SVG_M << x  << SVG_COMMA << y
-                     << SVG_H << x + w // everything is in absolute coordinates,
-                     << SVG_V << y + h // though this is simpler w/relative vals.
-                     << SVG_H << x << SVG_Z << SVG_QUOTE
-                     << SVG_ELEMENT_END << endl;
+            stream() << SVG_M << x << SVG_COMMA << y << SVG_h << w;
         }
     }
 }
@@ -1224,8 +1264,7 @@ void SvgPaintEngine::drawRects(const QRectF *rects, int rectCount)
 void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
 {
     // Just in case, this avoids crashes
-    if (_e == NULL)
-        return;
+    if (_e == NULL) return;
 
     qreal x, y;
     bool hasTick = true;
@@ -1278,9 +1317,10 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     qts << SVG_TEXT_BEGIN << classState;
 
     int pitch = -1;
-    bool isRM      = false;
-    bool isTab     = false;
-    bool isTabNote = false;
+    bool isRM       = false;
+    bool isTab      = false;
+    bool isTabNote  = false;
+    bool isNoteLeft = false;
     if (hasTick) {
         const Ms::Note* note;
         int tick  = _e->tick().ticks();
@@ -1295,6 +1335,11 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
                     x = _stemX[tick];
                 y = _staffLinesY[note->string()] + 1; //??stroke-width:2; 1 = 2 / 2?
                 break;                                //??numbers = no-sub-baseline?
+            }
+            else if (note->chord()->stem() 
+                  && note->chord()->stem()->up() != note->mirror())  {
+                isNoteLeft = true;
+                x += note->bbox().width();
             } // fallthru
         case EType::ACCIDENTAL   :
         case EType::ARTICULATION :
@@ -1314,6 +1359,8 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         case EType::KEYSIG            :
         case EType::LYRICS            :
         case EType::MEASURE_NUMBER    :
+        case EType::OTTAVA_SEGMENT    :
+        case EType::PEDAL_SEGMENT     :
         case EType::REST              :
         case EType::STAFF_TEXT        :
         case EType::TEMPO_TEXT        :
@@ -1405,7 +1452,8 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         return;
     }
     // stream the text element to the body or the leftovers bin
-    if (isRM || isTabNote || _e->isTuplet() || _e->isGlissandoSegment())
+    if (isRM || isTabNote || isNoteLeft || _e->isTuplet()
+             || _e->isOttavaSegment()   || _e->isGlissandoSegment())
         _leftovers.append(qs); // text after shape in z-order
     else
         stream() << qs;
@@ -1496,60 +1544,57 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         QString* elm = new QString;
         qts.setString(elm);
         initStream(&qts);
-        if (_idxStaff != _idxSlash || isTimeSig) {
-            if (isKeySig || isTimeSig)
-                // KeySigs/TimeSigs simply cache the text content until freezeDef()
-                qts << textContent;
-            else if (_idxStaff != _idxSlash) {
-                // The other element types cache a fully-defined <text> element
-                qts << getFrozenElement(textContent, defClass, _et, x, y);
+        if (isKeySig || isTimeSig)
+            // KeySigs/TimeSigs simply cache the text content until freezeDef()
+            qts << textContent;
+        else {
+            // The other element types cache a fully-defined <text> element
+            if (_idxStaff != _idxSlash || _et != EType::INSTRUMENT_NAME)
+                  qts << getFrozenElement(textContent, defClass, _et, x, y);
 
-                if (isIName && isINameY) 
-                    // The solo (link off) version of instrument names, one for each
-                    // staff. Linked staves' first staff's iname gets two elements.
-                    qts << getFrozenElement(textContent,
-                                            isTab ? CLASS_INAME_TABS : CLASS_INAME_NOTE,
-                                            _et,
-                                            x,
-                                            frozenINameY[_idxStaff]);
-            }
-
-            // Ensure that tempo defs have the correct width
-            if (multiTempo) {
-                // Tempos are part of the "system" staff, and always paint last
-                if (!frozenWidths.contains(_cue_id)) {
-                    // No other frozen elements for this cue_id, find the previous
-                    // cue_id. This code only runs when there is a tempo change w/o
-                    // a key/timesig or clef change. Very rarely > twice per score.
-                    int width = 0;
-                    QStringList::iterator i;
-                    QStringList keys = frozenWidths.keys();
-                    keys.sort();
-                    for (i = keys.begin(); i != keys.end(); ++i) {
-                        if (*i < _cue_id)
-                            width = frozenWidths[*i];
-                        else if (*i > _cue_id)
-                            break;
-                    }
-                    frozenWidths.insert(_cue_id, width);
-                }
-            }
-
-            // Add the value to the list for key = idxStaff-EType
-            if (!def->contains(key)) {
-                StrPtrList* spl = new StrPtrList;
-                def->insert(key, spl);
-            }
-
-            if (isKeySig) {
-                // Set KeySig order: left-to-right (and exclude natural signs)
-                // The reverse order is needed for unlinked multi-staff parts too
-                if (*(textItem.text().unicode()) != NATURAL_SIGN)
-                    (*def)[key]->insert(0, elm);
-            }
-            else
-                (*def)[key]->insert(0, elm); // reverse order because of unlinked multi-staff parts
+            if (_idxStaff != _idxSlash && isIName && isINameY) 
+                // The solo (link off) version of instrument names, one for each
+                // staff. Linked staves' first staff's iname gets two elements.
+                qts << getFrozenElement(textContent,
+                                        isTab ? CLASS_INAME_TABS : CLASS_INAME_NOTE,
+                                        _et, x, frozenINameY[_idxStaff]);
         }
+
+        // Ensure that tempo defs have the correct width
+        if (multiTempo) {
+            // Tempos are part of the "system" staff, and always paint last
+            if (!frozenWidths.contains(_cue_id)) {
+                // No other frozen elements for this cue_id, find the previous
+                // cue_id. This code only runs when there is a tempo change w/o
+                // a key/timesig or clef change. Very rarely > twice per score.
+                int width = 0;
+                QStringList::iterator i;
+                QStringList keys = frozenWidths.keys();
+                keys.sort();
+                for (i = keys.begin(); i != keys.end(); ++i) {
+                    if (*i < _cue_id)
+                        width = frozenWidths[*i];
+                    else if (*i > _cue_id)
+                        break;
+                }
+                frozenWidths.insert(_cue_id, width);
+            }
+        }
+
+        // Add the value to the list for key = idxStaff-EType
+        if (!def->contains(key)) {
+            StrPtrList* spl = new StrPtrList;
+            def->insert(key, spl);
+        }
+
+        if (isKeySig) {
+            // Set KeySig order: left-to-right (and exclude natural signs)
+            // The reverse order is needed for unlinked multi-staff parts too
+            if (*(textItem.text().unicode()) != NATURAL_SIGN)
+                (*def)[key]->insert(0, elm);
+        }
+        else
+            (*def)[key]->insert(0, elm); // reverse order because of unlinked multi-staff parts
     }
 }
 
@@ -1733,7 +1778,7 @@ void SvgPaintEngine::freezeDef(int idxStaff)
         if (idxStaff > -1)
             idx = idxStaff; // Freeze one staff only
 
-        if (idx != _idxSlash) { // slash staff frozen pane only has timesigs
+        if (idx != _idxSlash) { // slash staff frozen pane displays no iName
             // InstrumentNames are special because of linked staves
             key = getDefKey(idx, EType::INSTRUMENT_NAME);
             if (!def->contains(key)) {
@@ -1762,15 +1807,15 @@ void SvgPaintEngine::freezeDef(int idxStaff)
                 else if (_prevDef != 0 && _prevDef->contains(key))
                     def->insert(key, (*_prevDef)[key]);
             }
-            // Clefs
-            if (_prevDef != 0) {
-                key = getDefKey(idx, EType::CLEF);
-                if (!def->contains(key) && _prevDef->contains(key))
-                    def->insert(key, (*_prevDef)[key]);
-            }
-            // KeySigs
-            freezeSig(def, idx, frozenKeyY, EType::KEYSIG, keyX);
         }
+        // Clefs
+        if (_prevDef != 0) {
+            key = getDefKey(idx, EType::CLEF);
+            if (!def->contains(key) && _prevDef->contains(key))
+                def->insert(key, (*_prevDef)[key]);
+        }
+        // KeySigs
+        freezeSig(def, idx, frozenKeyY, EType::KEYSIG, keyX);
         // TimeSigs
         timeX = keyX + xOffsetTimeSig[_cue_id] + (5 * Ms::DPI_F); //!!! fixed margin between KeySig/TimeSig. Default setting is 0.5 * spatium, but it ends up more like 3 than 2.5. not sure why.
         freezeSig(def, idx, frozenTimeY, EType::TIMESIG, timeX);

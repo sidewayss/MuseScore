@@ -92,6 +92,7 @@ using IntSet          = std::set<int>;
 using IntPair         = std::pair<int, int>;
 using IntPairSet      = std::set<IntPair>;
 using Int2IntSet      = std::map<int, IntSet>;
+using ETypeSet        = std::set<EType>;
 
 ///////////////////////////////////////////////////////////////////////////////
 // SVG and SMAWS constants
@@ -213,6 +214,7 @@ using Int2IntSet      = std::map<int, IntSet>;
 #define SVG_H      'H' // Horizontal line
 #define SVG_V      'V' // Vertical line
 #define SVG_Z      'Z' // Close path
+#define SVG_h      'h' // relative coordinate horizontal line
 
 #define SVG_MATRIX    " transform=\"matrix("
 #define SVG_TRANSFORM " transform=\""
@@ -283,7 +285,7 @@ using Int2IntSet      = std::map<int, IntSet>;
 #define CUE_ID_ZERO  "000000_000000"
 #define TEXT_BPM     "bpm"
 #define NATURAL_SIGN 57953   // 0xE261, natural signs excluded from frozen panes
-#define FROZEN_WIDTH 535     // frozen-staff-lines:x2; fader-rect:width;
+#define FROZEN_WIDTH 535
 #define RULER_HEIGHT 47
 #define INAME_OFFSET  4      //!!third of 12px, which is default font size - alignment-baseline!!
 #define CLEF_OFFSET  16
