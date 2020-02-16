@@ -54,6 +54,7 @@
 #include "libmscore/stem.h"      // ditto
 #include "libmscore/segment.h"
 #include "libmscore/spanner.h"
+#include <QStringBuilder>
 
 #define SVG_DATA_P " data-p=\""  // 4 chars less for every note - it adds up!
 
@@ -252,9 +253,13 @@ protected:
         EType::HOOK,              EType::PEDAL_SEGMENT,      EType::TREMOLO,
         EType::INSTRUMENT_CHANGE, EType::NOTEDOT,            EType::TUPLET
     };
+    const ETypeSet _isPath {
+        EType::STAFF_LINES, EType::STEM, EType::BAR_LINE, EType::BRACKET,
+        EType::LEDGER_LINE, EType::LYRICSLINE_SEGMENT
+    };
     const ETypeSet _noMatrix{ EType::CHORDLINE, EType::GLISSANDO_SEGMENT };
 
-    Str2IntMap _scrollXY;
+    Int2IntMap _scrollXY;
 
     // These vary by Staff: (not sure if KeyY or TimeY need to be by staff, could clear between staves)
     StrPtrVect   brackets;      // in frozen pane, analogous to frozenLines, but not always populated
@@ -520,18 +525,26 @@ bool SvgPaintEngine::end()
              << SVG_4SPACES << SVG_VIEW_BOX  << qCeil(d->viewBox.left())  << SVG_SPACE
                                              << qCeil(d->viewBox.top())   << SVG_SPACE
                                              << qCeil(d->viewBox.width()) << SVG_SPACE
-                                             << height << SVG_QUOTE;
-    if (_isScrollVertical)
-        stream() << SVG_WIDTH  << d->size.width() << SVG_QUOTE;
-    else
-        stream() << SVG_HEIGHT << height          << SVG_QUOTE;
-    stream()     << SVG_CLASS  << "fgFillStroke"  << SVG_QUOTE << endl;
-
+                                             << height         << SVG_QUOTE 
+                            << SVG_CLASS     << "fgFillStroke" << SVG_QUOTE  << endl;
     if (_isSMAWS) {
         stream() << SVG_4SPACES << SVG_XYMIN_SLICE
                  << SVG_POINTER << SVG_NONE   << SVG_QUOTE;
-
-        if (!_isMulti)
+        if (_isMulti) {
+            QString cues;
+            QString vals;
+            for (auto it = _scrollXY.begin(); it != _scrollXY.end(); ++it) {
+                cues += QString::number(it->first)  % SVG_COMMA;
+                vals += QString::number(it->second) % SVG_COMMA;
+            }
+            cues.chop(1); // chop trailing commas
+            vals.chop(1);
+            stream() << endl << SVG_4SPACES << SVG_CUE << SVG_L_BRACKET
+                     << SVG_L_BRACKET << cues << SVG_R_BRACKET << SVG_COMMA 
+                     << SVG_L_BRACKET << vals << SVG_R_BRACKET << SVG_R_BRACKET
+                     << SVG_QUOTE     << endl;
+        }
+        else
             stream() << SVG_STAFFLINES <<_nLines << SVG_QUOTE;
     }
     stream() << SVG_GT << endl;
@@ -614,7 +627,7 @@ bool SvgPaintEngine::end()
         else {
             // StaffLines/SystemBarLine(s) once, in the body, not in the defs
             for (i = 0; i < _nStaves; i++)
-                stream() << *(frozenLines[i]);
+                stream() << *(frozenLines[i]) << SVG_QUOTE << SVG_ELEMENT_END << endl;;
 
             // One <use> element
             stream() << SVG_USE    << XLINK_HREF      << CUE_ZERO
@@ -1028,7 +1041,8 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     bool  isLedger     = (_et == EType::LEDGER_LINE);         // stroke-width="3", horz
     bool  isStem       = (_et == EType::STEM);                // stroke-width="3", vert
     bool  isBeam       = (_et == EType::BEAM);                // no stroke, rhomboid shape
-    bool  isChordLine  = (_et == EType::CHORDLINE);           // the one type so far without a closing point...
+    bool  isChordLine  = (_et == EType::CHORDLINE);           // not quite a symbol...
+    bool  isPolyLine   = (_isPath.find(_et) != _isPath.end());// no Z, from drawPolyline()
     bool  is24   = isStaffLines || isLyricsLine || isBarLine; // horz || horz || vert
     bool  is3    = isLedger     || isStem;                    // horz || vert
     bool  isTabs = _e->staff()->isTabStaff(_e->tick());
@@ -1058,7 +1072,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     l = p.elementCount();
     if (isChordLine) // would be better to get value from transform...
         spatium = _e->score()->spatium();
-    else
+    else if (!isPolyLine && !isBeam)
         --l; // elementCount() - 1 because last == first == Z = closed path
 
     for (i = 0; i < l; ++i) {
@@ -1092,8 +1106,8 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
                     if (is24 || isBeam) {
                         qts << ix << SVG_COMMA << iy;
                         if (isStaffLines) {
-                            qtsLine << SVG_D << cmd   << ix  << SVG_COMMA << iy
-                                    << SVG_H << FROZEN_WIDTH << SVG_QUOTE;
+                            qtsLine << cmd   << ix  << SVG_COMMA << iy
+                                    << SVG_H << FROZEN_WIDTH;
                             if (isTabs) 
                                 _staffLinesY.push_back(iy);
                         }
@@ -1141,20 +1155,20 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     }
     if (is3) 
         qts.setRealNumberPrecision(SVG_PRECISION); // revert
-    else if (!is24 && !isChordLine && (cmd == SVG_L || cmd == SVG_H || cmd == SVG_V))
-        qts << SVG_Z;           // closes the path
+    else if (!isPolyLine && !isChordLine && (cmd == SVG_L || cmd == SVG_H || cmd == SVG_V))
+        qts << SVG_Z; // closes the path
 
     if (!_isOnePath)
         qts << SVG_QUOTE << SVG_ELEMENT_END << endl;
     else if (isBarLine && _idxStaff == 0)
-        _scrollXY.insert(_cue_id, p.elementAt(0).x + _dx);
+        _scrollXY[_cue_id.toInt()] = rint(p.elementAt(0).x + _dx);
     else if (isStaffLines && !_cue_id.isEmpty()) {
         const int pad = Ms::DPI_F * 3;
-        int top = p.elementAt(0).y + _dy;
+        int top = rint(p.elementAt(0).y + _dy);
         int cue = _cue_id.toInt();
         _systemTop[cue] = floor(top) - pad; // initial values, staff lines painted first
         _systemBot[cue] = ceil(top + height) + pad;
-        _scrollXY.insert(_cue_id, top);
+        _scrollXY [cue] = top;
         _cue_id.clear(); // once per set of staff lines
     }
 
@@ -1176,13 +1190,16 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
 
         if (frozenLines[_idxStaff] == 0) { // staff lines draw first
             frozenLines[_idxStaff] = new QString;
+            qts.setString(frozenLines[_idxStaff]);
+            qts << SVG_4SPACES << SVG_PATH    << SVG_CLASS << "StaffLines"
+                << SVG_QUOTE   << SVG_4SPACES << SVG_D; //!!assumes field width = 15...
             if (_isLinked)
                 frozenINameY.insert(_idxStaff, iy + (height / 2) + INAME_OFFSET);
         }
+        else
+            qts.setString(frozenLines[_idxStaff]);
 
-        qts.setString(frozenLines[_idxStaff]);
-        qts << SVG_4SPACES << SVG_2SPACES << SVG_PATH << dLine 
-            << SVG_ELEMENT_END << endl;
+        qts << dLine; // terminated later, in beginDef() and end()
     }
 }
 
@@ -1190,14 +1207,11 @@ void SvgPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonD
 {
     Q_ASSERT(pointCount >= 2);
 
-    if (_et == EType::STAFF_LINES || _et == EType::STEM || _et == EType::BAR_LINE
-     || _et == EType::LEDGER_LINE || _et == EType::LYRICSLINE_SEGMENT
-     || mode != PolylineMode)
-    {      // draw it as a <path> element, line text is more compact that way
+    if (_isPath.find(_et) != _isPath.end() || mode != PolylineMode) {
+        // draw it as a <path> element, line text is more compact that way
         QPainterPath path(points[0]);
         for (int i = 1; i < pointCount; ++i)
               path.lineTo(points[i]);
-        path.closeSubpath();
         drawPath(path);
     }
     else {
@@ -1722,9 +1736,7 @@ void SvgPaintEngine::beginDef(const int      idx,
     if (_isMulti) {
         if (idx < _nStaves && idx != _idxSlash) {
             // StaffLines/System BarLine(s) in all defs except System and Grid staves
-            stream() << SVG_4SPACES << SVG_GROUP_BEGIN 
-                     << SVG_CLASS   << "StaffLines" << SVG_QUOTE << SVG_GT  << endl
-                     << *(frozenLines[idx]) << SVG_4SPACES << SVG_GROUP_END << endl;
+            stream() << *(frozenLines[idx]) << SVG_QUOTE << SVG_ELEMENT_END << endl;
             if (brackets[idx] != 0) 
                 stream() << *(brackets[idx]);
         }

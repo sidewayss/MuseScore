@@ -3591,7 +3591,7 @@ static bool svgInit(Score*        score,
 // getVTTCueTwo()    - returns the first 2 lines of a SMAWS VTT cue: id + time
 // smawsDesc()       - returns a string to use in the <desc> of SVG file
 // paintStaffSMAWS() - paints the entire score for one staff
-// elementLessThanByStaff() - sort-by-staff function for std::stable_sort()
+// lessByStaff() - sort-by-staff function for std::stable_sort()
 //
 static int ticks2msecs(int ticks, const TempoMap* tempos) {
     return qRound(tempos->tick2time(ticks) * 1000);
@@ -3734,8 +3734,12 @@ static void paintStaffSMAWS(Score*        score,
     }
 }
 
-// Helps sort elements on a page by element type, by staff
-static bool elementLessThanByStaff(const Element* const e1, const Element* const e2)
+// Helps sort elements by staff, by element type, by tick
+static bool lessByType(const Element* const e1, const Element* const e2)
+{
+    return e1->type() <= e2->type();
+}
+static bool lessByStaff(const Element* const e1, const Element* const e2)
 {
     return e1->staffIdx() <= e2->staffIdx();
 }
@@ -4117,9 +4121,9 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isAuto, bool 
     // The sort order for elmPtrs is critical: if (isMulti) by type, by staff;
     //                                         else         by type;
     QList<Element*> elmPtrs = page->elements();
-    std::stable_sort(elmPtrs.begin(), elmPtrs.end(), elementLessThan);
+    std::stable_sort(elmPtrs.begin(), elmPtrs.end(), lessByType);
     if (isMulti)
-        std::stable_sort(elmPtrs.begin(), elmPtrs.end(), elementLessThanByStaff);
+        std::stable_sort(elmPtrs.begin(), elmPtrs.end(), lessByStaff);
     else // Paint staff lines once, prior to painting anything else
         paintStaffLines(score, &p, &printer, page, &visibleStaves);
 
