@@ -214,7 +214,11 @@ using ETypeSet        = std::set<EType>;
 #define SVG_H      'H' // Horizontal line
 #define SVG_V      'V' // Vertical line
 #define SVG_Z      'Z' // Close path
-#define SVG_h      'h' // relative coordinate horizontal line
+#define SVG_m      'm' // relative coordinate versions
+#define SVG_l      'l'
+#define SVG_c      'c'
+#define SVG_h      'h'
+#define SVG_v      'v'
 
 #define SVG_MATRIX    " transform=\"matrix("
 #define SVG_TRANSFORM " transform=\""

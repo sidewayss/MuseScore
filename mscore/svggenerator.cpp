@@ -204,6 +204,24 @@ private:
                         const int      maxDigits,
                         const bool     inQuotes);
 
+    QString variableFormat(qreal n) {
+        int i = rint(n * 100.0); //!! assumes SVG_PRECISION == 2
+        if (i % 100)
+            return QString::number(n, 'f', i % 10 ? 2 : 1);
+        else
+            return QString::number(i / 100);
+    }
+    void relativeXY(int& xy, qreal& rel) {
+        int z = xy;
+        xy -= rel;
+        rel = z;
+    }
+    void relativeXY(qreal& xy, qreal& rel) {
+        qreal z = xy;
+        xy -= rel;
+        rel = z;
+    }
+
 protected:
     const Ms::Element* _e;  // The Element being generated now
           EType        _et; // That element's ::Type - it's used everywhere
@@ -219,6 +237,8 @@ protected:
     qreal   _yOffset;          // Y axis offset used by Multi-Select Staves
     qreal   _sysLeft;          // Left and right edges of staff lines on the
     qreal   _sysRight;         // page for part title and credits formatting
+    qreal   _relX;
+    qreal   _relY;
     int     _nLines;           // Number of staff lines for a part
     IntVect _staffLinesY;      // by staff line for the current _idxStaff
     Int2IntMap _systemTop;     // for PART, by start-of-system cue_id
@@ -755,6 +775,8 @@ void SvgPaintEngine::updateState(const QPaintEngineState &s)
     if (classChanged) {
         _isOnePath ? closePath() : closeGroup();
         _classValue = classVal;
+        _relX = 0.0;
+        _relY = 0.0;
     }
     _isOnePath = _notGrouped.find(_et) != _notGrouped.end() 
               || (_et == EType::NOTE && _e->staff()->isTabStaff(_e->tick()));
@@ -1061,11 +1083,14 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
 
     char cmd  = 0;
     char prev = 0;
+    char h = isStaffLines ? SVG_H : SVG_h;
+    char m = isStaffLines ? SVG_M : SVG_m;
     QPointF pt;
     QPainterPath::Element ppe;
     QString dLine;
     QTextStream qtsLine(&dLine);
-    
+    bool isFirst = false;
+
     if (!_isOnePath)
         qts << SVG_D; 
 
@@ -1080,7 +1105,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
         switch (ppe.type) {
             case QPainterPath::MoveToElement:
             case QPainterPath::LineToElement:
-                if (isChordLine) { // better than a scaling transform...
+                if (isChordLine) { // eliminates scaling transform...
                     x = (ppe.x * spatium) + _dx;
                     y = (ppe.y * spatium) + yOff;
                 }
@@ -1088,68 +1113,100 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
                     x = ppe.x + _dx;
                     y = ppe.y + yOff;
                 }
-                ix  = rint(x);
-                iy  = rint(y);
-                cmd = (ppe.type == QPainterPath::MoveToElement ? SVG_M : SVG_L);
-                if (cmd == SVG_L) {
+                ix = rint(x);
+                iy = rint(y);
+                cmd = (ppe.type == QPainterPath::MoveToElement ? m : SVG_l);
+                if (cmd == SVG_l) {
                     if (pt.x() == ppe.x)
-                        cmd = SVG_V;
+                        cmd = SVG_v;
                     else if (pt.y() == ppe.y)
-                        cmd = SVG_H;
+                        cmd = h;
                 }
                 pt = QPointF(ppe.x, ppe.y);
                 if (cmd != prev) 
                     qts << cmd;
-                if (cmd == SVG_M || cmd == SVG_L) {
+                if (cmd == m || cmd == SVG_l) {
                     // if/else if = M only, H or V lines = Mx,y Hx|Vy = never L
                     tick = _e->tick().ticks();
                     if (is24 || isBeam) {
-                        qts << ix << SVG_COMMA << iy;
                         if (isStaffLines) {
-                            qtsLine << cmd   << ix  << SVG_COMMA << iy
+                            qtsLine << SVG_M << ix  << SVG_COMMA << iy
                                     << SVG_H << FROZEN_WIDTH;
                             if (isTabs) 
                                 _staffLinesY.push_back(iy);
                         }
+                        else {
+                            relativeXY(ix, _relX);
+                            relativeXY(iy, _relY);
+                        }
+                        qts << ix << SVG_COMMA << iy;
                     }
                     else if (isStem) {
+                        isFirst = (_relX == 0); // better as class variable, set less often?
                         z = trunc(x) + 0.5;
-                        qts << z << SVG_COMMA << iy;
+                        relativeXY( z, _relX);
+                        relativeXY(iy, _relY);
+                        isFirst ? qts << z : qts << int(z); // one type at a time
+                        qts << SVG_COMMA << iy;
+                        z = trunc(x) + 0.5;
                         if (isTabs && _stemX.find(tick) == _stemX.end())
                             _stemX[tick] = z;
                         _offsets[tick] = RealPair(z - x, 0); // stems first
                     }
                     else if (isLedger) {
+                        isFirst = (_relY == 0);
                         z = trunc(y) + 0.5;
-                        qts << ix << SVG_COMMA << z;
+                        relativeXY(ix, _relX);
+                        relativeXY( z, _relY);
+                        qts << ix << SVG_COMMA;
+                        isFirst ? qts << z : qts << int(z);
+                        z = trunc(y) + 0.5;
                         if (_offsets.find(tick) != _offsets.end())
                             _offsets[tick].second = z - y;   // stems first
                         else
                             _offsets[tick] = RealPair(0, z - y);
                     }
-                    else
-                        qts << x << SVG_COMMA << y;
+                    else {
+                        relativeXY(x, _relX);
+                        relativeXY(y, _relY);
+                        qts << variableFormat(x) << SVG_COMMA << variableFormat(y);
+                    }
                 }
-                else if (is24 || is3 || isBeam)
-                    qts << (cmd == SVG_H ? ix : iy);
-                else
-                    qts << (cmd == SVG_H ? x : y);
+                else if (is24 || is3 || isBeam) {
+                    if (!isStaffLines)
+                        cmd == h ? relativeXY(ix, _relX)
+                                 : relativeXY(iy, _relY);
+
+                    qts << (cmd == h ? ix : iy);
+                }
+                else if (cmd == h) {
+                    relativeXY(x, _relX);
+                    qts << variableFormat(x);
+                }
+                else { // SVG_V
+                    relativeXY(y, _relY);
+                    qts << variableFormat(y);
+                }
                 break;
             case QPainterPath::CurveToElement:
-                prev = SVG_C;
-                qts << SVG_C;
+                prev = SVG_c;
+                qts << SVG_c;
                 for (n = i + 2; i <= n; i++) {
                     ppe = p.elementAt(i);
-                    qts << ppe.x + _dx << SVG_COMMA << ppe.y + yOff;
+                    x   = ppe.x + _dx;
+                    y   = ppe.y + yOff;
+                    qts << variableFormat(x - _relX) << SVG_COMMA << variableFormat(y - _relY);
                     if (i < n)
                         qts << SVG_SPACE;
                 }
                 i = n;
+                _relX = x;
+                _relY = y;
                 break;
             default:
                 break;
         }
-        if (cmd == prev)      // SVG_C never sets cmd, never omits command
+        if (cmd == prev)      // SVG_L only, right? SVG_C never sets cmd, never omits command
             qts << SVG_SPACE; // repeated command requires delimiter
         prev = cmd;
     }
@@ -2273,6 +2330,10 @@ void SvgGenerator::setElement(const Ms::Element* e) {
     SvgPaintEngine* pe = static_cast<SvgPaintEngine*>(paintEngine());
     pe->_e  = e;
     pe->_et = e->type();
+    if (pe->_noMatrix.find(pe->_et) != pe->_noMatrix.end()) {
+        pe->_relX = 0.0;
+        pe->_relY = 0.0;
+    }
 }
 
 /*!
