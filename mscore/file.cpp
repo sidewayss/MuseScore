@@ -3737,12 +3737,24 @@ static void paintStaffSMAWS(Score*        score,
 // Helps sort elements by staff, by element type, by tick
 static bool lessByType(const Element* const e1, const Element* const e2)
 {
-    return e1->type() <= e2->type();
+    return e1->type() < e2->type();
 }
 static bool lessByStaff(const Element* const e1, const Element* const e2)
 {
-    return e1->staffIdx() <= e2->staffIdx();
+    return e1->staffIdx() < e2->staffIdx();
 }
+static bool lessByX(const Element* const e1, const Element* const e2)
+{
+    return e1->pageX() < e2->pageX();
+}
+static bool lessByXTypeStaff(const Element* const e1, const Element* const e2)
+{
+    return e1->staffIdx() <= e2->staffIdx()
+       || (e1->staffIdx() == e2->staffIdx() && e1->type() <= e2->type())
+       || (e1->staffIdx() == e2->staffIdx() && e1->type() == e2->type() 
+                                            && e1->pagePos().x() <= e2->pagePos().x());
+}
+
 
 // Formats ints in fixed width for SVG attribute value
 static QString formatInt(const QString& attr,
@@ -4121,12 +4133,15 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isAuto, bool 
     // The sort order for elmPtrs is critical: if (isMulti) by type, by staff;
     //                                         else         by type;
     QList<Element*> elmPtrs = page->elements();
-    std::stable_sort(elmPtrs.begin(), elmPtrs.end(), lessByType);
-    if (isMulti)
+    if (isMulti) {
+        std::stable_sort(elmPtrs.begin(), elmPtrs.end(), lessByX);
+        std::stable_sort(elmPtrs.begin(), elmPtrs.end(), lessByType);
         std::stable_sort(elmPtrs.begin(), elmPtrs.end(), lessByStaff);
-    else // Paint staff lines once, prior to painting anything else
+    }
+    else { // Paint staff lines once, prior to painting anything else
+        std::stable_sort(elmPtrs.begin(), elmPtrs.end(), lessByType);
         paintStaffLines(score, &p, &printer, page, &visibleStaves);
-
+    }
     QStringList      iNames;    // Only used by Multi-Select Staves.
     QStringList      fullNames; // Only used by Multi-Select Staves.
     QList<qreal>     staffTops; // ditto

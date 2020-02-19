@@ -256,22 +256,23 @@ protected:
 
     QVector<int>* _nonStdStaves; // Vector of staff indices for the tablature and percussion staves in this score
     bool _isOnePath;
-    const ETypeSet _notGrouped { // should be std::unordered_set<>, but VStudio doesn't like that...
+    const ETypeSet _notGrouped { // these should be std::unordered_set<>, but VStudio doesn't like that...
         EType::STEM, EType::BEAM, EType::BAR_LINE, EType::STAFF_LINES,
         EType::LEDGER_LINE, EType::SLUR_SEGMENT, EType::TIE_SEGMENT, 
         EType::LYRICSLINE_SEGMENT, EType::TREMOLO 
     };
     const ETypeSet _notStyled {// EType::REST: external CSS can't handle Rest <polyline>s
-        EType::ACCIDENTAL,        EType::INSTRUMENT_NAME,    EType::REHEARSAL_MARK,
-        EType::ARTICULATION,      EType::KEYSIG,             EType::SLUR_SEGMENT,
-        EType::BEAM,              EType::LEDGER_LINE,        EType::STAFF_LINES,
+        EType::ACCIDENTAL,        EType::INSTRUMENT_NAME,    EType::SLUR_SEGMENT,
+        EType::ARTICULATION,      EType::KEYSIG,             EType::STAFF_LINES,
+        EType::BEAM,              EType::LEDGER_LINE,        EType::STAFF_TEXT,
         EType::BRACKET,           EType::LYRICS,             EType::STEM,
         EType::CHORDLINE,         EType::LYRICSLINE_SEGMENT, EType::SYSTEM,
-        EType::CLEF,              EType::MEASURE_NUMBER,     EType::TEXT,
-        EType::GLISSANDO_SEGMENT, EType::NOTE,               EType::TIE_SEGMENT,
-        EType::HARMONY,           EType::OTTAVA_SEGMENT,     EType::TIMESIG,
-        EType::HOOK,              EType::PEDAL_SEGMENT,      EType::TREMOLO,
-        EType::INSTRUMENT_CHANGE, EType::NOTEDOT,            EType::TUPLET
+        EType::CLEF,              EType::MEASURE_NUMBER,     EType::TEMPO_TEXT,
+        EType::FERMATA,           EType::NOTE,               EType::TEXT,
+        EType::GLISSANDO_SEGMENT, EType::OTTAVA_SEGMENT,     EType::TIE_SEGMENT,
+        EType::HARMONY,           EType::PEDAL_SEGMENT,      EType::TIMESIG,
+        EType::HOOK,              EType::NOTEDOT,            EType::TREMOLO,
+        EType::INSTRUMENT_CHANGE, EType::REHEARSAL_MARK,     EType::TUPLET
     };
     const ETypeSet _isPath {
         EType::STAFF_LINES, EType::STEM, EType::BAR_LINE, EType::BRACKET,
@@ -1421,24 +1422,8 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
                 x += xy.first;
                 y += xy.second;
             } // fallthru
-        case EType::BRACKET           :
-        case EType::CLEF              :
-        case EType::GLISSANDO_SEGMENT :
-        case EType::HARMONY           : // Chord text/symbols for song book, fake book, etc,
-        case EType::INSTRUMENT_CHANGE :
-        case EType::INSTRUMENT_NAME   :
-        case EType::KEYSIG            :
-        case EType::LYRICS            :
-        case EType::MEASURE_NUMBER    :
-        case EType::OTTAVA_SEGMENT    :
-        case EType::PEDAL_SEGMENT     :
-        case EType::REST              :
-        case EType::STAFF_TEXT        :
-        case EType::TEMPO_TEXT        :
-        case EType::TEXT              : // Measure Numbers, Title, Subtitle, Composer, Poet
-        case EType::TIMESIG           :
-        case EType::TUPLET            :
-            break; // These elements all styled by CSS
+        case EType::REST : // not in _notStyled because of polylines/paths
+            break;
 
         case EType::REHEARSAL_MARK : // center the text inside _textFrame
             isRM = true;
@@ -1447,16 +1432,18 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
             break;
 
         default:
-            // Attributes normally contained in styleState. updateState() swaps
-            // the stroke/fill values in <text> elements; this is the remedy:
-            if (_color != SVG_BLACK)
-                qts << SVG_FILL         << _color        << SVG_QUOTE;
-            if (_colorOpacity != SVG_ONE)
-                qts << SVG_FILL_OPACITY << _colorOpacity << SVG_QUOTE;
-
-            // The font attributes, not handled in updateState()
-            qts << SVG_FONT_FAMILY << fontFamily << SVG_QUOTE
-                << SVG_FONT_SIZE   << fontSize   << SVG_QUOTE;
+            if (_notStyled.find(_et) == _notStyled.end()) {
+                // Attributes normally contained in styleState. updateState() swaps
+                // the stroke/fill values in <text> elements; this is the remedy:
+                if (_color != SVG_BLACK)
+                    qts << SVG_FILL         << _color        << SVG_QUOTE;
+                if (_colorOpacity != SVG_ONE)
+                    qts << SVG_FILL_OPACITY << _colorOpacity << SVG_QUOTE;
+                
+                // The font attributes, not handled in updateState()
+                qts << SVG_FONT_FAMILY << fontFamily << SVG_QUOTE
+                    << SVG_FONT_SIZE   << fontSize   << SVG_QUOTE;
+            }
             break;
         }
     }
