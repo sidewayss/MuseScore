@@ -3197,9 +3197,8 @@ static int getScrollMsec(Score* score, const Element* e)
             // and the rulers' playback position cursors.
             // RehearsalMarks only animate in the ruler, not in the score,
             // and they have full-duration cues, marker-to-marker.
-            msec = tickToMsec(score, static_cast<Measure*>(p->parent())->tick().ticks());
-            break;
-        default:
+            msec = tickToMsec(score, static_cast<Measure*>(p->parent())->tick().ticks()); // fallthru
+        default:              // prevents compiler warnings
             break; // Should never happen
         }
         break;
@@ -3214,7 +3213,8 @@ static int getScrollMsec(Score* score, const Element* e)
         msec = 0;
         break;
     case EType::INSTRUMENT_CHANGE :
-        msec = tickToMsec(score, static_cast<const InstrumentChange*>(e)->segment()->tick().ticks());
+        msec = tickToMsec(score, static_cast<const InstrumentChange*>(e)->segment()->tick().ticks()); // fallthru
+    default:              // prevents compiler warnings
         break;
     }
 
@@ -4070,66 +4070,6 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isAuto, bool 
         }
     }
 
-    /// setCues and this entire block of code is for potential future use...
-//    auto cue_compare = [](QString a, QString b) {
-//        bool aOk, bOk;
-//        int ai = a.toInt(&aOk);
-//        int bi = b.toInt(&bOk);
-//        return aOk && bOk ? ai < bi : a < b; 
-//    };
-//    std::set<QString, decltype(cue_compare)> setCues(cue_compare);
-//    Measure* m;
-//    Segment* s;
-//    n *= VOICES; // iterate over all the tracks...
-//    for (m = score->firstMeasure(); m; m = m->nextMeasureMM()) {
-//        setCues.insert(getCueID2(score, m->tick().ticks()));
-//        for (s = m->first(SegmentType::ChordRest); s; s = s->next(SegmentType::ChordRest)) {
-//            for (i = 0; i < n; i++) {
-//                cr = s->cr(i);
-//                if (cr) {
-//                    tick = cr->tick().ticks();
-//                    setCues.insert(getCueID2(score, tick, tick + cr->actualTicks().ticks()));
-//                }
-//            }
-//            for (Element* eAnn : s->annotations()) {
-//                switch(eAnn->type()) {
-//                case EType::HARMONY : // special case: end tick is next HARMONY
-//                    setCues.insert(getAnnCueID(score, eAnn, eAnn->type()));
-//                    break;
-//                case EType::TEMPO_TEXT        :
-//                case EType::INSTRUMENT_CHANGE :
-//                    if (s->tick().ticks() != m->tick().ticks())
-//                        setCues.insert(getScrollCueID(score, eAnn)); // Zero-duration cue
-//                    break;
-//                default:
-//                    break;
-//                }
-//            }
-//        }
-//    } 
-//
-//    std::map<QString, int> idxByCue;
-//    idx = -1;
-//    QFile       cdataFile;
-//    QTextStream cdataStream(&cdataFile);
-//    cdataFile.setFileName(QString("%1%2%3").arg(fnRoot).arg("cues").arg(EXT_SVG));
-//    cdataFile.open(QIODevice::WriteOnly | QIODevice::Text);  // TODO: check for failure here!!!
-//    cdataStream << SVG_BEGIN << XML_NAMESPACE << SVG_GT << endl
-//                << SVG_DESC_BEGIN  << score->metaTag("workTitle") << SVG_SPACE
-//                                   << smawsDesc(score)  << SVG_DESC_END  << endl
-//                << SVG_CDATA_BEGIN;
-//    for (auto cue : setCues) {        // std::set is ordered, sorted with less()
-//        idxByCue.emplace(cue, ++idx); // for cue index as data-i...
-//        cdataStream << cue << endl;   // newline-delimited CDATA of cue_ids
-//    }
-//    cdataStream << SVG_CDATA_END << SVG_END;
-//
-//    cdataStream.flush();
-//    cdataFile.close();
-//
-//    const int cueIdxDigits = QString::number(idx).size();
-    /// end future use
-
     // The sort order for elmPtrs is critical: if (isMulti) by type, by staff;
     //                                         else         by type;
     QList<Element*> elmPtrs = page->elements();
@@ -4148,10 +4088,8 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isAuto, bool 
     int              idxStaff;  // Everything is grouped by staff.
     EType            eType;     // Everything is determined by element type.
 
-    int maxNote = 0; // data-maxnote = Max note duration for this score. Helps optimize
-                     // highlighting previous notes when user changes start time.
-                     ///!!!OBSOLETE!!!
     idxStaff = -1;
+    Spanner* sp;
 //    Beam* b;
     foreach (const Element* e, elmPtrs) {
         // Always exclude invisible elements from this pass, except TEMPO_TEXT.
@@ -4185,31 +4123,44 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isAuto, bool 
             continue;
             break;
                                         /// Highlighted Elements
-        case EType::REST       : //                = ChordRest subclass Rest
-        case EType::LYRICS     : //        .parent = ChordRest
-        case EType::NOTE       : //        .parent = ChordRest
-        case EType::NOTEDOT    : // .parent.parent = ChordRest subclass Chord
-        case EType::ACCIDENTAL : // .parent.parent = ChordRest subclass Chord
-        case EType::HARMONY    : //     annotation = handled by getAnnCueId()
+        case EType::REST         : //                = ChordRest subclass Rest
+        case EType::ARTICULATION : //        .parent = ChordRest, if .parent()
+        case EType::NOTE         : //        .parent = ChordRest
+        case EType::LYRICS       : //        .parent = ChordRest
+        case EType::TREMOLO      : //        .parent = ChordRest subclass Chord
+        case EType::CHORDLINE    : //        .parent = ChordRest subclass Chord
+        case EType::NOTEDOT      : // .parent.parent = ChordRest subclass Chord
+        case EType::ACCIDENTAL   : // .parent.parent = ChordRest subclass Chord
+        case EType::HARMONY      : //     annotation = handled by getAnnCueId()
+        case EType::GLISSANDO_SEGMENT: // it's a SpannerSegment, Spanner has ticks
             switch (eType) {
             case EType::REST :
                 cr = static_cast<const ChordRest*>(e);
                 break;
-            case EType::LYRICS :
-            case EType::NOTE   :
+            case EType::NOTE      :
+            case EType::LYRICS    :
+            case EType::TREMOLO   :
+            case EType::CHORDLINE :
                 cr = static_cast<const ChordRest*>(e->parent());
-                maxNote = qMax(maxNote, cr->actualTicks().ticks());
                 break;
             case EType::NOTEDOT :
 		    if (e->parent()->isRest()) {
 		    	  cr = static_cast<const ChordRest*>(e->parent());
 		    	  break;
-		    }                 // else falls through
-		case EType::ACCIDENTAL :
+            }                  // fallthru
+            case EType::ACCIDENTAL :
                 cr = static_cast<const ChordRest*>(e->parent()->parent());
                 break;
+            case EType::ARTICULATION :
+                cr = static_cast<const Articulation*>(e)->chordRest();
+                break;
+            case EType::GLISSANDO_SEGMENT:
+                sp = static_cast<const SpannerSegment*>(e)->spanner();
+                cue_id = getCueID2(score, sp->tick().ticks(), sp->tick2().ticks());
+                break;
             case EType::HARMONY : // special case: end tick is next HARMONY
-                cue_id = getAnnCueID(score, e, eType);
+                cue_id = getAnnCueID(score, e, eType); // fallthru
+            default:              // prevents compiler warnings
                 break;
             }
 
@@ -4358,8 +4309,8 @@ bool MuseScore::saveSMAWS_Music(Score* score, QFileInfo* qfi, bool isAuto, bool 
 
         // Multi-Select Staves frozen pane has <use> elements, one per staff
         staffTops.append(staffTops[0]); // For the staff-independent elements
-        for (i = 0; i < iNames.size(); i++)
-            printer.createMultiUse(staffTops[i]);
+//!!        for (i = 0; i < iNames.size(); i++)
+//!!            printer.createMultiUse(staffTops[i]);
     }
     else 
         // Paint everything all at once, not by staff

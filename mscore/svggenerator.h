@@ -42,6 +42,8 @@
 #ifndef SVGGENERATOR_H
 #define SVGGENERATOR_H
 
+#include <unordered_set>
+
 #include <QtGui/qpaintdevice.h>
 
 #include <QtCore/qnamespace.h>
@@ -92,7 +94,7 @@ using IntSet          = std::set<int>;
 using IntPair         = std::pair<int, int>;
 using IntPairSet      = std::set<IntPair>;
 using Int2IntSet      = std::map<int, IntSet>;
-using ETypeSet        = std::set<EType>;
+using ETypeSet        = std::unordered_set<EType>;
 
 ///////////////////////////////////////////////////////////////////////////////
 // SVG and SMAWS constants
@@ -147,6 +149,7 @@ using ETypeSet        = std::set<EType>;
 #define SVG_TEXT_BEGIN  "<text"
 #define SVG_TEXT_END    "</text>"
 #define SVG_USE_END     "</use>"
+#define SVG_RECT_END    "</rect>"
 
 #define SVG_USE         "<use"
 #define SVG_LINE        "<line"
@@ -283,6 +286,8 @@ using ETypeSet        = std::set<EType>;
 #define CLASS_INAME_NOTE    "iNameNote"
 #define CLASS_INAME_TABS    "iNameTabs"
 #define CLASS_LYRICS        "lyrics"
+#define CLASS_SEGMENT       "Segment" // class name suffix used by MuseScore
+#define CLASS_TEXT          "Text"    // used as a suffix for <text> styles
 
 // Miscellaneous SMAWS constants
 #define CUE_ID_FIELD_WIDTH 6 // that's 16 minutes 39 seconds
