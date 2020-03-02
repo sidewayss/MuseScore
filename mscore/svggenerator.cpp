@@ -48,10 +48,12 @@
 #include "libmscore/key.h"
 #include "libmscore/keysig.h"
 #include "libmscore/note.h"      // for MIDI note numbers (pitches)
+#include "libmscore/part.h"
 #include "libmscore/score.h"     // for Score::nstaves()
 #include "libmscore/segment.h"
 #include "libmscore/spanner.h"
 #include "libmscore/staff.h"     // for Tablature staves
+#include "libmscore/stafflines.h"
 #include "libmscore/stem.h"      // ditto
 #include "libmscore/tempotext.h" // for TempoText class
 #include "libmscore/text.h"      // for Measure numbers
@@ -1247,17 +1249,18 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
 
     // Frozen Pane (horizontal scrolling only), staff lines only
     if (isStaffLines && _hasFrozen) {
+        ppe = p.elementAt(0);
         if (_xLeft == 0)
-            _xLeft = p.elementAt(0).x + _dx;
+            _xLeft = ppe.x + _dx;
 
+        iy = rint(ppe.y + yOff);
         if (frozenLines[_idxStaff] == 0) { // staff lines draw first
-            y = p.elementAt(0).y + yOff;
             height -= 2; // 1 stroke @ stroke width="2"
             qs.clear();
-            qts << SVG_RECT << SVG_CLASS  << SVG_NONE  << SVG_QUOTE
-                << SVG_Y << SVG_QUOTE << int(y) << SVG_QUOTE
-                << SVG_WIDTH  << int(_xLeft)    << SVG_QUOTE
-                << SVG_HEIGHT << height         << SVG_QUOTE
+            qts << SVG_RECT << SVG_CLASS << SVG_NONE << SVG_QUOTE
+                << SVG_Y    << SVG_QUOTE << int(y)   << SVG_QUOTE
+                << SVG_WIDTH  << int(_xLeft)         << SVG_QUOTE
+                << SVG_HEIGHT << height              << SVG_QUOTE
                 << SVG_GT;
             _multiUse.append(qs);
 
@@ -1266,13 +1269,25 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
             qts << SVG_4SPACES << SVG_PATH    << SVG_CLASS << "StaffLines"
                 << SVG_QUOTE   << SVG_4SPACES << SVG_D; //assumes field width = 15...
 
-            y += height / 2; // truncates, does not round
-            _iNameY[_idxStaff] = y;
+            _iNameY[_idxStaff] = iy;
             if (_isLinked)
-                frozenINameY[_idxStaff] = y;
+                frozenINameY[_idxStaff] = iy;
         }
-        else
+        else { // if >1 line for this staff
             qts.setString(frozenLines[_idxStaff]);
+            Ms::StaffLines* sl = static_cast<const Ms::StaffLines*>(_e)->clone();
+            QVector<QLineF>& lines = sl->getLines();
+            Ms::Staff* staff = 0;
+            if (_isGrand) {
+                QList<Ms::Staff*>* staves = _e->score()->staves()[_idxStaff]->part()->staves();
+                staff = staves->last();
+            }
+            if (ppe.y == lines[lines.size() - 1].y1() && (!_isGrand || _e->staff() == staff)) {
+                _iNameY[_idxStaff] += (iy - _iNameY[_idxStaff]) / 2;
+                if (_isLinked)
+                    frozenINameY[_idxStaff] = _iNameY[_idxStaff]; // not currently used...
+            }
+        }
 
         qts << dLine; // terminated later, in beginDef() and end()
     }
@@ -1948,7 +1963,7 @@ void SvgPaintEngine::freezeSig(FDef* def, int idx, RealListVect& frozenY, EType 
         def->insert(key, spl);
     }
     size = (*def)[key]->size();
-    half = (isKeySig && _isGrand) ? size / 2 : 0;
+    half = isKeySig && _isGrand ? size / 2 : 0;
 
     for (i = 0; i < frozenY[idx].size(); i++) {
         if (size == i) {
