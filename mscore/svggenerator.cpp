@@ -301,6 +301,7 @@ protected:
     QStringList* _fullNames;  // Multi-Select Staves: list of full/long names
     QStringList  _multiUse;   // ditto: list of <use> element text starters
     QStringList  _multiTitle; // ditto: list of <use> element titles
+    Int2StrMap   _masks;
 
     // These only vary by cue_id, not by Staff
     Str2RealMap xOffsetTimeSig; // TimeSig x-coord varies by KeySig, and thus by cue_id.
@@ -384,9 +385,9 @@ protected:
         _isOnePath = false;
     }
     void streamLeftovers() {
-        if (!_leftovers.isEmpty()) { 
+        if (!_leftovers.isEmpty()) {
             *d_func()->stream << SVG_3SPACES << SVG_GROUP_BEGIN
-                              << SVG_CLASS   << _classValue   
+                              << SVG_CLASS   << _classValue
                               << (_classValue == _e->name(EType::NOTE) ? "Left" : CLASS_TEXT)
                  << SVG_QUOTE << SVG_GT      << endl          << _leftovers
                               << SVG_3SPACES << SVG_GROUP_END << endl;;
@@ -507,9 +508,6 @@ bool SvgPaintEngine::begin(QPaintDevice *)
         return false;
     }
 
-    // Initialize the <defs> string
-    d->defs = SVG_DEFS_BEGIN;
-
     // Initialize the stream, for other functions to populate
     d->stream = new QTextStream(&d->body);
     initStream(d->stream);
@@ -554,35 +552,42 @@ bool SvgPaintEngine::end()
     if (_isSMAWS) {
         stream() << SVG_4SPACES << SVG_XYMIN_SLICE
                  << SVG_POINTER << SVG_NONE   << SVG_QUOTE;
-        if (_isMulti) {
-            QString cues;
-            QString vals;
-            for (auto it = _scrollXY.begin(); it != _scrollXY.end(); ++it) {
-                cues += QString::number(it->first)  % SVG_COMMA;
-                vals += QString::number(it->second) % SVG_COMMA;
-            }
-            cues.chop(1); // chop trailing commas
-            vals.chop(1);
-            stream() << endl << SVG_4SPACES << SVG_CUE << SVG_L_BRACKET
-                     << SVG_L_BRACKET << cues << SVG_R_BRACKET << SVG_COMMA 
-                     << SVG_L_BRACKET << vals << SVG_R_BRACKET << SVG_R_BRACKET
-                     << SVG_QUOTE     << endl;
+        QString cues;
+        QString vals;
+        for (auto it = _scrollXY.begin(); it != _scrollXY.end(); ++it) {
+            cues += QString::number(it->first)  % SVG_COMMA;
+            vals += QString::number(it->second) % SVG_COMMA;
         }
-        else
-            stream() << SVG_STAFFLINES <<_nLines << SVG_QUOTE;
+        cues.chop(1); // chop trailing commas
+        vals.chop(1);
+        stream() << endl << SVG_4SPACES << SVG_CUE << SVG_L_BRACKET
+                 << SVG_L_BRACKET << cues << SVG_R_BRACKET << SVG_COMMA
+                 << SVG_L_BRACKET << vals << SVG_R_BRACKET;
+        if (_isScrollVertical) {
+            QString qs;
+            QTextStream qts(&qs);
+
+            stream() << SVG_COMMA << SVG_L_BRACKET;
+            for (auto top : _systemTop)
+                qts << top.second << SVG_COMMA;
+            qs.chop(1); // trim final comma
+            stream() << qs << SVG_R_BRACKET << SVG_COMMA << SVG_L_BRACKET;
+
+            qs.clear();
+            for (auto bot : _systemBot)
+                qts << bot.second << SVG_COMMA;
+            qs.chop(1); // trim final comma
+            stream() << qs << SVG_R_BRACKET;
+        }
+        stream() << SVG_R_BRACKET << SVG_QUOTE << endl;
     }
     stream() << SVG_GT << endl;
 
-    if (_isSMAWS) // inline <svg> titles pop up as tooltips for entire document
+    if (_isSMAWS) { // <svg><title></svg> pops up as tooltip for entire document
         stream() << SVG_DESC_BEGIN  << d->attributes.title << SVG_SPACE
                                     << d->attributes.desc  << SVG_DESC_END  << endl;
-    else
-        stream() << SVG_TITLE_BEGIN << d->attributes.title << SVG_TITLE_END << endl
-                 << SVG_DESC_BEGIN  << d->attributes.desc  << SVG_DESC_END  << endl;
 
-
-    if (_isSMAWS) { // Cursor at the end of the current body
-        stream().setString(&d->body);
+        stream().setString(&d->body); // cursor at the end of the current body
 
         // Two gray-out <rect>s (left/right) for graying out inactive bars
         QString indent;
@@ -597,28 +602,17 @@ bool SvgPaintEngine::end()
 
         if (_isMulti)
             stream() << SVG_Y << SVG_QUOTE << _cursorTop << SVG_QUOTE;
-        else { // for PART only, is this if() correct??
-            QString qs;
-            QTextStream qts(&qs);
-            qts << endl << SVG_8SPACES << SVG_TOP;
-            for (auto top : _systemTop)
-                qts << top.second << SVG_COMMA;
-            qs.chop(1); // trim final comma
-            stream() << qs << SVG_QUOTE;
 
-            qs.clear();
-            qts << endl << SVG_8SPACES << SVG_BOT;
-            for (auto bot : _systemBot)
-                qts << bot.second << SVG_COMMA;
-            qs.chop(1); // trim final comma
-            stream() << qs << SVG_QUOTE;
-        }
         stream() << SVG_ELEMENT_END << endl;
 
         if (_isMulti) // Terminate the Staves group
             stream() << SVG_GROUP_END << endl;
     }
-    // Deal with Frozen Pane, if it exists
+    else
+        stream() << SVG_TITLE_BEGIN << d->attributes.title << SVG_TITLE_END << endl
+                 << SVG_DESC_BEGIN  << d->attributes.desc  << SVG_DESC_END  << endl;
+
+    // <defs> contains frozen panes and tablature masks
     if (_hasFrozen) {
         // Frozen body - _hasFrozen depends on _isSMAWS, setString(&d->body) above
         int i;
@@ -630,7 +624,7 @@ bool SvgPaintEngine::end()
             // Frozen <use> elements by staff. SVG_GROUP_ consolidates events.
             stream() << SVG_RECT << SVG_CLASS << SVG_NONE << SVG_QUOTE
                      << SVG_ELEMENT_END << endl
-                     << SVG_GROUP_BEGIN << " mask=\"url(#maskFrozen)\""
+                     << SVG_GROUP_BEGIN << SVG_MASK << "maskFrozen" << SVG_RPAREN_QUOTE
                      << SVG_GT << endl;
 
             int last = _iNames->size() - 1;
@@ -695,7 +689,7 @@ bool SvgPaintEngine::end()
                     }
                 }
             }
-            stream() << SVG_4SPACES << SVG_GROUP_END << endl;
+            stream() << SVG_2SPACES << SVG_GROUP_END << endl;
 
             // Percussion and tablature staves do not have key signatures, but
             // they do have time sigs, and those should be aligned with the
@@ -731,6 +725,13 @@ bool SvgPaintEngine::end()
         } // end for(each frozen def)
     } //if(Frozen Pane)
 
+    if (_masks.size()) {
+        stream().setString(&d->defs); // might already be set by _hasFrozen
+        for (auto mask : _masks)
+            stream() << mask << SVG_QUOTE << SVG_ELEMENT_END << endl
+                     << SVG_2SPACES       << SVG_MASK_END    << endl;
+    }
+
     // Point the stream at the real output device (the .svg file)
     stream().setDevice(d->outputDevice);
     stream().setCodec(_codec);
@@ -739,14 +740,14 @@ bool SvgPaintEngine::end()
     // Stream our strings out to the device, in order: header, defs, body
     stream() << d->header;
 
-    if (d->defs != SVG_DEFS_BEGIN)
-        stream() << d->defs << SVG_DEFS_END;
+    if (!d->defs.isEmpty())
+        stream() << SVG_DEFS_BEGIN << d->defs << SVG_DEFS_END;
 
     // Multi wraps all the staves in an outer group for simpler x-axis scrolling
     // The group is terminated in the frozen pane code a few lines up from here
     if (_isMulti)
         stream() << SVG_GROUP_BEGIN << SVG_ID << ID_STAVES << SVG_QUOTE
-                 << " mask=\"url(#maskS)\""   << SVG_GT    << endl;
+                 << SVG_MASK << "maskS" << SVG_RPAREN_QUOTE << SVG_GT << endl;
 
     stream() << d->body;
 
@@ -773,6 +774,8 @@ void SvgPaintEngine::updateState(const QPaintEngineState &s)
     initStream(&qts);
 
     QString classVal  = getClass();
+    Ms::Staff* staff  = _e->staff();
+    bool isTabs       = staff && staff->isTabStaff(_e->tick());
     bool classChanged =(classVal != _classValue);
     if (classChanged) {
         _isOnePath ? closePath() : closeGroup();
@@ -781,7 +784,6 @@ void SvgPaintEngine::updateState(const QPaintEngineState &s)
         _relY = 0.0;
     }
     _isOnePath = _notGrouped.find(_et) != _notGrouped.end() 
-              || (_et == EType::NOTE && _e->staff()->isTabStaff(_e->tick()))
               || (_et == EType::BAR_LINE
                && static_cast<const Ms::BarLine*>(_e)->barLineType() == BLType::NORMAL);
 
@@ -795,9 +797,14 @@ void SvgPaintEngine::updateState(const QPaintEngineState &s)
         qts.setFieldWidth(0);
     }
     else if (classChanged) { // classState gets no class attribute, but a new <g> does
-        if (_isOnePath)
-            stream() << SVG_3SPACES << SVG_PATH << SVG_CLASS << _classValue
-                     << SVG_QUOTE   << SVG_D;
+        if (_isOnePath) {
+            stream() << SVG_3SPACES << SVG_PATH << SVG_CLASS << _classValue << SVG_QUOTE;
+            if (_et == EType::STAFF_LINES && isTabs)
+                stream() << SVG_MASK
+                         << (_isScrollVertical ? staff->part()->longName() + "P" : _iNames->last())
+                         << SUFFIX_MASK << SVG_RPAREN_QUOTE;
+            stream() << SVG_D;
+        }
         else {
             stream() << SVG_3SPACES << SVG_GROUP_BEGIN
                      << SVG_CLASS   << _classValue << SVG_QUOTE << SVG_GT << endl;
@@ -1023,6 +1030,8 @@ void SvgPaintEngine::drawImage(const QRectF &r, const QImage &image,
 
 void SvgPaintEngine::drawPath(const QPainterPath &p)
 {
+    Q_D(SvgPaintEngine);
+
     qreal yOff = _dy + (_isFullMatrix ? 0 : _yOffset);
 
     if (_isMulti && !_isOnePath)
@@ -1061,6 +1070,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     // It's important to render them properly in SVG and minimize their SVG text
     // These are maximum 0.5px adjustments on a canvas that is 5x normal size
     // The position changes are virtually invisible, but rendering is improved
+    Ms::Staff* staff   = _e->staff();
     bool  isStaffLines = (_et == EType::STAFF_LINES);         // stroke-width="2", horz
     bool  isLyricsLine = (_et == EType::LYRICSLINE_SEGMENT);  // stroke-width="4", horz
     bool  isBarLine    = (_et == EType::BAR_LINE);            // stroke-width="4", vert
@@ -1071,7 +1081,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
     bool  isPolyLine   = (_isPath.find(_et) != _isPath.end());// no Z, from drawPolyline()
     bool  is24   = isStaffLines || isLyricsLine || isBarLine; // horz || horz || vert
     bool  is3    = isLedger     || isStem;                    // horz || vert
-    bool  isTabs = _e->staff()->isTabStaff(_e->tick());
+    bool  isTabs = staff->isTabStaff(_e->tick());
     int   height = _e->bbox().height();
     qreal spatium, x, y, z;
     int i, l, n, ix, iy, tick;
@@ -1224,7 +1234,7 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
         _relX = 0.0; // these two are reset to zero in too many places
         _relY = 0.0;
     }
-    else if (isBarLine && _idxStaff == 0)
+    else if (!_isScrollVertical && isBarLine && _idxStaff == 0)
         _scrollXY[_cue_id.toInt()] = rint(p.elementAt(0).x + _dx);
     else if (isStaffLines && !_cue_id.isEmpty()) {
         const int pad = Ms::DPI_F * 3;
@@ -1248,48 +1258,66 @@ void SvgPaintEngine::drawPath(const QPainterPath &p)
         stream() << qs;
 
     // Frozen Pane (horizontal scrolling only), staff lines only
-    if (isStaffLines && _hasFrozen) {
-        ppe = p.elementAt(0);
-        if (_xLeft == 0)
-            _xLeft = ppe.x + _dx;
+    if (isStaffLines) {
+        if (_hasFrozen) {
+            ppe = p.elementAt(0);
+            if (_xLeft == 0)
+                _xLeft = ppe.x + _dx;
 
-        iy = rint(ppe.y + yOff);
-        if (frozenLines[_idxStaff] == 0) { // staff lines draw first
-            height -= 2; // 1 stroke @ stroke width="2"
-            qs.clear();
-            qts << SVG_RECT << SVG_CLASS << SVG_NONE << SVG_QUOTE
-                << SVG_Y    << SVG_QUOTE << int(y)   << SVG_QUOTE
-                << SVG_WIDTH  << int(_xLeft)         << SVG_QUOTE
-                << SVG_HEIGHT << height              << SVG_QUOTE
-                << SVG_GT;
-            _multiUse.append(qs);
+            iy = rint(ppe.y + yOff);
+            if (frozenLines[_idxStaff] == 0) { // staff lines draw first
+                qs.clear();
+                qts << SVG_RECT << SVG_CLASS << SVG_NONE << SVG_QUOTE
+                    << SVG_Y    << SVG_QUOTE << int(y)   << SVG_QUOTE
+                    << SVG_WIDTH  << int(_xLeft)         << SVG_QUOTE
+                    << SVG_HEIGHT << height - 2          << SVG_QUOTE
+                    << SVG_GT;
+                _multiUse.append(qs);
 
-            frozenLines[_idxStaff] = new QString;
-            qts.setString(frozenLines[_idxStaff]);
-            qts << SVG_4SPACES << SVG_PATH    << SVG_CLASS << "StaffLines"
-                << SVG_QUOTE   << SVG_4SPACES << SVG_D; //assumes field width = 15...
+                frozenLines[_idxStaff] = new QString;
+                qts.setString(frozenLines[_idxStaff]);
+                qts << SVG_4SPACES << SVG_PATH    << SVG_CLASS << "StaffLines"
+                    << SVG_QUOTE   << SVG_4SPACES << SVG_D; //assumes field width = 15...
 
-            _iNameY[_idxStaff] = iy;
-            if (_isLinked)
-                frozenINameY[_idxStaff] = iy;
-        }
-        else { // if >1 line for this staff
-            qts.setString(frozenLines[_idxStaff]);
-            Ms::StaffLines* sl = static_cast<const Ms::StaffLines*>(_e)->clone();
-            QVector<QLineF>& lines = sl->getLines();
-            Ms::Staff* staff = 0;
-            if (_isGrand) {
-                QList<Ms::Staff*>* staves = _e->score()->staves()[_idxStaff]->part()->staves();
-                staff = staves->last();
-            }
-            if (ppe.y == lines[lines.size() - 1].y1() && (!_isGrand || _e->staff() == staff)) {
-                _iNameY[_idxStaff] += (iy - _iNameY[_idxStaff]) / 2;
+                _iNameY[_idxStaff] = iy;
                 if (_isLinked)
-                    frozenINameY[_idxStaff] = _iNameY[_idxStaff]; // not currently used...
+                    frozenINameY[_idxStaff] = iy;
             }
-        }
+            else { // if >1 line for this staff
+                qts.setString(frozenLines[_idxStaff]);
+                Ms::StaffLines* sl = static_cast<const Ms::StaffLines*>(_e)->clone();
+                QVector<QLineF>& lines = sl->getLines();
+                Ms::Staff* st = 0;
+                if (_isGrand) {
+                    QList<Ms::Staff*>* staves = _e->score()->staves()[_idxStaff]->part()->staves();
+                    st = staves->last();
+                }
+                if (ppe.y == lines[lines.size() - 1].y1() && (!_isGrand || staff == st)) {
+                    _iNameY[_idxStaff] += (iy - _iNameY[_idxStaff]) / 2;
+                    if (_isLinked)
+                        frozenINameY[_idxStaff] = _iNameY[_idxStaff]; // not currently used...
+                }
+            }
 
-        qts << dLine; // terminated later, in beginDef() and end()
+            qts << dLine; // terminated later, in beginDef() and end()
+        }
+        if (staff->isTabStaff(_e->tick()) && _masks.find(_idxStaff) == _masks.end()) {
+            QString mask;
+            qts.setString(&mask);
+            qts << SVG_2SPACES << SVG_MASK_BEGIN
+                << SVG_ID
+                << (_isScrollVertical ? staff->part()->longName() + "P" : _iNames->last()) //!!duplicate code
+                << SUFFIX_MASK << SVG_QUOTE << SVG_GT << endl
+                << SVG_4SPACES << SVG_RECT
+                << SVG_FILL    << "#FFF" << SVG_QUOTE
+                << SVG_Y       << SVG_QUOTE << int(y) - 2   << SVG_QUOTE
+                << SVG_WIDTH   << qCeil(d->viewBox.width()) << SVG_QUOTE
+                << SVG_HEIGHT  << height + 2                << SVG_QUOTE
+                << SVG_ELEMENT_END                          << endl
+                << SVG_4SPACES << SVG_PATH
+                << SVG_CLASS   << "maskLines" << SVG_QUOTE << SVG_D;
+            _masks.insert(_idxStaff, mask);
+        }
     }
 }
 
@@ -1361,7 +1389,8 @@ void SvgPaintEngine::drawRects(const QRectF *rects, int rectCount)
                 // PART, move to next system by removing the previous one's staff lines
                 _staffLinesY.remove(0, _e->staff()->staffType(Ms::Fraction())->lines());
 
-            stream() << SVG_M << x << SVG_COMMA << y << SVG_h << w;
+            QTextStream qts(&_masks[_idxStaff]);
+            qts << SVG_M << x << SVG_COMMA << y << SVG_h << w;
         }
     }
 }
@@ -1424,7 +1453,6 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
     ///!!!not for this release...    int pitch = -1;
     bool isRM       = false;
     bool isTab      = false;
-    bool isTabNote  = false;
     bool isNoteLeft = false;
     if (hasTick) {
         const Ms::Note* note;
@@ -1437,11 +1465,10 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
             note = static_cast<const Ms::Note*>(_e);
             ///!!!not for this release...    pitch = note->pitch();
             if (isTab) {
-                isTabNote = true;
                 if (_stemX.find(tick) != _stemX.end())
                     x = _stemX[tick];
-                y = _staffLinesY[note->string()] + 1; //??stroke-width:2; 1 = 2 / 2?
-                break;                                //??numbers = no-sub-baseline?
+                y = _staffLinesY[note->string()];
+                break;
             }
             else if (note->chord()->stem() 
                   && note->chord()->stem()->up() != note->mirror())  {
@@ -1547,8 +1574,8 @@ void SvgPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textItem)
         return;
     }
     // stream the text element to the body or the leftovers bin
-    if (isRM || isTabNote || isNoteLeft || _e->isTuplet()
-             || _e->isOttavaSegment()   || _e->isGlissandoSegment())
+    if (isRM || isNoteLeft || _e->isTuplet() || _e->isOttavaSegment()
+                                             || _e->isGlissandoSegment())
         _leftovers.append(qs); // text after shape in z-order
     else
         stream() << qs;

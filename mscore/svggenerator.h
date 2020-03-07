@@ -63,6 +63,8 @@ using Str2ElmMap   = QMap<QString, const Ms::Element*>;
 using Str2ElmMulti = QMultiMap<QString, const Ms::Element*>;
 using Type2Multi   = QMap<EType, Str2ElmMulti>;
 
+using CharVect        = std::vector<char>;
+using CharVectVect    = std::vector<CharVect*>;
 using StrPtrList      = QList<QString*>;
 using StrPtrVect      = QVector<QString*>;
 using StrPtrListList  = QList<StrPtrList*>;
@@ -150,6 +152,10 @@ using ETypeSet        = std::unordered_set<EType>;
 #define SVG_TEXT_END    "</text>"
 #define SVG_USE_END     "</use>"
 #define SVG_RECT_END    "</rect>"
+#define SVG_MASK_BEGIN  "<mask"
+#define SVG_MASK_END    "</mask>"
+#define SVG_MASK        " mask=\"url(#"
+#define SUFFIX_MASK     "Mask"
 
 #define SVG_USE         "<use"
 #define SVG_LINE        "<line"

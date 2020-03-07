@@ -4873,9 +4873,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
     StrPtrVect*    spv2;
     ChordRest*     cr2;
     Note*          note2;
-    StrPtrVectVect grid2(    nGridCols, 0);
-    StrPtrVectVect gridStart2(nGridCols, 0);  
-    StrPtrVectVect gridEnd2  (nGridCols, 0);  
+    StrPtrVectVect grid2(nGridCols, 0);
     StrPtrVectVect dataStart2(nGridCols, 0);  
     StrPtrVectVect dataEnd2  (nGridCols, 0);  
     StrPtrListVectVect leds2(nGridCols, 0);
@@ -4895,8 +4893,14 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
     int cellY  = 0;
     int height = 0;
 
-    int colSpan, colSpan2; // negative number for tuplets and other sub divisions
-    QString sme;    // 's' or 'm' or 'e' == start, middle end, for tuplets et al.
+    int colSpan, colSpan2;  // negative number for tuplets and other sub divisions
+    CharVectVect spansCols(nGridCols, 0); // by Page, 3-state value: Y, N, 0 for Yes, No, Zero
+    const char xYes   = 'Y';
+    const char xNo    = 'N';
+    const char xZero  = '0';
+    const char xEmpty = ' ';
+
+    QString sme;    // s, m, e == start, middle end, for sub-grid sub-divisions //!!char??
     bool isGridCol;
 
     // These are only used for barLines <rect>s and beatLines <line>s
@@ -4913,7 +4917,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
 
     // For xlink:href values
     const QString LED  = "led";
-    const QString MINI = "mini";
+    const QString MINI = "pit"; // pit for pitch, 3 chars just like LED
     const QString LO   = "Lo";
     const QString NO   = "No";
 
@@ -5057,6 +5061,7 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                     }
                     pitches[idxCol] = new IntListVect(nStaves, 0);
                     if (isPages) {
+                        spansCols[idxCol] = new CharVect(nStaves, xEmpty);
                         dataStart[idxCol] = new StrPtrVect(nStaves, 0);
                         dataEnd  [idxCol] = new StrPtrVect(nStaves, 0);
                         leds[idxCol] = new StrPtrListVect(nStaves, 0);
@@ -5399,12 +5404,21 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                     QString cellValue;
                     QString cellValue2;
 
-                    if (isLED)
+                    if (isLED) {
+                        if (idxCol < nGridCols) {
+                            bool hasSpans = isChord && colSpan > 1;
+                            if ((*spansCols[idxCol])[r] == xEmpty)
+                                (*spansCols[idxCol])[r] = hasSpans ? xZero : xNo;
+                            else if ((*spansCols[idxCol])[r] != xYes // Yes is permanent
+                                  && hasSpans != ((*spansCols[idxCol])[r] == xZero))
+                                (*spansCols[idxCol])[r] = xYes;
+                        }
                         cellValue = QString("%1%2%3%4")
                                    .arg(LED)
                                    .arg(colSpan != 1 ? QString::number(colSpan) : "")
                                    .arg(sme)
                                    .arg(isChord ? NO : LO);
+                    }
                     else if (isChordsRow) {
                         Harmony* pHarm = getHarmony(s);
                         if (pHarm != 0) // this prevents crashes for misaligned scores
@@ -5598,7 +5612,25 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                  << *eT;
                 tableStream << SVG_R_BRACKET << SVG_COMMA << endl
                             << pageCues      << SVG_R_BRACKET << SVG_QUOTE << endl
-                            << SVG_4SPACES   << SVG_PAGE_CUE  << tempoCues  << SVG_GT << endl;
+                            << SVG_4SPACES   << " data-cols=\"";
+
+                int prevCols = -1;
+                QString colsByPage;
+                qts.setString(&colsByPage);
+                if (QSet<int>::fromList(pageCols).size() == 1)
+                    qts << pageCols[0] << SVG_QUOTE;
+                else {
+                    for (auto cols : pageCols) {
+                        if (cols != prevCols) {
+                            qts << cols;
+                            prevCols = cols;
+                        }
+                        qts << SVG_COMMA;
+                    }
+                    colsByPage.chop(1);
+                }
+                tableStream << colsByPage   << SVG_QUOTE  << endl   << SVG_4SPACES
+                            << SVG_PAGE_CUE << tempoCues  << SVG_GT << endl;
 
 // this writes start2end, then pageCues
 // to use this you must replace double with single quotes around the whole value
@@ -6030,6 +6062,9 @@ bool MuseScore::saveSMAWS_Tables(Score*     score,
                                 tableStream << SVG_CUE << SVG_L_BRACKET << SVG_L_BRACKET
                                             << *(*dataStart[c])[r] << SVG_R_BRACKET << SVG_COMMA << SVG_L_BRACKET
                                             << *(*dataEnd  [c])[r] << SVG_R_BRACKET << SVG_R_BRACKET << SVG_QUOTE;
+
+                            if (c < nGridCols && (*spansCols[c])[r] != xNo)
+                                tableStream << " data-x=\"" << (*spansCols[c])[r] << SVG_QUOTE;
 
                             spl  = (*leds[c])[r];
                             if (spl != 0)
